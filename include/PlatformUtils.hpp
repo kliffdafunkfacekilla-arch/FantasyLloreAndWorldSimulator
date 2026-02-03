@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
 
-// Cross-platform helper Declarations
-std::string OpenFileDialog();
+namespace PlatformUtils {
+    std::string OpenFileDialog();
+}

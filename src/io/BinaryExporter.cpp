@@ -1,22 +1,32 @@
-#include "../../include/WorldEngine.hpp"
 #include <fstream>
 #include <iostream>
+#include "../../include/WorldEngine.hpp"
 
-// The "Decoupled Bridge" (Binary Save)
-// This function creates the static file that your Lore Wiki reads.
-void SaveWorldSnapshot(const WorldBuffers& buffers, uint32_t count) {
-    std::ofstream outFile("saves/world_state.dat", std::ios::binary);
-    
-    // Write Header (Cell Count and what modules are active)
-    outFile.write((char*)&count, sizeof(uint32_t));
+void SaveWorldSnapshot(const WorldBuffers& buffers, uint32_t count, const char* filename) {
+    std::ofstream outFile(filename, std::ios::binary);
 
-    // Bulk write the arrays (This is extremely fast)
-    outFile.write((char*)buffers.height, count * sizeof(float));
-    
-    if (buffers.population) {
-        outFile.write((char*)buffers.population, count * sizeof(uint32_t));
+    if (!outFile.is_open()) {
+        std::cerr << "[ERROR] Could not create snapshot file." << std::endl;
+        return;
     }
-    
+
+    // 1. Write Header (Cell Count)
+    outFile.write(reinterpret_cast<const char*>(&count), sizeof(uint32_t));
+
+    // 2. Dump Memory Blocks
+    // We only save what is allocated. For a full app, you'd add flags.
+
+    // Core Geometry
+    if (buffers.height)
+        outFile.write(reinterpret_cast<char*>(buffers.height), count * sizeof(float));
+
+    // Simulation Data
+    if (buffers.population)
+        outFile.write(reinterpret_cast<char*>(buffers.population), count * sizeof(uint32_t));
+
+    if (buffers.factionID)
+        outFile.write(reinterpret_cast<char*>(buffers.factionID), count * sizeof(int));
+
     outFile.close();
-    std::cout << "[SNAPSHOT] World State saved for Lore App." << std::endl;
+    std::cout << "[SNAPSHOT] Saved world state to " << filename << std::endl;
 }

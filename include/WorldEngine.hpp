@@ -1,160 +1,124 @@
 #pragma once
-#include <cstdint>
-#include <iostream>
-#include <string>
+
 #include <vector>
+#include <string>
+#include <iostream>
+#include <algorithm>
+#include <cstdint> // Added for uint32_t
 
-// 1. User Settings (From Menu)
+// 1. World Configuration (Linked to God Mode UI)
 struct WorldSettings {
-  uint32_t cellCount = 1000000;
-  int seed = 1337;
-  float seaLevel = 0.2f;
+    // Core Generation
+    uint32_t cellCount = 1000000;
+    int seed = 1337;
 
-  bool enableClimate = true;
-  bool enableFactions = true;
-  bool enableChaos = true;
-  bool enableHydrology = true;
+    // Terrain & Import Controls
+    char heightmapPath[256] = ""; // Fixed size for ImGui InputText compatibility
+    float seaLevel = 0.2f;
+    float heightMultiplier = 1.0f;
+    float heightMin = 0.0f;
+    float heightMax = 1.0f;
+    float heightSeverity = 1.0f;    // Exponent for peak sharpness
+    float featureFrequency = 0.01f; // Noise frequency
+    float featureClustering = 2.0f; // Noise lacunarity
 
-  uint32_t resourceCount = 4;
+    // Climate & Wind (5-Zone System)
+    bool manualWindOverride = false;
+    float windZones[5] = {0.5f, -0.5f, 1.0f, -0.5f, 0.5f}; // N.Pole to S.Pole
+    float globalTempModifier = 1.0f;
+    float rainfallModifier = 1.0f;
+    float globalWindStrength = 1.0f;
 
-  // Height Controls
-  float heightMultiplier = 1.0f;
-  float heightMin = 0.0f;
-  float heightMax = 1.0f;
+    // Erosion
+    int erosionIterations = 10;
 
-  // Controls (legacy & param sync)
-  float heightSeverity = 1.0f;
-  float featureFrequency = 0.01f;
-  float featureClustering = 2.0f;
+    // View & Scale (Zoom System)
+    int zoomLevel = 0;          // 0=Global, 3=Local
+    float pointSize = 1.0f;     // GPU point size
+    float viewOffset[2] = {0.5f, 0.5f}; // Camera X,Y
 
-  float severity = 1.0f;   // Sync with heightSeverity
-  float frequency = 0.01f; // Sync with featureFrequency
-
-  // Climate
-  float globalTempModifier = 1.0f;
-  float rainfallAmount = 1.0f;
-  float rainfallModifier = 1.0f;
-  float globalWindStrength = 1.0f;
-
-  int worldScaleMode = 3;
-
-  // New Parameter-Driven Fields
-  char heightmapPath[256] = "";
-  bool manualWindOverride = false;
-  float windZoneWeights[5] = {0.5f, 0.5f, 0.5f, 0.5f,
-                              0.5f}; // Strength/Dir for 5 zones
-  int erosionIterations = 10;
-
-  float chaosInstabilityScale = 0.5f;
-
-  // Civilization & Logic
-  float aggressionMult = 1.0f;
-  bool peaceMode = false;
-  float logisticsSpeed = 0.5f;
+    // Factions
+    bool enableFactions = true;
 };
 
-// Resource Definition
-struct ResourceRegistry {
-  std::string name;
-  int id;
-  float baseScarcity;
-  int preferredBiome;
-};
-
-// Universal Agent Template (DNA)
-struct AgentTemplate {
-  std::string speciesName;
-  int id;
-
-  // Capability Flags
-  bool isStatic;         // True for Plants
-  bool canBuild;         // True for People
-  bool canWar;           // True for People
-  bool isDomesticatable; // True for certain Animals
-
-  // DNA / Attributes
-  float aggression;
-  float intelligence;
-  float sociality;
-  float size;
-
-  // Biological Needs
-  float idealTemp;
-  float idealMoisture;
-  float adaptiveRate;
-
-  // Resource Weights
-  float weights[10];
-};
-
-// Faction System
-struct FactionAssets {
-  float transportSpeed = 1.0f;
-  float combatBonus = 0.0f;
-  std::vector<int> tamedSpeciesIDs;
-};
-
-struct Faction {
-  int id;
-  std::string name;
-  FactionAssets assets;
-};
-
-struct ChronosConfig {
-  float currentDayProgress = 0.0f;
-  float dayLengthInSeconds = 1.0f;
-  int dayCount = 0;
-  int daysPerMonth = 30;
-  int monthCount = 0;
-  int yearCount = 0;
-
-  float timeScale = 1.0f;
-  int globalTimeScale = 1;
-};
-
-// 2. The Memory Buffers (SoA Style)
+// 2. The Million-Cell Memory (SoA Layout)
+// using raw pointers for maximum CPU cache efficiency
 struct WorldBuffers {
-  uint32_t count = 0;
+    // Core Geometry (Always Allocated)
+    float* posX = nullptr;
+    float* posY = nullptr;
+    float* height = nullptr;
 
-  // Core Geometry
-  float *posX = nullptr;
-  float *posY = nullptr;
-  float *height = nullptr;
+    // Simulation Layers (Allocated on Demand)
+    float* temperature = nullptr;
+    float* moisture = nullptr;
+    float* windDX = nullptr; // Wind Vector X
+    float* windDY = nullptr; // Wind Vector Y
 
-  // Climate
-  float *temperature = nullptr;
-  float *moisture = nullptr;
-  float *flux = nullptr;
-  float *windDX = nullptr;
-  float *windDY = nullptr;
-  float *windStrength = nullptr;
+    // Civilization & Life
+    int* factionID = nullptr;
+    uint32_t* population = nullptr;
+    float* chaos = nullptr;
+    float* infrastructure = nullptr; // Roads/Cities
 
-  // Life & Civilization
-  uint32_t *population = nullptr;
-  int *speciesID = nullptr;
-  int *factionID = nullptr;
-  float *infrastructure = nullptr;
+    // Metadata
+    uint32_t count = 0;
 
-  float *resourceLevels = nullptr;
-  float *chaosEnergy = nullptr;
+    // Lifecycle Management
+    void Initialize(uint32_t c) {
+        count = c;
+        if (posX) Cleanup(); // Prevent double allocation
 
-  // Destructor to prevent memory leaks
-  void clear() {
-    delete[] posX;
-    delete[] posY;
-    delete[] height;
-    delete[] temperature;
-    delete[] moisture;
-    delete[] flux;
-    delete[] windDX;
-    delete[] windStrength;
-    delete[] windDY;
-    delete[] population;
-    delete[] speciesID;
-    delete[] factionID;
-    delete[] infrastructure;
-    delete[] resourceLevels;
-    delete[] chaosEnergy;
-    std::cout << "[CLEANUP] World buffers deallocated." << std::endl;
-  }
+        posX = new float[count];
+        posY = new float[count];
+        height = new float[count];
+
+        // Optional buffers can be initialized lazily,
+        // but for now we allocate all for stability
+        temperature = new float[count];
+        moisture = new float[count];
+        windDX = new float[count];
+        windDY = new float[count];
+        factionID = new int[count];
+        population = new uint32_t[count];
+        chaos = new float[count];
+        infrastructure = new float[count];
+
+        // Zero out memory
+        std::fill_n(factionID, count, 0);
+        std::fill_n(population, count, 0);
+        std::fill_n(chaos, count, 0.0f);
+        std::fill_n(infrastructure, count, 0.0f);
+        std::fill_n(temperature, count, 0.0f);
+        std::fill_n(moisture, count, 0.0f);
+        std::fill_n(windDX, count, 0.0f);
+        std::fill_n(windDY, count, 0.0f);
+    }
+
+    void Cleanup() {
+        delete[] posX; delete[] posY; delete[] height;
+        delete[] temperature; delete[] moisture;
+        delete[] windDX; delete[] windDY;
+        delete[] factionID; delete[] population;
+        delete[] chaos; delete[] infrastructure;
+
+        posX = nullptr; // Safety flag
+    }
+};
+
+// 3. Time System
+struct ChronosConfig {
+    int dayCount = 0;
+    int monthCount = 0;
+    int yearCount = 0;
+    int daysPerMonth = 30;
+    float currentDayProgress = 0.0f;
+    int globalTimeScale = 1; // 0 = Pause
+};
+
+// 4. Neighbor Graph (Added for Modules)
+struct NeighborGraph {
+    int* neighborData = nullptr;
+    int* offsetTable = nullptr;
+    uint8_t* countTable = nullptr;
 };

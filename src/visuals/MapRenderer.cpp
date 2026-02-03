@@ -1,166 +1,115 @@
-#include "../../include/MapRenderer.hpp"
-#include <algorithm>
+#include <GL/glew.h>
+#include <GLFW/glfw3.h>
+#include <vector>
 #include <cmath>
-#include <fstream>
 #include <iostream>
-#include <sstream>
+#include "../../include/WorldEngine.hpp"
 
+class MapRenderer {
+public:
+    GLuint vao;
+    GLuint vbo_pos;
+    GLuint vbo_color;
+    std::vector<float> colorBuffer; // CPU-side scratchpad for colors
 
-void MapRenderer::Setup(WorldBuffers &b) {
-  // cachedCount = b.count; // We use b.count passed in Render now
+    // 1. Setup: Allocates GPU memory once
+    void Setup(WorldBuffers& b) {
+        // Resize CPU color buffer to match cell count (3 floats per cell: R, G, B)
+        colorBuffer.resize(b.count * 3);
 
-  glGenVertexArrays(1, &vao);
-  glBindVertexArray(vao);
+        glGenVertexArrays(1, &vao);
+        glBindVertexArray(vao);
 
-  // 1. Position X (Location 0)
-  glGenBuffers(1, &vbo_posX);
-  glBindBuffer(GL_ARRAY_BUFFER, vbo_posX);
-  glBufferData(GL_ARRAY_BUFFER, b.count * sizeof(float), nullptr,
-               GL_DYNAMIC_DRAW);
-  glVertexAttribPointer(0, 1, GL_FLOAT, GL_FALSE, 0, 0);
-  glEnableVertexAttribArray(0);
+        // --- Position Buffer (Static - never changes after generation) ---
+        glGenBuffers(1, &vbo_pos);
+        glBindBuffer(GL_ARRAY_BUFFER, vbo_pos);
+        // We use dynamic draw in case you re-generate the mesh, but mostly it's static
+        glBufferData(GL_ARRAY_BUFFER, b.count * 2 * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
 
-  // 2. Position Y (Location 1)
-  glGenBuffers(1, &vbo_posY);
-  glBindBuffer(GL_ARRAY_BUFFER, vbo_posY);
-  glBufferData(GL_ARRAY_BUFFER, b.count * sizeof(float), nullptr,
-               GL_DYNAMIC_DRAW);
-  glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 0, 0);
-  glEnableVertexAttribArray(1);
+        // Push initial positions (X, Y)
+        // Note: Requires Interleaved data or separate arrays.
+        // For performance here, we assume b.posX and b.posY are combined or we push them sequentially.
+        // *Optimization:* We create a temporary interleaved buffer for the GPU upload.
+        std::vector<float> posData(b.count * 2);
+        for(uint32_t i=0; i < b.count; ++i) {
+            posData[i*2] = b.posX[i]; // X (0.0 - 1.0)
+            posData[i*2+1] = b.posY[i]; // Y (0.0 - 1.0)
+        }
+        glBufferSubData(GL_ARRAY_BUFFER, 0, posData.size() * sizeof(float), posData.data());
 
-  // 3. Color Buffer (RGB) (Location 2)
-  glGenBuffers(1, &vbo_color);
-  glBindBuffer(GL_ARRAY_BUFFER, vbo_color);
-  glBufferData(GL_ARRAY_BUFFER, b.count * 3 * sizeof(float), nullptr,
-               GL_DYNAMIC_DRAW);
-  glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
-  glEnableVertexAttribArray(2);
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(0);
 
-  colorBuffer.resize(b.count * 3);
+        // --- Color Buffer (Dynamic - updates every frame) ---
+        glGenBuffers(1, &vbo_color);
+        glBindBuffer(GL_ARRAY_BUFFER, vbo_color);
+        glBufferData(GL_ARRAY_BUFFER, b.count * 3 * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
 
-  // Initial Position Upload
-  if (b.posX) {
-    glBindBuffer(GL_ARRAY_BUFFER, vbo_posX);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, b.count * sizeof(float), b.posX);
-  }
-  if (b.posY) {
-    glBindBuffer(GL_ARRAY_BUFFER, vbo_posY);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, b.count * sizeof(float), b.posY);
-  }
-}
-
-void MapRenderer::Render(WorldBuffers &b) {
-  // 1. Update Colors based on Faction/Height
-  for (uint32_t i = 0; i < b.count; ++i) {
-    uint32_t idx = i * 3;
-
-    // Faction > 0 -> Red
-    if (b.factionID && b.factionID[i] > 0) {
-      colorBuffer[idx] = 0.9f;
-      colorBuffer[idx + 1] = 0.1f;
-      colorBuffer[idx + 2] = 0.1f;
-    } else {
-      // Height (Green) + Moisture (Blue tint)
-      float h = b.height[i];
-      float m = b.moisture ? b.moisture[i] : 0.0f;
-
-      // Simple logic from user request
-      // colorBuffer[i*3] = b.factionID[i] > 0 ? 1.0f : 0.0f;
-      // colorBuffer[i*3+1] = b.height[i];
-      // colorBuffer[i*3+2] = b.moisture[i];
-
-      // Expanded for better visuals:
-      if (h < 0.2f) { // Water (Sea Level implicit or hardcoded for shaderless
-                      // logic?)
-        // Actually relying on shader usually, but here we bake color
-        // Just use the user's logic exactly?
-        // "colorBuffer[i*3+1] = b.height[i]; // Green for height"
-        colorBuffer[idx] = 0.0f;
-        colorBuffer[idx + 1] = h;
-        colorBuffer[idx + 2] = m;
-      } else {
-        colorBuffer[idx] = 0.0f;
-        colorBuffer[idx + 1] = h;
-        colorBuffer[idx + 2] = m * 0.5f;
-      }
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(1);
     }
-  }
-  UploadColors(b.count); // Push to GPU
 
-  // 2. Draw
-  // Ensure shader is used (User's main snippet puts glUseProgram in main, but
-  // better safety here)
-  glUseProgram(shaderProgram);
+    // 2. CPU -> GPU Data Transfer (The "Colorizer")
+    void UpdateVisuals(WorldBuffers& b, const WorldSettings& s) {
+        for (uint32_t i = 0; i < b.count; ++i) {
+            uint32_t idx = i * 3;
 
-  glEnable(GL_PROGRAM_POINT_SIZE);
-  glBindVertexArray(vao);
-  glDrawArrays(GL_POINTS, 0, b.count);
-}
+            // PRIORITY 1: Factions (Political View)
+            if (s.enableFactions && b.factionID[i] > 0) {
+                // Simple Hash to give each faction a distinct color
+                int fid = b.factionID[i];
+                float r = (float)((fid * 37) % 255) / 255.0f;
+                float g = (float)((fid * 113) % 255) / 255.0f;
+                float b_col = (float)((fid * 200) % 255) / 255.0f;
 
-void MapRenderer::UploadColors(uint32_t count) {
-  glBindBuffer(GL_ARRAY_BUFFER, vbo_color);
-  glBufferSubData(GL_ARRAY_BUFFER, 0, count * 3 * sizeof(float),
-                  colorBuffer.data());
-}
+                // Add a "Red Glow" for conflict zones if chaos is high
+                if (b.chaos[i] > 0.5f) { r = 1.0f; g = 0.0f; b_col = 0.0f; }
 
-// Shader Implementation
-GLuint MapRenderer::CompileShader(GLenum type, const std::string &source) {
-  GLuint shader = glCreateShader(type);
-  const char *src = source.c_str();
-  glShaderSource(shader, 1, &src, nullptr);
-  glCompileShader(shader);
+                colorBuffer[idx] = r;
+                colorBuffer[idx+1] = g;
+                colorBuffer[idx+2] = b_col;
+            }
+            // PRIORITY 2: Physical Terrain (Natural View)
+            else {
+                float h = b.height[i];
 
-  // Error Check
-  int success;
-  char infoLog[512];
-  glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-  if (!success) {
-    glGetShaderInfoLog(shader, 512, nullptr, infoLog);
-    std::cerr << "[SHADER ERROR] " << infoLog << std::endl;
-  }
-  return shader;
-}
+                if (h < s.seaLevel) {
+                    // OCEAN: Depth darkening
+                    float depth = h / s.seaLevel;
+                    colorBuffer[idx] = 0.0f;
+                    colorBuffer[idx+1] = 0.2f * depth;
+                    colorBuffer[idx+2] = 0.4f + (0.4f * depth);
+                } else {
+                    // LAND: Biome approximation
+                    // Check Temperature for Snow/Ice
+                    if (b.temperature[i] < 0.15f) {
+                        colorBuffer[idx] = 0.9f; colorBuffer[idx+1] = 0.95f; colorBuffer[idx+2] = 1.0f; // White
+                    }
+                    // Check Moisture for Desert vs Forest
+                    else if (b.moisture[i] < 0.1f) {
+                        colorBuffer[idx] = 0.8f; colorBuffer[idx+1] = 0.7f; colorBuffer[idx+2] = 0.4f; // Sand
+                    }
+                    else {
+                        // Forest/Grass (Green intensity based on height)
+                        colorBuffer[idx] = 0.1f;
+                        colorBuffer[idx+1] = 0.4f + (h * 0.3f);
+                        colorBuffer[idx+2] = 0.1f;
+                    }
+                }
+            }
+        }
 
-void MapRenderer::LoadShaders(const std::string &vertPath,
-                              const std::string &fragPath) {
-  std::string vCode, fCode;
-  std::ifstream vShaderFile, fShaderFile;
+        // Upload to GPU
+        glBindBuffer(GL_ARRAY_BUFFER, vbo_color);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, colorBuffer.size() * sizeof(float), colorBuffer.data());
+    }
 
-  vShaderFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
-  fShaderFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+    // 3. Draw Call
+    void Render(const WorldSettings& s) {
+        // Uniforms should be set here if shader program is active in main loop
+        // We assume glUseProgram is called in main.cpp before this
 
-  try {
-    vShaderFile.open(vertPath);
-    fShaderFile.open(fragPath);
-    std::stringstream vShaderStream, fShaderStream;
-    vShaderStream << vShaderFile.rdbuf();
-    fShaderStream << fShaderFile.rdbuf();
-    vCode = vShaderStream.str();
-    fCode = fShaderStream.str();
-  } catch (std::ifstream::failure &e) {
-    std::cerr << "[GRAPHICS] Shader file error: " << e.what() << std::endl;
-    return;
-  }
-
-  GLuint vertex = CompileShader(GL_VERTEX_SHADER, vCode);
-  GLuint fragment = CompileShader(GL_FRAGMENT_SHADER, fCode);
-
-  shaderProgram = glCreateProgram();
-  glAttachShader(shaderProgram, vertex);
-  glAttachShader(shaderProgram, fragment);
-  glLinkProgram(shaderProgram);
-
-  int success;
-  char infoLog[512];
-  glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
-  if (!success) {
-    glGetProgramInfoLog(shaderProgram, 512, nullptr, infoLog);
-    std::cerr << "[LINK ERROR] " << infoLog << std::endl;
-  }
-
-  glDeleteShader(vertex);
-  glDeleteShader(fragment);
-
-  std::cout << "[GRAPHICS] Shader Program Linked ID: " << shaderProgram
-            << std::endl;
-}
+        glBindVertexArray(vao);
+        glDrawArrays(GL_POINTS, 0, colorBuffer.size() / 3);
+    }
+};
