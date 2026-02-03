@@ -1,0 +1,9 @@
+[SETUP] Found MSYS2, adding to PATH...
+Compiling with clang++...
+src/core/SimulationLoop.cpp:10:5: error: use of undeclared identifier 'UpdateGlobalClimate'
+   10 |     UpdateGlobalClimate(buffers, settings); 
+      |     ^~~~~~~~~~~~~~~~~~~
+1 error generated.
+
+[ERROR] Build Failed!
+Ensure you have installed MSYS2 packages: clang, glfw, glew
