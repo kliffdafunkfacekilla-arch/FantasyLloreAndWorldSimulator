@@ -1,20 +1,34 @@
 #version 330 core
-layout(location = 0) in float aX;
-layout(location = 1) in float aY;
-layout(location = 2) in vec3 aColor;
 
+// Inputs from MapRenderer
+layout (location = 0) in vec2 aPos;   // The X,Y coordinate (0.0 to 1.0)
+layout (location = 1) in vec3 aColor; // The RGB color we calculated
+
+// Outputs to Fragment Shader
 out vec3 CellColor;
 
+// Uniforms from "God Mode" UI
+uniform float u_zoom;      // Controlled by "View Level" combo box
+uniform vec2 u_offset;     // Controlled by "View Offset" slider
+uniform float u_pointSize; // Visual styling
+
 void main() {
-    // Basic normalized coords (-1 to 1) 
-    // Assuming input X,Y are 0..1? We might need to map them.
-    // Let's assume user generation puts them in some range.
-    // For now, pass through as clip space or simple map.
-    // Map 0..1 to -1..1
-    float glX = (aX * 2.0) - 1.0;
-    float glY = (aY * 2.0) - 1.0;
-    
-    gl_Position = vec4(glX, glY, 0.0, 1.0);
-    gl_PointSize = 1.0; // 1 pixel dot
+    // 1. Apply Offset (Pan)
+    // We shift the world so the camera centers on u_offset
+    vec2 position = aPos - u_offset;
+
+    // 2. Apply Zoom
+    position *= u_zoom;
+
+    // 3. Convert to Clip Space (-1.0 to 1.0) for OpenGL
+    // Note: 'position' is currently centered at 0.0 because of the offset subtraction
+    // We multiply by 2.0 to span the full screen width/height if zoom is 1.0
+    gl_Position = vec4(position.x * 2.0, position.y * 2.0, 0.0, 1.0);
+
+    // 4. Set Point Size
+    // High zoom levels need larger points to look like "blocks"
+    gl_PointSize = u_pointSize;
+
+    // Pass color to the pixel painter
     CellColor = aColor;
 }

@@ -1,106 +1,56 @@
 #include "../../include/SimulationModules.hpp"
-#include <algorithm>
 #include <cmath>
+#include <algorithm>
 #include <iostream>
 
+namespace ClimateSim {
 
-enum BiomeType {
-  OCEAN,
-  DESERT,
-  GRASSLAND,
-  TROPICAL_RAINFOREST,
-  TUNDRA,
-  BOREAL_FOREST
-};
+    void Update(WorldBuffers& b, const WorldSettings& s) {
+        // 1. CLEAR OLD DATA (Optional, but good for "God Mode" responsiveness)
+        // If we don't clear, wind changes might lag behind visual updates
 
-void ClimateSim::UpdateGlobalClimate(WorldBuffers &buffers,
-                                     const WorldSettings &settings) {
-  // Determine map height for normalization (assuming roughly square map from
-  // Poisson)
-  float mapH = std::sqrt((float)settings.cellCount);
-  if (mapH < 1.0f)
-    mapH = 1.0f;
+        for (uint32_t i = 0; i < s.cellCount; ++i) {
+            float y = b.posY[i]; // 0.0 (North) to 1.0 (South)
 
-  std::cout << "[CLIMATE] Updating Temp and Wind (Scale Mode: "
-            << settings.worldScaleMode << ")\n";
+            // --- A. TEMPERATURE CALCULATION ---
+            // Formula: Base - (Latitude_Distance) - (Altitude * LapseRate)
+            float latDist = (s.zoomLevel == 3) ? 0.0f : std::abs(y - 0.5f) * 2.0f; // 0.0 at Equator
+            float altitudeChill = b.height[i] * 0.5f;
 
-  for (uint32_t i = 0; i < settings.cellCount; ++i) {
-    // Normalize Y to 0.0 (Top) to 1.0 (Bottom)
-    float y =
-        buffers.posY[i]; // posY is already normalized 0..1 in TerrainController
+            b.temperature[i] = (1.0f - latDist - altitudeChill) * s.globalTempModifier;
 
-    // --- TEMPERATURE (Poles vs Equator) ---
-    float latEffect = 0.5f;
+            // --- B. 5-ZONE WIND SYSTEM ---
+            if (s.manualWindOverride) {
+                // Map 0.0-1.0 Y-coord to 0-4 Array Index
+                int zone = std::clamp((int)(y * 5.0f), 0, 4);
+                b.windDX[i] = s.windZones[zone];
+            } else {
+                // Default Trade Winds logic (Simulates Hadley Cells)
+                // Sine wave creates alternating East/West bands
+                b.windDX[i] = (sin(y * 9.42f) > 0) ? 1.0f : -1.0f;
+            }
 
-    switch (settings.worldScaleMode) {
-    case 0: // Region (Uniform Base)
-      latEffect = 0.5f;
-      break;
-    case 1: // Northern Hemisphere (Top=Cold, Bottom=Hot)
-      latEffect = y;
-      break;
-    case 2: // Southern Hemisphere (Top=Hot, Bottom=Cold)
-      latEffect = 1.0f - y;
-      break;
-    case 3: // Whole World (Top=Cold, Mid=Hot, Bot=Cold)
-      latEffect = 1.0f - std::abs(y - 0.5f) * 2.0f;
-      break;
-    default:
-      latEffect = 0.5f;
-      break;
-    }
+            // Apply Global Wind Strength Multiplier
+            b.windDX[i] *= s.globalWindStrength;
 
-    // Elevation makes it colder
-    float elevationChill = buffers.height[i] * 0.5f;
+            // --- C. MOISTURE & RAINFALL ---
+            // Simple approximation: If over water (height < seaLevel), grab moisture.
+            // If wind brings it to land, drop it.
+            if (b.height[i] < s.seaLevel) {
+                b.moisture[i] = 1.0f;
+            } else {
+                // Decay moisture inland (Basic Rain Shadow)
+                b.moisture[i] *= 0.98f;
+                if (b.windDX[i] != 0) {
+                    // Check previous cell (simplified) - Real version uses NeighborGraph
+                    // For visualization speed, we just add global rainfall mod
+                    b.moisture[i] += s.rainfallModifier * 0.01f;
+                }
+            }
 
-    if (buffers.temperature) {
-      buffers.temperature[i] =
-          (latEffect - elevationChill) * settings.globalTempModifier;
-    }
-
-    // --- WIND (Direction based on Latitude) ---
-    if (buffers.windDX) {
-      float windDir = 1.0f; // East (+1) or West (-1)
-
-      if (settings.manualWindOverride) {
-        // Determine which zone the cell is in (0 to 4)
-        int zoneIndex = (int)(y * 5.0f);
-        zoneIndex = std::clamp(zoneIndex, 0, 4);
-        buffers.windDX[i] = settings.windZoneWeights[zoneIndex];
-      } else {
-        bool isEasterly = false;
-        if (settings.worldScaleMode == 3) { // Whole World
-          int band = (int)(y * 6.0f);
-          if (band == 0 || band == 2 || band == 3 || band == 5)
-            isEasterly = true;
-        } else {
-          int band = (int)(y * 3.0f);
-          if (band == 0 || band == 2)
-            isEasterly = true;
+            // Clamp values
+            b.temperature[i] = std::clamp(b.temperature[i], 0.0f, 1.0f);
+            b.moisture[i] = std::clamp(b.moisture[i], 0.0f, 1.0f);
         }
-        buffers.windDX[i] = isEasterly ? -1.0f : 1.0f;
-      }
     }
-
-    if (buffers.windStrength) {
-      buffers.windStrength[i] = settings.globalWindStrength;
-    }
-  }
-}
-
-void ClimateSim::GenerateBiomes(WorldBuffers &buffers, WorldSettings &settings,
-                                uint32_t count) {
-  for (uint32_t i = 0; i < count; ++i) {
-    float moistureVal = 0.0f;
-    if (buffers.flux && buffers.moisture) {
-      moistureVal = std::min(1.0f, (std::log(buffers.flux[i]) / 5.0f) *
-                                       settings.rainfallAmount);
-      buffers.moisture[i] = moistureVal;
-    } else if (buffers.moisture) {
-      moistureVal = buffers.moisture[i];
-      if (!buffers.flux)
-        moistureVal *= settings.rainfallAmount;
-    }
-  }
-  std::cout << "[CLIMATE] Biomes classified.\n";
 }

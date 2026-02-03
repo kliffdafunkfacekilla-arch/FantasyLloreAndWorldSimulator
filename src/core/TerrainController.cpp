@@ -1,24 +1,17 @@
 #include "../../include/SimulationModules.hpp"
-#include "../core/FastNoiseLite.h"
+#include "../../include/FastNoiseLite.h"
 #include <algorithm>
 #include <cmath>
-#include <cstring> // For memset etc if needed
 #include <iostream>
+#include <vector>
 
-
-void TerrainController::GenerateTerrain(WorldBuffers &buffers,
-                                        const WorldSettings &settings) {
+void TerrainController::GenerateProceduralTerrain(WorldBuffers& buffers, const WorldSettings& settings) {
   if (settings.heightmapPath[0] != '\0') {
-    std::cout << "[TERRAIN] Checkbox to load custom map? Or checking if path "
-                 "is valid...\n";
-    // Logic handled by explicit "Load" button usually
+    std::cout << "[TERRAIN] Heightmap path set: " << settings.heightmapPath << ". Use 'Import Heightmap' button to load.\n";
   }
 
   std::cout << "[TERRAIN] Generating procedural terrain with Seed "
             << settings.seed << "\n";
-  std::cout << "Params: Freq=" << settings.featureFrequency
-            << ", Lacunarity=" << settings.featureClustering
-            << ", Severity=" << settings.heightSeverity << "\n";
 
   FastNoiseLite noise;
   noise.SetSeed(settings.seed);
@@ -29,6 +22,8 @@ void TerrainController::GenerateTerrain(WorldBuffers &buffers,
   noise.SetFractalOctaves(4);
 
   int side = (int)std::sqrt(settings.cellCount);
+  if (side == 0) side = 1000; // Safety
+
   for (uint32_t i = 0; i < settings.cellCount; ++i) {
     if (buffers.posX && buffers.posY) {
       buffers.posX[i] = (float)(i % side) / side;
@@ -48,44 +43,56 @@ void TerrainController::GenerateTerrain(WorldBuffers &buffers,
     h = std::clamp(h, settings.heightMin, settings.heightMax);
     h = std::clamp(h, 0.0f, 1.0f);
 
-    buffers.height[i] = h;
+    if (buffers.height)
+        buffers.height[i] = h;
   }
 }
 
-void TerrainController::RunThermalErosion(WorldBuffers &buffers,
-                                          const NeighborGraph &graph,
-                                          int iterations, uint32_t count) {
-  float talusThreshold = 0.01f;
-  float moveAmount = 0.005f;
-
-  for (int iter = 0; iter < iterations; ++iter) {
-    for (uint32_t i = 0; i < count; ++i) {
-      int offset = graph.offsetTable[i];
-      uint8_t n_count = graph.countTable[i];
-
-      for (int n = 0; n < n_count; ++n) {
-        int neighborID = graph.neighborData[offset + n];
-        float diff = buffers.height[i] - buffers.height[neighborID];
-
-        if (diff > talusThreshold) {
-          buffers.height[i] -= moveAmount;
-          buffers.height[neighborID] += moveAmount;
-        }
-      }
-    }
-  }
-  std::cout << "[TERRAIN] Erosion pass.\n";
-}
-
-void TerrainController::LoadFromImage(const char *path, WorldBuffers &buffers) {
+void TerrainController::LoadFromImage(const char* path, WorldBuffers& buffers) {
   if (!path || path[0] == '\0')
     return;
   std::cout << "[TERRAIN] Importing heightmap from: " << path << std::endl;
-  // Call the existing helper function declared in SimulationModules.hpp
   LoadHeightmapData(path, buffers, buffers.count);
 }
 
-void TerrainController::ApplyThermalErosion(WorldBuffers &buffers,
-                                            const NeighborGraph &graph) {
-  RunThermalErosion(buffers, graph, 1, buffers.count);
+void TerrainController::ApplyThermalErosion(WorldBuffers& buffers, int iterations) {
+    // Simplified erosion (Smoothing)
+    // Assumes grid layout for simplicity as we don't have NeighborGraph passed here yet
+
+    std::cout << "[TERRAIN] Apply Thermal Erosion (" << iterations << " passes)...\n";
+
+    int side = (int)std::sqrt(buffers.count);
+    if (side == 0) return;
+
+    // Scratch buffer
+    std::vector<float> tempHeight(buffers.count);
+
+    for (int iter = 0; iter < iterations; ++iter) {
+        for (uint32_t i = 0; i < buffers.count; ++i) {
+            float sum = buffers.height[i];
+            int count = 1;
+
+            // Grid neighbors
+            int neighbors[] = { -side, side, -1, 1 };
+            for(int n : neighbors) {
+                int idx = (int)i + n;
+                // Bounds check
+                if (idx >= 0 && idx < (int)buffers.count) {
+                    // Check wrap-around for left/right
+                    if (n == -1 && i % side == 0) continue;
+                    if (n == 1 && (i + 1) % side == 0) continue;
+
+                    sum += buffers.height[idx];
+                    count++;
+                }
+            }
+
+            tempHeight[i] = sum / count;
+        }
+
+        // Write back
+        for (uint32_t i = 0; i < buffers.count; ++i) {
+            buffers.height[i] = tempHeight[i];
+        }
+    }
 }
