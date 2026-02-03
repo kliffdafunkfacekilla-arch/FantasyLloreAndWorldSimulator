@@ -1,6 +1,12 @@
 @echo off
 if not exist bin mkdir bin
 
+:: Auto-configure environment for MSYS2
+if exist "C:\msys64\mingw64\bin" (
+    echo [SETUP] Found MSYS2, adding to PATH...
+    set "PATH=C:\msys64\mingw64\bin;%PATH%"
+)
+
 echo Compiling with clang++...
 clang++ -std=c++17 ^
     src/main.cpp ^
@@ -25,10 +31,14 @@ clang++ -std=c++17 ^
     -I include ^
     -I src/core ^
     -I src/io ^
-    -lgdi32 -luser32 -lkernel32 -lglfw3 -lglew32 -lopengl32
+    -lglfw3 -lglew32 -lopengl32 -lgdi32 -luser32 -lkernel32 
 
 if %ERRORLEVEL% EQU 0 (
-    echo Build Successful! Run with: bin\OmnisWorldEngine.exe
+    echo.
+    echo [SUCCESS] Build Complete! 
+    echo Run the engine: bin\OmnisWorldEngine.exe
 ) else (
-    echo Build Failed!
+    echo.
+    echo [ERROR] Build Failed!
+    echo Ensure you have installed MSYS2 packages: clang, glfw, glew
 )
