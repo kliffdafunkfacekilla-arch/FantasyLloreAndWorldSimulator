@@ -4,7 +4,6 @@
 #include <string>
 #include <vector>
 
-
 // 1. User Settings (From Menu)
 struct WorldSettings {
   uint32_t cellCount = 1000000;
@@ -35,6 +34,11 @@ struct WorldSettings {
 
   std::string heightmapPath = "";
   float chaosInstabilityScale = 0.5f;
+
+  // Civilization & Logic
+  float aggressionMult = 1.0f;
+  bool peaceMode = false;
+  float logisticsSpeed = 0.5f;
 };
 
 // Resource Definition

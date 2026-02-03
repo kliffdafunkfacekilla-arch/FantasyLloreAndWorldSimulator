@@ -11,7 +11,8 @@
 #include <iostream>
 #include <vector>
 
-// --- Global Engine Objects ---
+
+// --- Global Objects ---
 WorldBuffers buffers;
 WorldSettings settings;
 ChronosConfig clockState;
@@ -19,36 +20,88 @@ LoreScribe scribe;
 MapRenderer renderer;
 SimulationLoop simulation;
 NeighborGraph graph;
+ClimateSim climate;
+TerrainController terrainGen;
+
+// Helper to fully regenerate world when "Regenerate" is clicked
+void RegenerateWorld() {
+  std::cout << "[UI] Regenerating World...\n";
+  terrainGen.GenerateTerrain(buffers, settings);
+  climate.UpdateGlobalClimate(buffers, settings);
+  // Visuals updated next Render call automatically
+}
+
+void UpdateClimateOnly() {
+  std::cout << "[UI] Updating Climate...\n";
+  climate.UpdateGlobalClimate(buffers, settings);
+  // Visuals updated next Render call automatically
+}
 
 void DrawGodModeUI() {
   ImGui::Begin("God Mode Dashboard");
 
   ImGui::Text("Calendar: Year %d, Month %d, Day %d", clockState.yearCount,
               clockState.monthCount, clockState.dayCount);
-  ImGui::Separator();
 
-  ImGui::SliderFloat("Sea Level", &settings.seaLevel, 0.0f, 1.0f);
-  ImGui::SliderFloat("Global Temp", &settings.globalTempModifier, 0.0f, 2.0f);
-  ImGui::SliderInt("Time Speed", &clockState.globalTimeScale, 0, 100);
+  // --- Environment / Generation ---
+  if (ImGui::CollapsingHeader("World Generation",
+                              ImGuiTreeNodeFlags_DefaultOpen)) {
+    ImGui::Text("Map Settings");
+    ImGui::InputInt("Seed", &settings.seed);
 
-  if (ImGui::Button("Spawn Random Faction")) {
-    // Drop a faction seed at a random location
-    int randomCell = rand() % buffers.count;
-    if (buffers.factionID)
-      buffers.factionID[randomCell] = (rand() % 5) + 1;
-    if (buffers.population)
-      buffers.population[randomCell] = 100.0f;
+    ImGui::Separator();
+    ImGui::Text("Terrain Shape");
+    ImGui::SliderFloat("Frequency", &settings.featureFrequency, 0.001f, 0.1f);
+    ImGui::SliderFloat("Clustering", &settings.featureClustering, 1.0f, 3.0f);
+    ImGui::SliderFloat("Severity", &settings.heightSeverity, 0.1f, 3.0f);
+    ImGui::DragFloatRange2("Height Range", &settings.heightMin,
+                           &settings.heightMax, 0.01f, 0.0f, 1.0f);
+
+    if (ImGui::Button("Regenerate Terrain")) {
+      RegenerateWorld();
+    }
+  }
+
+  // --- Climate ---
+  if (ImGui::CollapsingHeader("Climate & Atmosphere")) {
+    const char *modes[] = {"Region", "North Hemisphere", "South Hemisphere",
+                           "Whole World"};
+    ImGui::Combo("Scale Mode", &settings.worldScaleMode, modes,
+                 IM_ARRAYSIZE(modes));
+
+    ImGui::SliderFloat("Global Temp", &settings.globalTempModifier, 0.0f, 2.0f);
+    ImGui::SliderFloat("Rainfall", &settings.rainfallAmount, 0.0f, 3.0f);
+    ImGui::SliderFloat("Wind Strength", &settings.globalWindStrength, 0.0f,
+                       2.0f);
+    ImGui::SliderFloat("Sea Level", &settings.seaLevel, 0.0f, 1.0f);
+
+    if (ImGui::Button("Update Climate")) {
+      UpdateClimateOnly();
+    }
+  }
+
+  if (ImGui::CollapsingHeader("Civilization & War")) {
+    ImGui::SliderFloat("Aggression", &settings.aggressionMult, 0.0f, 5.0f);
+    ImGui::Checkbox("Pause Conflict", &settings.peaceMode);
+    ImGui::SliderInt("Time Speed", &clockState.globalTimeScale, 0, 100);
+
+    if (ImGui::Button("Spawn Random Faction")) {
+      int randomCell = rand() % buffers.count;
+      if (buffers.factionID)
+        buffers.factionID[randomCell] = (rand() % 5) + 1;
+      if (buffers.population)
+        buffers.population[randomCell] = 100.0f;
+      // Visuals updated next frame
+    }
   }
 
   ImGui::End();
 }
 
 int main() {
-  // 1. Initialize GLFW/OpenGL Window
   if (!glfwInit())
     return -1;
 
-  // Decent resolution
   GLFWwindow *window =
       glfwCreateWindow(1280, 720, "Omnis World Engine", NULL, NULL);
   if (!window) {
@@ -60,7 +113,7 @@ int main() {
   if (glewInit() != GLEW_OK)
     return -1;
 
-  // 2. Initialize ImGui (The "Hands")
+  // UI
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
   ImGuiIO &io = ImGui::GetIO();
@@ -69,54 +122,30 @@ int main() {
   ImGui_ImplOpenGL3_Init("#version 330");
   ImGui::StyleColorsDark();
 
-  // 3. Setup World Data (The "Brain")
-  std::cout << "[CORE] Allocating memory..." << std::endl;
+  // Init Logic
   MemoryManager mem;
-  mem.InitializeWorld(settings,
-                      buffers); // Allocates 1,000,000 cells by default setting
+  mem.InitializeWorld(settings, buffers);
 
-  // Generation
-  std::cout << "[CORE] Generating Terrain..." << std::endl;
-  // We need to call the terrain generation logic.
-  // Since we refactored, we can call the module functions directly or via
-  // SimulationLoop if integrated. For now, let's assume SimulationLoop has a
-  // 'Init' or we do it manually like before. Re-using the manual calls from
-  // previous main for generation phase:
-
-  // Quick local generation to ensure we have data
-  // (Note: ideally this should be a function in SimulationLoop, but for now we
-  // put it here or call a helper) We will use the simulation loop structure if
-  // possible, but for immediate fix:
+  // Initial Gen
   simulation.settings = settings;
   simulation.scribe.Initialize("OmnisWorld");
 
-  // Just run one Update to prompt generation/setup if needed?
-  // actually we need the initial terrain generation function.
-  // Let's rely on the simulation loop or re-implement the generator call.
-  // The user's previous code had GenerateTerrain() function *in* main.cpp.
-  // I should probably preserve that or move it to a module.
-  // For now, I will instantiate TerrainController to generate.
-  TerrainController terrainGen;
-  terrainGen.GenerateTerrain(buffers, settings);
+  // Generate initial world
+  RegenerateWorld();
 
+  // Graph needs building once (unless map size changes, which is locked for
+  // now)
   NeighborFinder finder;
   finder.BuildGraph(buffers, settings.cellCount, graph);
 
-  ClimateSim climate;
-  climate.UpdateGlobalClimate(buffers, settings);
-
-  // Renderer
-  renderer.Initialize(buffers);
+  renderer.Setup(buffers);
   renderer.LoadShaders("shaders/world.vert", "shaders/world.frag");
 
-  // 4. THE MAIN LOOP
-  std::vector<AgentTemplate> registry; // Empty for now
-  std::vector<Faction> factions;       // Empty for now
+  std::vector<AgentTemplate> registry;
+  std::vector<Faction> factions;
 
   while (!glfwWindowShouldClose(window)) {
     glfwPollEvents();
-
-    // Start UI Frame
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
@@ -124,20 +153,16 @@ int main() {
     DrawGodModeUI();
 
     // Run Simulation Tick
-    // We need to pass the graph we built
     simulation.Update(buffers, registry, factions, clockState, graph, 0.016f);
 
-    // --- THE FIX FOR THE BLACK SCREEN ---
-    renderer.UpdateVisuals(buffers, settings); // Pushes CPU data to GPU
-
-    // Render
+    // --- RENDER ---
     int display_w, display_h;
     glfwGetFramebufferSize(window, &display_w, &display_h);
     glViewport(0, 0, display_w, display_h);
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    renderer.Render(); // Actually draws the points
+    renderer.Render(buffers);
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

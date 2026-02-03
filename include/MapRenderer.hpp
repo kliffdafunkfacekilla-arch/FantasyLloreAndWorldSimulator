@@ -15,13 +15,11 @@ public:
   std::vector<float> colorBuffer;
 
   // Updated Interface
-  void Initialize(WorldBuffers &b);
-  void UpdateVisuals(WorldBuffers &b, const WorldSettings &s);
-  void Render();
-
-  // Internal helper
+  void Setup(WorldBuffers &b);
+  void Render(WorldBuffers &b);
   void UploadColors(uint32_t count);
 
+  // Internal helper
   // Shader Management
   void LoadShaders(const std::string &vertPath, const std::string &fragPath);
 
