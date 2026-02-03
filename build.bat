@@ -24,6 +24,7 @@ clang++ -std=c++17 ^
     src/modules/ChronosSystem.cpp ^
     src/modules/LogisticsSystem.cpp ^
     src/modules/ConflictSystem.cpp ^
+    src/visuals/MapRenderer.cpp ^
     src/io/HeightmapLoader.cpp ^
     src/io/BinaryExporter.cpp ^
     src/io/LoreScribe.cpp ^
