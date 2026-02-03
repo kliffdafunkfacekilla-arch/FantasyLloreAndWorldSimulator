@@ -5,7 +5,6 @@
 #include <string>
 #include <vector>
 
-
 // Connectivity
 struct NeighborGraph {
   int *neighborData;
@@ -24,6 +23,9 @@ public:
   void GenerateTerrain(WorldBuffers &buffers, const WorldSettings &settings);
   void RunThermalErosion(WorldBuffers &buffers, const NeighborGraph &graph,
                          int iterations, uint32_t count);
+  // User Helpers
+  void LoadFromImage(const char *path, WorldBuffers &buffers);
+  void ApplyThermalErosion(WorldBuffers &buffers, const NeighborGraph &graph);
 };
 
 class HydrologySim {
@@ -112,7 +114,6 @@ public:
 void ProcessLogistics(WorldBuffers &buffers,
                       const std::vector<Faction> &factions, uint32_t count,
                       int resourceID);
-// Visuals/Modules Integration Prototype
 
 class ConflictSystem {
 public:
@@ -129,7 +130,7 @@ public:
   AgentSystem agentSystem;
   ConflictSystem conflictSystem;
   WorldSettings settings;
-  LoreScribe scribe; // Embedded specific instance
+  LoreScribe scribe;
   TimelapseManager timelapse;
 
   void Update(WorldBuffers &buffers, std::vector<AgentTemplate> &registry,
@@ -141,7 +142,6 @@ class ChronosSystem {
 public:
   ClimateSim *climate;
   AgentSystem *agents;
-  // Pointers to context
   WorldSettings *settings;
   std::vector<AgentTemplate> *registry;
 

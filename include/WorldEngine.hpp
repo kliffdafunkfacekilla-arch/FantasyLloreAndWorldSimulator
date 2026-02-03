@@ -21,18 +21,30 @@ struct WorldSettings {
   float heightMultiplier = 1.0f;
   float heightMin = 0.0f;
   float heightMax = 1.0f;
+
+  // Controls (legacy & param sync)
   float heightSeverity = 1.0f;
   float featureFrequency = 0.01f;
   float featureClustering = 2.0f;
 
+  float severity = 1.0f;   // Sync with heightSeverity
+  float frequency = 0.01f; // Sync with featureFrequency
+
   // Climate
   float globalTempModifier = 1.0f;
   float rainfallAmount = 1.0f;
+  float rainfallModifier = 1.0f;
   float globalWindStrength = 1.0f;
 
   int worldScaleMode = 3;
 
-  std::string heightmapPath = "";
+  // New Parameter-Driven Fields
+  char heightmapPath[256] = "";
+  bool manualWindOverride = false;
+  float windZoneWeights[5] = {0.5f, 0.5f, 0.5f, 0.5f,
+                              0.5f}; // Strength/Dir for 5 zones
+  int erosionIterations = 10;
+
   float chaosInstabilityScale = 0.5f;
 
   // Civilization & Logic
@@ -60,19 +72,18 @@ struct AgentTemplate {
   bool canWar;           // True for People
   bool isDomesticatable; // True for certain Animals
 
-  // DNA / Attributes (The "Taming" Matrix)
-  float aggression;   // 0.0 (Passive) to 1.0 (Hostile)
-  float intelligence; // Higher = can be trained
-  float sociality;    // Higher = herd animals (Easier to tame)
-  float size;         // 0.1 (Mouse) to 1.0 (Elephant)
+  // DNA / Attributes
+  float aggression;
+  float intelligence;
+  float sociality;
+  float size;
 
-  // Biological Needs (Evolution Pressures)
+  // Biological Needs
   float idealTemp;
   float idealMoisture;
-  float adaptiveRate; // How fast they evolve/drift
+  float adaptiveRate;
 
-  // Resource Weights (What do they want?)
-  // 0: Food, 1: Wood, 2: Iron, 3: Mana, etc.
+  // Resource Weights
   float weights[10];
 };
 
@@ -103,7 +114,6 @@ struct ChronosConfig {
 
 // 2. The Memory Buffers (SoA Style)
 struct WorldBuffers {
-  // Stored count for renderers/loops to use without needing Settings
   uint32_t count = 0;
 
   // Core Geometry
@@ -113,8 +123,6 @@ struct WorldBuffers {
 
   // Climate
   float *temperature = nullptr;
-  // ^ Note: temperature is the variable name. User logic might refer to 'temp'
-  // - be careful in implementation.
   float *moisture = nullptr;
   float *flux = nullptr;
   float *windDX = nullptr;

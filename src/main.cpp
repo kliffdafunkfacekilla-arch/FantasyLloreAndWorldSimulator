@@ -1,6 +1,7 @@
 #define GLEW_STATIC
 #include "../include/MapRenderer.hpp"
 #include "../include/MemoryManager.hpp"
+#include "../include/PlatformUtils.hpp"
 #include "../include/SimulationModules.hpp"
 #include "../include/WorldEngine.hpp"
 #include "imgui.h"
@@ -8,6 +9,7 @@
 #include "imgui_impl_opengl3.h"
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
+#include <cstring> // For strncpy
 #include <iostream>
 #include <vector>
 
@@ -22,76 +24,99 @@ SimulationLoop simulation;
 NeighborGraph graph;
 ClimateSim climate;
 TerrainController terrainGen;
+std::vector<AgentTemplate> registry;
+std::vector<Faction> factions;
 
-// Helper to fully regenerate world when "Regenerate" is clicked
 void RegenerateWorld() {
   std::cout << "[UI] Regenerating World...\n";
   terrainGen.GenerateTerrain(buffers, settings);
   climate.UpdateGlobalClimate(buffers, settings);
-  // Visuals updated next Render call automatically
 }
 
 void UpdateClimateOnly() {
   std::cout << "[UI] Updating Climate...\n";
   climate.UpdateGlobalClimate(buffers, settings);
-  // Visuals updated next Render call automatically
 }
 
 void DrawGodModeUI() {
   ImGui::Begin("God Mode Dashboard");
 
-  ImGui::Text("Calendar: Year %d, Month %d, Day %d", clockState.yearCount,
-              clockState.monthCount, clockState.dayCount);
-
-  // --- Environment / Generation ---
-  if (ImGui::CollapsingHeader("World Generation",
+  if (ImGui::CollapsingHeader("1. World Structure & Height",
                               ImGuiTreeNodeFlags_DefaultOpen)) {
-    ImGui::Text("Map Settings");
     ImGui::InputInt("Seed", &settings.seed);
+    if (ImGui::Button("Select Heightmap Image")) {
+      std::string path = OpenFileDialog();
+      if (!path.empty()) {
+        strncpy(settings.heightmapPath, path.c_str(),
+                sizeof(settings.heightmapPath) - 1);
+        settings.heightmapPath[sizeof(settings.heightmapPath) - 1] = '\0';
+        terrainGen.LoadFromImage(settings.heightmapPath, buffers);
+      }
+    }
+    ImGui::Text("File: %s", settings.heightmapPath);
 
-    ImGui::Separator();
-    ImGui::Text("Terrain Shape");
-    ImGui::SliderFloat("Frequency", &settings.featureFrequency, 0.001f, 0.1f);
-    ImGui::SliderFloat("Clustering", &settings.featureClustering, 1.0f, 3.0f);
-    ImGui::SliderFloat("Severity", &settings.heightSeverity, 0.1f, 3.0f);
+    ImGui::SliderFloat("Sea Level", &settings.seaLevel, 0.0f, 1.0f);
     ImGui::DragFloatRange2("Height Range", &settings.heightMin,
                            &settings.heightMax, 0.01f, 0.0f, 1.0f);
+    ImGui::SliderFloat("Height Severity", &settings.severity, 0.1f, 5.0f);
+    ImGui::SliderFloat("Noise Frequency", &settings.frequency, 0.001f, 0.1f);
+    ImGui::SliderFloat("Clustering", &settings.featureClustering, 1.0f, 3.0f);
 
     if (ImGui::Button("Regenerate Terrain")) {
       RegenerateWorld();
     }
   }
 
-  // --- Climate ---
-  if (ImGui::CollapsingHeader("Climate & Atmosphere")) {
+  if (ImGui::CollapsingHeader("2. Climate & Wind Zones")) {
     const char *modes[] = {"Region", "North Hemisphere", "South Hemisphere",
                            "Whole World"};
     ImGui::Combo("Scale Mode", &settings.worldScaleMode, modes,
                  IM_ARRAYSIZE(modes));
 
-    ImGui::SliderFloat("Global Temp", &settings.globalTempModifier, 0.0f, 2.0f);
-    ImGui::SliderFloat("Rainfall", &settings.rainfallAmount, 0.0f, 3.0f);
+    ImGui::SliderFloat("Global Temperature", &settings.globalTempModifier, 0.0f,
+                       2.0f);
+    ImGui::SliderFloat("Global Rainfall", &settings.rainfallModifier, 0.0f,
+                       2.0f);
     ImGui::SliderFloat("Wind Strength", &settings.globalWindStrength, 0.0f,
                        2.0f);
-    ImGui::SliderFloat("Sea Level", &settings.seaLevel, 0.0f, 1.0f);
+
+    ImGui::Separator();
+    ImGui::Checkbox("Manual Wind Override", &settings.manualWindOverride);
+    if (settings.manualWindOverride) {
+      ImGui::SliderFloat("North Pole Wind", &settings.windZoneWeights[0], -1.0f,
+                         1.0f, "Dir: %.2f");
+      ImGui::SliderFloat("N. Temperate Wind", &settings.windZoneWeights[1],
+                         -1.0f, 1.0f, "Dir: %.2f");
+      ImGui::SliderFloat("Equator Wind", &settings.windZoneWeights[2], -1.0f,
+                         1.0f, "Dir: %.2f");
+      ImGui::SliderFloat("S. Temperate Wind", &settings.windZoneWeights[3],
+                         -1.0f, 1.0f, "Dir: %.2f");
+      ImGui::SliderFloat("South Pole Wind", &settings.windZoneWeights[4], -1.0f,
+                         1.0f, "Dir: %.2f");
+    }
 
     if (ImGui::Button("Update Climate")) {
       UpdateClimateOnly();
     }
   }
 
-  if (ImGui::CollapsingHeader("Civilization & War")) {
-    ImGui::SliderFloat("Aggression", &settings.aggressionMult, 0.0f, 5.0f);
-    ImGui::Checkbox("Pause Conflict", &settings.peaceMode);
-    ImGui::SliderInt("Time Speed", &clockState.globalTimeScale, 0, 100);
+  if (ImGui::CollapsingHeader("3. Thermal Erosion")) {
+    ImGui::SliderInt("Erosion Passes", &settings.erosionIterations, 1, 100);
+    if (ImGui::Button("Run Erosion Cycle")) {
+      for (int i = 0; i < settings.erosionIterations; i++) {
+        terrainGen.ApplyThermalErosion(buffers, graph);
+      }
+    }
+  }
 
+  if (ImGui::CollapsingHeader("Civilization & War")) {
+    ImGui::SliderInt("Time Speed", &clockState.globalTimeScale, 0, 100);
     if (ImGui::Button("Spawn Random Faction")) {
       int randomCell = rand() % buffers.count;
       if (buffers.factionID)
         buffers.factionID[randomCell] = (rand() % 5) + 1;
       if (buffers.population)
         buffers.population[randomCell] = 100.0f;
-      // Visuals updated next frame
     }
   }
 
@@ -126,23 +151,17 @@ int main() {
   MemoryManager mem;
   mem.InitializeWorld(settings, buffers);
 
-  // Initial Gen
   simulation.settings = settings;
   simulation.scribe.Initialize("OmnisWorld");
 
-  // Generate initial world
+  // Initial Gen
   RegenerateWorld();
 
-  // Graph needs building once (unless map size changes, which is locked for
-  // now)
   NeighborFinder finder;
   finder.BuildGraph(buffers, settings.cellCount, graph);
 
   renderer.Setup(buffers);
   renderer.LoadShaders("shaders/world.vert", "shaders/world.frag");
-
-  std::vector<AgentTemplate> registry;
-  std::vector<Faction> factions;
 
   while (!glfwWindowShouldClose(window)) {
     glfwPollEvents();
@@ -152,10 +171,8 @@ int main() {
 
     DrawGodModeUI();
 
-    // Run Simulation Tick
     simulation.Update(buffers, registry, factions, clockState, graph, 0.016f);
 
-    // --- RENDER ---
     int display_w, display_h;
     glfwGetFramebufferSize(window, &display_w, &display_h);
     glViewport(0, 0, display_w, display_h);
@@ -170,7 +187,6 @@ int main() {
     glfwSwapBuffers(window);
   }
 
-  // Cleanup
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();
   ImGui::DestroyContext();

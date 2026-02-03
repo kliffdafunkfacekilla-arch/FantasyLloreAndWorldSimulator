@@ -2,17 +2,16 @@
 #include "../core/FastNoiseLite.h"
 #include <algorithm>
 #include <cmath>
+#include <cstring> // For memset etc if needed
 #include <iostream>
 
 
 void TerrainController::GenerateTerrain(WorldBuffers &buffers,
                                         const WorldSettings &settings) {
-  if (!settings.heightmapPath.empty()) {
-    std::cout << "[TERRAIN] Loading heightmap from " << settings.heightmapPath
-              << "\n";
-    LoadHeightmapData(settings.heightmapPath.c_str(), buffers,
-                      settings.cellCount);
-    return;
+  if (settings.heightmapPath[0] != '\0') {
+    std::cout << "[TERRAIN] Checkbox to load custom map? Or checking if path "
+                 "is valid...\n";
+    // Logic handled by explicit "Load" button usually
   }
 
   std::cout << "[TERRAIN] Generating procedural terrain with Seed "
@@ -21,18 +20,14 @@ void TerrainController::GenerateTerrain(WorldBuffers &buffers,
             << ", Lacunarity=" << settings.featureClustering
             << ", Severity=" << settings.heightSeverity << "\n";
 
-  // We use a noise library like FastNoiseLite for the high spots
   FastNoiseLite noise;
   noise.SetSeed(settings.seed);
-  noise.SetFrequency(settings.featureFrequency);          // User slider
-  noise.SetFractalLacunarity(settings.featureClustering); // User slider
-
-  // Using Fractal Noise for better "clustering" effect if Lacunarity is used
+  noise.SetFrequency(settings.featureFrequency);
+  noise.SetFractalLacunarity(settings.featureClustering);
   noise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
   noise.SetFractalType(FastNoiseLite::FractalType_FBm);
   noise.SetFractalOctaves(4);
 
-  // Initialize Grid Coordinates
   int side = (int)std::sqrt(settings.cellCount);
   for (uint32_t i = 0; i < settings.cellCount; ++i) {
     if (buffers.posX && buffers.posY) {
@@ -42,26 +37,16 @@ void TerrainController::GenerateTerrain(WorldBuffers &buffers,
   }
 
   for (uint32_t i = 0; i < settings.cellCount; ++i) {
-    // 1. Get Base Noise
-    // Scale coords significantly to get features
     float h =
         noise.GetNoise(buffers.posX[i] * 100.0f, buffers.posY[i] * 100.0f);
-
-    // Normalize noise from -1..1 to 0..1
     h = (h + 1.0f) * 0.5f;
 
-    // 2. Adjust Severity (The Power Function)
-    // h^k: if k>1, low values drop faster (more plains, sharper peaks)
-    // if k<1, values boost (more plateaus)
     if (h > 0)
       h = std::pow(h, settings.heightSeverity);
-
-    // 3. Apply Multiplier and Min/Max Clamping
     h *= settings.heightMultiplier;
 
-    // Clamp logic: Ensure it fits within user range, but also 0..1 global
     h = std::clamp(h, settings.heightMin, settings.heightMax);
-    h = std::clamp(h, 0.0f, 1.0f); // Safety clamp
+    h = std::clamp(h, 0.0f, 1.0f);
 
     buffers.height[i] = h;
   }
@@ -89,6 +74,18 @@ void TerrainController::RunThermalErosion(WorldBuffers &buffers,
       }
     }
   }
-  std::cout << "[TERRAIN] Erosion pass complete (" << iterations
-            << " iterations).\n";
+  std::cout << "[TERRAIN] Erosion pass.\n";
+}
+
+void TerrainController::LoadFromImage(const char *path, WorldBuffers &buffers) {
+  if (!path || path[0] == '\0')
+    return;
+  std::cout << "[TERRAIN] Importing heightmap from: " << path << std::endl;
+  // Call the existing helper function declared in SimulationModules.hpp
+  LoadHeightmapData(path, buffers, buffers.count);
+}
+
+void TerrainController::ApplyThermalErosion(WorldBuffers &buffers,
+                                            const NeighborGraph &graph) {
+  RunThermalErosion(buffers, graph, 1, buffers.count);
 }
