@@ -12,75 +12,112 @@ void TerrainController::GenerateProceduralTerrain(
               << ". Use 'Import Heightmap' button to load.\n";
   }
 
-  std::cout << "[TERRAIN] Generating procedural terrain with Seed "
-            << settings.seed << "\n";
+  std::cout << "[TERRAIN] Generating Hybrid Terrain (Warp + Continents + "
+               "Mountains)...\n";
 
-  FastNoiseLite noise;
-  noise.SetSeed(settings.seed);
-  noise.SetFrequency(settings.featureFrequency);
-  noise.SetFractalLacunarity(settings.featureClustering);
-  noise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
-  noise.SetFractalType(FastNoiseLite::FractalType_FBm);
-  noise.SetFractalOctaves(4);
+  // 1. SETUP THE THREE GENERATORS
+
+  // A. Base Shape (The Continents)
+  FastNoiseLite baseNoise;
+  baseNoise.SetSeed(settings.seed);
+  baseNoise.SetFrequency(settings.continentFreq); // Low frequency
+  baseNoise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+
+  // B. Mountain Detail (The Peaks)
+  FastNoiseLite mountainNoise;
+  mountainNoise.SetSeed(settings.seed + 1); // Offset seed
+  mountainNoise.SetFrequency(settings.featureFrequency);
+  mountainNoise.SetFractalType(FastNoiseLite::FractalType_RidgedMulti);
+  mountainNoise.SetFractalOctaves(5);
+
+  // C. Domain Warper (The Fluid Distortion)
+  FastNoiseLite warper;
+  warper.SetSeed(settings.seed + 2);
+  warper.SetFrequency(settings.continentFreq);
+  warper.SetDomainWarpType(FastNoiseLite::DomainWarpType_OpenSimplex2);
+  // We handle amplitude manually via warpStrength * coordinate scale
 
   int side = (int)std::sqrt(settings.cellCount);
   if (side == 0)
-    side = 1000; // Safety
+    side = 1000;
 
+  // Initialize Grid (if needed, mostly redundant if already init)
   for (uint32_t i = 0; i < settings.cellCount; ++i) {
     if (buffers.posX && buffers.posY) {
       buffers.posX[i] = (float)(i % side) / side;
       buffers.posY[i] = (float)(i / side) / side;
-      if (i < 5) {
-        std::cout << "[TERRAIN] Generated pos[" << i << "]: ("
-                  << buffers.posX[i] << ", " << buffers.posY[i] << ")\n";
-      }
     }
   }
 
   for (uint32_t i = 0; i < settings.cellCount; ++i) {
-    // 1. Get Base Noise (0.0 to 1.0)
-    // Range -1..1 -> 0..1
-    float h =
-        noise.GetNoise(buffers.posX[i] * 100.0f, buffers.posY[i] * 100.0f);
-    h = (h + 1.0f) * 0.5f;
+    // Get Base Coordinates
+    float x = buffers.posX[i] * 100.0f;
+    float y = buffers.posY[i] * 100.0f;
 
-    // 2. Shape it (Severity makes valleys wider/peaks thinner)
-    if (h > 0)
-      h = std::pow(h, settings.heightSeverity);
+    // STEP A: Apply Domain Warping
+    // This twists X and Y in place before we generate height.
+    // We scale the warp effect by the UI slider.
+    // Note: FastNoiseLite DomainWarp takes reference refs float& x, float& y
+    if (settings.warpStrength > 0.0f) {
+      // Basic domain warp doesn't expose amplitude directly in simple calls
+      // easily without configuring the fractal But SetDomainWarpAmp is not
+      // always reliable in all FNL versions. Instead we can just configure the
+      // warper to be strong or multiply the input/output manually? Actually FNL
+      // DomainWarp works by adding noise to coords. We'll configure fractal
+      // settings or just rely on the frequency. For user control
+      // 'warpStrength', let's set FractalGain or Type? Simpler: Just rely on
+      // the Warper object as configured. Wait, user asked for: float
+      // currentWarp = s.warpStrength * 20.0f; FNL doesn't take 'strength' in
+      // the DomainWarp call. We will trust the user's snippet intent but adapt
+      // to FNL API. FNL usually uses SetDomainWarpAmp.
+      warper.SetDomainWarpAmp(settings.warpStrength * 20.0f);
+      warper.DomainWarp(x, y);
+    }
 
-    // 3. Apply Range (Map 0.0-1.0 to Min-Max)
-    // This preserves detail instead of clipping it
-    float range = settings.heightMax - settings.heightMin;
-    h = settings.heightMin + (h * range);
+    // STEP B: Generate Base Ground (Continents)
+    float shape = baseNoise.GetNoise(x, y);
+    shape = (shape + 1.0f) * 0.5f; // Normalize 0-1
 
-    // 4. Finally apply the multiplier (if you really want to scale it up)
-    h *= settings.heightMultiplier;
+    // STEP C: Generate Mountains (Ridged)
+    float detail = mountainNoise.GetNoise(x, y);
+    detail = (detail + 1.0f) * 0.5f; // Normalize 0-1
+    detail = std::pow(detail, 2.0f); // Sharpen the peaks further
 
-    // Soft clamp to valid range (0-1) for rendering
-    h = std::max(0.0f, std::min(h, 1.0f));
+    // STEP D: Combine (Masking)
+    // Low shape = Ocean, High shape = Land
+    float finalHeight = shape;
+
+    // Only add mountains if we are essentially on land/high ground
+    if (shape > 0.3f) {
+      // The higher the landmass, the more mountain detail we allow.
+      finalHeight += detail * shape * settings.mountainInfluence;
+    }
+
+    // STEP E: Final Cleanup
+    finalHeight *= settings.heightMultiplier;
+    finalHeight =
+        std::clamp(finalHeight, settings.heightMin, settings.heightMax);
+
+    // Soft clamp to [0,1] for safety
+    finalHeight = std::max(0.0f, std::min(finalHeight, 1.0f));
 
     if (buffers.height)
-      buffers.height[i] = h;
+      buffers.height[i] = finalHeight;
 
-    // Basic Temperature Generation (Latitude + Height)
+    // --- RETAIN BIOME LOGIC ---
+    // Basic Temperature
     if (buffers.temperature) {
-      // Temperature drops as you go from Equator (Y=0.5) to Poles (Y=0.0/1.0)
-      // Simple linear gradient for now
-      float latitude = std::abs(buffers.posY[i] - 0.5f) *
-                       2.0f; // 0.0 at equator, 1.0 at poles
+      float latitude = std::abs(buffers.posY[i] - 0.5f) * 2.0f;
       float temp = 1.0f - latitude;
-
-      // Height cooling (lapse rate)
-      temp -= h * 0.5f;
-
+      temp -= finalHeight * 0.5f;
       buffers.temperature[i] = std::clamp(temp, 0.0f, 1.0f);
     }
 
-    // Basic Moisture (Noise)
+    // Basic Moisture
     if (buffers.moisture) {
-      float m = noise.GetNoise(buffers.posX[i] * 50.0f + 1000.0f,
-                               buffers.posY[i] * 50.0f + 1000.0f);
+      // Use the warped coordinates for moisture too!
+      float m = baseNoise.GetNoise(x + 500.0f,
+                                   y + 500.0f); // Re-use base noise with offset
       m = (m + 1.0f) * 0.5f;
       buffers.moisture[i] = m;
     }
