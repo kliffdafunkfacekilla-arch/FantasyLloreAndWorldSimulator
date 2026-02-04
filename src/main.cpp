@@ -263,6 +263,12 @@ int main() {
   buffers.Initialize(1000000);
   WorldSettings settings;
 
+  WorldSettings settings;
+
+  // Hydrology Systems
+  NeighborGraph graph;
+  NeighborFinder finder;
+
   TerrainController terrain;
   MapRenderer renderer;
   renderer.Setup(buffers);
@@ -302,7 +308,7 @@ int main() {
     ImGui::NewFrame();
 
     // Pass Logical Size (winW, winH) to ImGui
-    DrawGodModeUI(settings, buffers, terrain, winW, winH);
+    DrawGodModeUI(settings, buffers, terrain, graph, finder, winW, winH);
 
     // Render Logic (Uses Physical Framebuffer Coordinates)
     // We want the Map to start where the UI ends.
@@ -340,6 +346,7 @@ int main() {
     glfwSwapBuffers(window);
   }
 
+  finder.Cleanup(graph);
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();
   ImGui::DestroyContext();
