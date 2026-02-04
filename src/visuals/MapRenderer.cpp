@@ -58,16 +58,36 @@ public:
         b = 0.4f + (0.4f * depth);
       } else {
         // Land
-        // Simple debug coloring based on height for now
-        r = 0.1f;
-        g = 0.4f + (h * 0.5f);
-        b = 0.1f;
+        // Whittaker-like Biome Logic
+        float t = buffers.temperature[i];
+        float m = buffers.moisture[i];
 
-        // Add Temperature/Moisture logic if available
-        if (buffers.temperature[i] < 0.2f) { // Snow
-          r = 0.9f;
-          g = 0.9f;
+        // Default (Rock/High Altitude)
+        r = 0.5f;
+        g = 0.5f;
+        b = 0.5f;
+
+        if (t < 0.2f) {
+          // Snow/Ice (White)
+          r = 0.95f;
+          g = 0.95f;
           b = 1.0f;
+        } else if (m < 0.2f) {
+          // Desert (Yellow/Sand)
+          r = 0.9f;
+          g = 0.8f;
+          b = 0.5f;
+        } else if (m > 0.6f && t > 0.6f) {
+          // Rainforest (Dark Green)
+          r = 0.0f;
+          g = 0.35f;
+          b = 0.1f;
+        } else {
+          // Plains/Forest (Green)
+          // Variation based on height for visual depth
+          r = 0.2f;
+          g = 0.6f - (h * 0.2f);
+          b = 0.1f;
         }
       }
 

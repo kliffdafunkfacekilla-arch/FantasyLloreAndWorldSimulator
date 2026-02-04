@@ -39,16 +39,26 @@ void TerrainController::GenerateProceduralTerrain(
   }
 
   for (uint32_t i = 0; i < settings.cellCount; ++i) {
+    // 1. Get Base Noise (0.0 to 1.0)
+    // Range -1..1 -> 0..1
     float h =
         noise.GetNoise(buffers.posX[i] * 100.0f, buffers.posY[i] * 100.0f);
     h = (h + 1.0f) * 0.5f;
 
+    // 2. Shape it (Severity makes valleys wider/peaks thinner)
     if (h > 0)
       h = std::pow(h, settings.heightSeverity);
+
+    // 3. Apply Range (Map 0.0-1.0 to Min-Max)
+    // This preserves detail instead of clipping it
+    float range = settings.heightMax - settings.heightMin;
+    h = settings.heightMin + (h * range);
+
+    // 4. Finally apply the multiplier (if you really want to scale it up)
     h *= settings.heightMultiplier;
 
-    h = std::clamp(h, settings.heightMin, settings.heightMax);
-    h = std::clamp(h, 0.0f, 1.0f);
+    // Soft clamp to valid range (0-1) for rendering
+    h = std::max(0.0f, std::min(h, 1.0f));
 
     if (buffers.height)
       buffers.height[i] = h;
@@ -97,37 +107,37 @@ void TerrainController::ApplyThermalErosion(WorldBuffers &buffers,
   if (side == 0)
     return;
 
-  // Scratch buffer
-  std::vector<float> tempHeight(buffers.count);
+  // Talus Threshold: Material only moves if diff > 4 / side
+  // This prevents infinite slumping on flat-ish ground
+  float talus = 4.0f / side;
 
   for (int iter = 0; iter < iterations; ++iter) {
     for (uint32_t i = 0; i < buffers.count; ++i) {
-      float sum = buffers.height[i];
-      int count = 1;
+      float h = buffers.height[i];
 
-      // Grid neighbors
       int neighbors[] = {-side, side, -1, 1};
       for (int n : neighbors) {
         int idx = (int)i + n;
+
         // Bounds check
         if (idx >= 0 && idx < (int)buffers.count) {
-          // Check wrap-around for left/right
+          // Basic wrap check
           if (n == -1 && i % side == 0)
             continue;
           if (n == 1 && (i + 1) % side == 0)
             continue;
 
-          sum += buffers.height[idx];
-          count++;
+          float hN = buffers.height[idx];
+          float diff = h - hN;
+
+          if (diff > talus) {
+            float transfer = diff * 0.5f; // Move half the excess
+            buffers.height[i] -= transfer;
+            buffers.height[idx] += transfer;
+            // Note: This is in-place mass transfer (unstable but organic)
+          }
         }
       }
-
-      tempHeight[i] = sum / count;
-    }
-
-    // Write back
-    for (uint32_t i = 0; i < buffers.count; ++i) {
-      buffers.height[i] = tempHeight[i];
     }
   }
 }

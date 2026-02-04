@@ -36,8 +36,6 @@ void checkShader(GLuint shader, const std::string &type) {
     glGetShaderInfoLog(shader, 1024, NULL, infoLog);
     std::cout << "[ERROR] " << type << " Compilation Error:\n"
               << infoLog << "\n";
-  } else {
-    // std::cout << "[LOG] " << type << " shader compiled successfully.\n";
   }
 }
 
@@ -92,8 +90,21 @@ GLuint LoadShaders() {
 
 // --- The God Mode Dashboard ---
 void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
-                   TerrainController &terrain) {
-  ImGui::Begin("God Mode Dashboard");
+                   TerrainController &terrain, int screenW, int screenH) {
+
+  // Docking Layout logic
+  float uiWidth = (float)screenW / 3.0f;
+  ImGui::SetNextWindowPos(ImVec2(0, 0));
+  ImGui::SetNextWindowSize(ImVec2(uiWidth, (float)screenH));
+
+  ImGuiWindowFlags flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+                           ImGuiWindowFlags_NoCollapse |
+                           ImGuiWindowFlags_NoTitleBar;
+
+  ImGui::Begin("God Mode Dashboard", nullptr, flags);
+
+  ImGui::TextDisabled("OMNIS WORLD ENGINE v0.1");
+  ImGui::Separator();
 
   // 1. Perspective Control
   if (ImGui::CollapsingHeader("Perspective & Scale",
@@ -131,7 +142,7 @@ void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
     ImGui::SliderFloat("Height Min", &settings.heightMin, 0.0f, 1.0f);
     ImGui::SliderFloat("Height Max", &settings.heightMax, 0.0f, 1.0f);
 
-    if (ImGui::Button("Regenerate Terrain")) {
+    if (ImGui::Button("Regenerate Terrain", ImVec2(-1, 0))) {
       terrain.GenerateProceduralTerrain(buffers, settings);
     }
   }
@@ -155,18 +166,15 @@ void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
       ImGui::SliderFloat("Zone 5 (S.Pole)", &settings.windZones[4], -1.0f,
                          1.0f);
     }
-
-    // We could add a "Run Climate Sim" button if it's separate from Update loop
-    // But typically ClimateSim::Update runs every frame or when triggered.
   }
 
   // 4. Geology & Erosion
   if (ImGui::CollapsingHeader("Geology & Erosion")) {
     ImGui::SliderInt("Erosion Iterations", &settings.erosionIterations, 1, 100);
-    if (ImGui::Button("Run Thermal Erosion")) {
+    if (ImGui::Button("Run Thermal Erosion", ImVec2(-1, 0))) {
       terrain.ApplyThermalErosion(buffers, settings.erosionIterations);
     }
-    if (ImGui::Button("Import Heightmap")) {
+    if (ImGui::Button("Import Heightmap", ImVec2(-1, 0))) {
       std::string path = PlatformUtils::OpenFileDialog();
       if (!path.empty()) {
         terrain.LoadFromImage(path.c_str(), buffers);
@@ -193,11 +201,21 @@ int main() {
   glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
+  // Center window logic (approximate)
+  const GLFWvidmode *mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+  int windowW = 1600;
+  int windowH = 900;
+
   GLFWwindow *window =
-      glfwCreateWindow(1280, 720, "Omnis World Engine", NULL, NULL);
+      glfwCreateWindow(windowW, windowH, "Omnis World Engine", NULL, NULL);
   if (!window) {
     std::cout << "[ERROR] Window Creation Failed!\n";
     return -1;
+  }
+
+  if (mode) {
+    glfwSetWindowPos(window, (mode->width - windowW) / 2,
+                     (mode->height - windowH) / 2);
   }
 
   glfwMakeContextCurrent(window);
@@ -225,24 +243,41 @@ int main() {
   ImGui_ImplGlfw_InitForOpenGL(window, true);
   ImGui_ImplOpenGL3_Init("#version 330");
 
+  // Style
+  ImGui::StyleColorsDark();
+
   // 5. Main Loop
   std::cout << "[LOG] Entering Main Loop...\n";
   while (!glfwWindowShouldClose(window)) {
     glfwPollEvents();
 
-    // UI
+    int winW, winH;
+    glfwGetWindowSize(window, &winW, &winH);
+
+    int fbW, fbH;
+    glfwGetFramebufferSize(window, &fbW, &fbH);
+
+    // Calculate DPI Scale
+    float dpiScaleX = (winW > 0) ? ((float)fbW / (float)winW) : 1.0f;
+    float dpiScaleY = (winH > 0) ? ((float)fbH / (float)winH) : 1.0f;
+
+    // UI (Uses Logical Window Coordinates)
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
-    DrawGodModeUI(settings, buffers, terrain);
 
-    // Simulation Updates (Optional: could be gated by flags)
-    // ClimateSim::Update(buffers, settings);
+    // Pass Logical Size (winW, winH) to ImGui
+    DrawGodModeUI(settings, buffers, terrain, winW, winH);
 
-    // Render
-    int w, h;
-    glfwGetFramebufferSize(window, &w, &h);
-    glViewport(0, 0, w, h);
+    // Render Logic (Uses Physical Framebuffer Coordinates)
+    // We want the Map to start where the UI ends.
+    // UI Width is winW / 3.0f (Logical)
+    // So Map Offset is (winW / 3.0f) * dpiScaleX (Physical)
+
+    int mapX = (int)((winW / 3.0f) * dpiScaleX);
+    int mapW = fbW - mapX;
+
+    glViewport(mapX, 0, mapW, fbH);
 
     // Clear Screen
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -254,6 +289,9 @@ int main() {
     // Update Uniforms
     glUniform1f(glGetUniformLocation(shaderProgram, "u_zoom"),
                 (float)pow(4.0, settings.zoomLevel));
+
+    // We might need to adjust aspect ratio or offset logic since viewport
+    // changed
     glUniform2f(glGetUniformLocation(shaderProgram, "u_offset"),
                 settings.viewOffset[0], settings.viewOffset[1]);
     glUniform1f(glGetUniformLocation(shaderProgram, "u_pointSize"),
