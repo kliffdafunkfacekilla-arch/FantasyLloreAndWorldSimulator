@@ -127,20 +127,31 @@ void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
     ImGui::InputInt("Seed", &settings.seed);
 
     ImGui::Separator();
-    ImGui::Text("Terrain Shape");
-    ImGui::SliderFloat("Height Multiplier", &settings.heightMultiplier, 0.1f,
-                       10.0f);
-    ImGui::SliderFloat("Height Severity (Roughness)", &settings.heightSeverity,
-                       0.1f, 5.0f);
-    ImGui::SliderFloat("Feature Frequency", &settings.featureFrequency, 0.001f,
-                       0.1f);
-    ImGui::SliderFloat("Clustering", &settings.featureClustering, 1.0f, 5.0f);
+    ImGui::Text("Tectonics (Base Shape)");
+    ImGui::SliderFloat("Continent Size", &settings.continentFreq, 0.001f, 0.02f,
+                       "%.4f");
+    if (ImGui::IsItemHovered())
+      ImGui::SetTooltip("Lower = Bigger Continents");
 
     ImGui::Separator();
-    ImGui::Text("Water & Levels");
+    ImGui::Text("Orogeny (Mountains)");
+    ImGui::SliderFloat("Mountain Density", &settings.featureFrequency, 0.01f,
+                       0.1f);
+    ImGui::SliderFloat("Mountain Height", &settings.mountainInfluence, 0.0f,
+                       2.0f);
+
+    ImGui::Separator();
+    ImGui::Text("Reality Distortion");
+    ImGui::SliderFloat("Alien Warp", &settings.warpStrength, 0.0f, 5.0f);
+    if (ImGui::IsItemHovered())
+      ImGui::SetTooltip("0 = Earth-like, 5 = Fluid/Alien");
+
+    ImGui::Separator();
+    ImGui::Text("Vertical Scale");
+    ImGui::SliderFloat("Height Mult", &settings.heightMultiplier, 0.1f, 3.0f);
     ImGui::SliderFloat("Sea Level", &settings.seaLevel, 0.0f, 1.0f);
-    ImGui::SliderFloat("Height Min", &settings.heightMin, 0.0f, 1.0f);
-    ImGui::SliderFloat("Height Max", &settings.heightMax, 0.0f, 1.0f);
+    // ImGui::SliderFloat("Height Min", &settings.heightMin, 0.0f, 1.0f); //
+    // Hidden for simplicity unless needed
 
     if (ImGui::Button("Regenerate Terrain", ImVec2(-1, 0))) {
       terrain.GenerateProceduralTerrain(buffers, settings);

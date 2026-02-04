@@ -6,7 +6,6 @@
 #include <string>
 #include <vector>
 
-
 // 1. World Configuration (Linked to God Mode UI)
 struct WorldSettings {
   // Core Generation
@@ -17,6 +16,7 @@ struct WorldSettings {
   char heightmapPath[256] = ""; // Fixed size for ImGui InputText compatibility
   // --- Advanced Terrain Controls ---
   float heightMultiplier = 1.0f; // Overall Vertical Scale
+  float seaLevel = 0.2f;         // Defined Sea Level (0.0-1.0)
   float heightMin = 0.0f;
   float heightMax = 1.0f;
 

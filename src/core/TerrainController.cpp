@@ -27,7 +27,7 @@ void TerrainController::GenerateProceduralTerrain(
   FastNoiseLite mountainNoise;
   mountainNoise.SetSeed(settings.seed + 1); // Offset seed
   mountainNoise.SetFrequency(settings.featureFrequency);
-  mountainNoise.SetFractalType(FastNoiseLite::FractalType_RidgedMulti);
+  mountainNoise.SetFractalType(FastNoiseLite::FractalType_Ridged);
   mountainNoise.SetFractalOctaves(5);
 
   // C. Domain Warper (The Fluid Distortion)
