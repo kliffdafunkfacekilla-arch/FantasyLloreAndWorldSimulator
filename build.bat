@@ -18,7 +18,7 @@ clang++ -std=c++20 ^
     deps/imgui/backends/imgui_impl_opengl3.cpp ^
     -I include -I deps/imgui -I deps/imgui/backends -I deps/glfw/include -I deps/glew/include ^
     -L C:/msys64/mingw64/lib ^
-    -lglfw3 -lglew32 -lopengl32 -lgdi32 -luser32 -lshell32 -lcomdlg32 ^
+    -lglfw3 -lglew32 -lopengl32 -lgdi32 -luser32 -lkernel32 -lshell32 -lcomdlg32 ^
     -static-libgcc -static-libstdc++ ^
     -o bin/OmnisWorldEngine.exe
 
