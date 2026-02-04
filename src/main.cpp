@@ -90,7 +90,8 @@ GLuint LoadShaders() {
 
 // --- The God Mode Dashboard ---
 void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
-                   TerrainController &terrain, int screenW, int screenH) {
+                   TerrainController &terrain, NeighborGraph &graph,
+                   NeighborFinder &finder, int screenW, int screenH) {
 
   // Docking Layout logic
   float uiWidth = (float)screenW / 3.0f;
@@ -158,7 +159,30 @@ void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
     }
   }
 
-  // 3. Climate & Atmosphere
+  // 3. Connectivity & Hydrology
+  if (ImGui::CollapsingHeader("Connectivity & Hydrology",
+                              ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (ImGui::Button("Build Neighbor Graph (Grid)", ImVec2(-1, 0))) {
+      finder.BuildGraph(buffers, buffers.count, graph);
+    }
+    if (graph.neighborData != nullptr) {
+      ImGui::TextColored(ImVec4(0, 1, 0, 1), "Graph Connected!");
+
+      if (ImGui::Button("Simulate Rivers (100 Ticks)", ImVec2(-1, 0))) {
+        for (int i = 0; i < 100; ++i)
+          HydrologySim::Update(buffers, graph);
+      }
+
+      ImGui::SameLine();
+      if (ImGui::Button("1 Tick")) {
+        HydrologySim::Update(buffers, graph);
+      }
+    } else {
+      ImGui::TextColored(ImVec4(1, 0, 0, 1), "Graph Not Built");
+    }
+  }
+
+  // 4. Climate & Atmosphere
   if (ImGui::CollapsingHeader("Atmosphere & Climate")) {
     ImGui::SliderFloat("Global Temp", &settings.globalTempModifier, 0.5f, 2.0f);
     ImGui::SliderFloat("Rainfall Mod", &settings.rainfallModifier, 0.0f, 5.0f);
