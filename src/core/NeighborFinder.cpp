@@ -1,5 +1,7 @@
 #include "../../include/SimulationModules.hpp"
+#include <cmath>
 #include <iostream>
+
 
 // NeighborFinder implementation
 // Note: NeighborGraph struct definition is in the header to be shared.

@@ -263,8 +263,6 @@ int main() {
   buffers.Initialize(1000000);
   WorldSettings settings;
 
-  WorldSettings settings;
-
   // Hydrology Systems
   NeighborGraph graph;
   NeighborFinder finder;

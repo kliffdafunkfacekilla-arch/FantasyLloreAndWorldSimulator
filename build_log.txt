@@ -1,84 +1,29 @@
-[SETUP] Found MSYS2, adding to PATH...
-Compiling with clang++...
-In file included from src/main.cpp:11:
-In file included from C:/msys64/mingw64/include/commdlg.h:19:
-C:/msys64/mingw64/include/prsht.h:54:17: error: unknown type name 'CALLBACK'
-   54 |   typedef UINT (CALLBACK *LPFNPSPCALLBACKA)(HWND hwnd,UINT uMsg,struct _PROPSHEETPAGEA *ppsp);
+[CLEAN] Removing old binaries...
+Could Not Find C:\Users\krazy\Documents\GitHub\FantasyLloreAndWorldSimulator\bin\*.exe
+[COPY] Copying shaders...
+shaders\world.frag
+shaders\world.vert
+        2 file(s) copied.
+[BUILD] Compiling Omnis Engine...
+src/main.cpp:266:17: error: redefinition of 'settings'
+  266 |   WorldSettings settings;
       |                 ^
-C:/msys64/mingw64/include/prsht.h:54:45: error: unknown type name 'HWND'
-   54 |   typedef UINT (CALLBACK *LPFNPSPCALLBACKA)(HWND hwnd,UINT uMsg,struct _PROPSHEETPAGEA *ppsp);
-      |                                             ^
-C:/msys64/mingw64/include/prsht.h:54:55: error: unknown type name 'UINT'
-   54 |   typedef UINT (CALLBACK *LPFNPSPCALLBACKA)(HWND hwnd,UINT uMsg,struct _PROPSHEETPAGEA *ppsp);
-      |                                                       ^
-C:/msys64/mingw64/include/prsht.h:54:11: error: a type specifier is required for all declarations
-   54 |   typedef UINT (CALLBACK *LPFNPSPCALLBACKA)(HWND hwnd,UINT uMsg,struct _PROPSHEETPAGEA *ppsp);
-      |   ~~~~~~~ ^
-C:/msys64/mingw64/include/prsht.h:55:26: error: expected ')'
-   55 |   typedef UINT (CALLBACK *LPFNPSPCALLBACKW)(HWND hwnd,UINT uMsg,struct _PROPSHEETPAGEW *ppsp);
-      |                          ^
-C:/msys64/mingw64/include/prsht.h:55:16: note: to match this '('
-   55 |   typedef UINT (CALLBACK *LPFNPSPCALLBACKW)(HWND hwnd,UINT uMsg,struct _PROPSHEETPAGEW *ppsp);
-      |                ^
-C:/msys64/mingw64/include/prsht.h:55:45: error: unknown type name 'HWND'
-   55 |   typedef UINT (CALLBACK *LPFNPSPCALLBACKW)(HWND hwnd,UINT uMsg,struct _PROPSHEETPAGEW *ppsp);
-      |                                             ^
-C:/msys64/mingw64/include/prsht.h:55:44: error: function cannot return function type 'UINT' (aka 'int ((int *))(int, int, struct _PROPSHEETPAGEA *)')
-   55 |   typedef UINT (CALLBACK *LPFNPSPCALLBACKW)(HWND hwnd,UINT uMsg,struct _PROPSHEETPAGEW *ppsp);
-      |                                            ^
-C:/msys64/mingw64/include/prsht.h:86:11: error: unknown type name 'LPCDLGTEMPLATE'
-   86 |   typedef LPCDLGTEMPLATE PROPSHEETPAGE_RESOURCE;
-      |           ^
-C:/msys64/mingw64/include/prsht.h:122:5: error: unknown type name 'DWORD'
-  122 |     PROPSHEETPAGEA_V1_FIELDS
+src/main.cpp:264:17: note: previous definition is here
+  264 |   WorldSettings settings;
+      |                 ^
+1 error generated.
+src/core/NeighborFinder.cpp:21:24: error: no member named 'sqrt' in namespace 'std'; did you mean 'sort'?
+   21 |   int side = (int)std::sqrt(count);
+      |                        ^~~~
+      |                        sort
+C:/msys64/mingw64/include/c++/15.2.0/bits/stl_algo.h:4831:5: note: 'sort' declared here
+ 4831 |     sort(_RandomAccessIterator __first, _RandomAccessIterator __last)
       |     ^
-C:/msys64/mingw64/include/prsht.h:89:3: note: expanded from macro 'PROPSHEETPAGEA_V1_FIELDS'
-   89 |   DWORD dwSize,dwFlags;                                         \
-      |   ^
-C:/msys64/mingw64/include/prsht.h:122:5: error: unknown type name 'HINSTANCE'
-C:/msys64/mingw64/include/prsht.h:90:3: note: expanded from macro 'PROPSHEETPAGEA_V1_FIELDS'
-   90 |   HINSTANCE hInstance;                                          \
-      |   ^
-C:/msys64/mingw64/include/prsht.h:122:5: error: unknown type name 'LPCSTR'
-C:/msys64/mingw64/include/prsht.h:92:5: note: expanded from macro 'PROPSHEETPAGEA_V1_FIELDS'
-   92 |     LPCSTR pszTemplate; PROPSHEETPAGE_RESOURCE pResource;       \
-      |     ^
-C:/msys64/mingw64/include/prsht.h:122:5: error: unknown type name 'HICON'
-C:/msys64/mingw64/include/prsht.h:95:5: note: expanded from macro 'PROPSHEETPAGEA_V1_FIELDS'
-   95 |     HICON hIcon; LPCSTR pszIcon;                                \
-      |     ^
-C:/msys64/mingw64/include/prsht.h:122:5: error: unknown type name 'LPCSTR'
-C:/msys64/mingw64/include/prsht.h:95:18: note: expanded from macro 'PROPSHEETPAGEA_V1_FIELDS'
-   95 |     HICON hIcon; LPCSTR pszIcon;                                \
-      |                  ^
-C:/msys64/mingw64/include/prsht.h:122:5: error: unknown type name 'LPCSTR'
-C:/msys64/mingw64/include/prsht.h:97:3: note: expanded from macro 'PROPSHEETPAGEA_V1_FIELDS'
-   97 |   LPCSTR pszTitle;                                              \
-      |   ^
-C:/msys64/mingw64/include/prsht.h:122:5: error: unknown type name 'DLGPROC'
-C:/msys64/mingw64/include/prsht.h:98:3: note: expanded from macro 'PROPSHEETPAGEA_V1_FIELDS'
-   98 |   DLGPROC pfnDlgProc;                                           \
-      |   ^
-C:/msys64/mingw64/include/prsht.h:122:5: error: unknown type name 'LPARAM'
-C:/msys64/mingw64/include/prsht.h:99:3: note: expanded from macro 'PROPSHEETPAGEA_V1_FIELDS'
-   99 |   LPARAM lParam;                                                \
-      |   ^
-C:/msys64/mingw64/include/prsht.h:122:5: error: unknown type name 'LPFNPSPCALLBACKA'
-C:/msys64/mingw64/include/prsht.h:100:3: note: expanded from macro 'PROPSHEETPAGEA_V1_FIELDS'
-  100 |   LPFNPSPCALLBACKA pfnCallback;                                 \
-      |   ^
-C:/msys64/mingw64/include/prsht.h:128:5: error: unknown type name 'DWORD'
-  128 |     PROPSHEETPAGEA_V1_FIELDS
-      |     ^
-C:/msys64/mingw64/include/prsht.h:89:3: note: expanded from macro 'PROPSHEETPAGEA_V1_FIELDS'
-   89 |   DWORD dwSize,dwFlags;                                         \
-      |   ^
-C:/msys64/mingw64/include/prsht.h:128:5: error: unknown type name 'HINSTANCE'
-C:/msys64/mingw64/include/prsht.h:90:3: note: expanded from macro 'PROPSHEETPAGEA_V1_FIELDS'
-   90 |   HINSTANCE hInstance;                                          \
-      |   ^
-fatal error: too many errors emitted, stopping now [-ferror-limit=]
-20 errors generated.
-
-[ERROR] Build Failed!
-Ensure you have installed MSYS2 packages: clang, glfw, glew
+src/core/NeighborFinder.cpp:21:19: error: no matching function for call to 'sort'
+   21 |   int side = (int)std::sqrt(count);
+      |                   ^~~~~~~~~
+C:/msys64/mingw64/include/c++/15.2.0/bits/stl_algo.h:4831:5: note: candidate function template not viable: requires 2 arguments, but 1 was provided
+ 4831 |     sort(_RandomAccessIterator __first, _RandomAccessIterator __last)
+      |     ^    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2 errors generated.
+[ERROR] Build failed. Check the logs above.
