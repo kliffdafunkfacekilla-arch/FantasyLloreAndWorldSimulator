@@ -72,6 +72,12 @@ public:
           r = 0.95f;
           g = 0.95f;
           b = 1.0f;
+        } else if (buffers.flux && buffers.flux[i] > 1.0f) {
+          // River (Blue) - Color based on flow volume
+          float intensity = std::min(buffers.flux[i] * 0.1f, 1.0f);
+          r = 0.0f;
+          g = 0.2f + intensity * 0.5f;
+          b = 0.8f + intensity * 0.2f;
         } else if (m < 0.2f) {
           // Desert (Yellow/Sand)
           r = 0.9f;
