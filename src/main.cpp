@@ -223,6 +223,26 @@ void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
   // 5. Civilization / Factions
   if (ImGui::CollapsingHeader("Civilization")) {
     ImGui::Checkbox("Enable Factions", &settings.enableFactions);
+
+    if (settings.enableFactions) {
+      ImGui::Separator();
+      ImGui::Text("Empire Tools");
+
+      if (ImGui::Button("Spawn Faction 1 (Pioneers)")) {
+        AgentSystem::SpawnCivilization(buffers, 1);
+      }
+
+      if (ImGui::Button("Simulate Growth (1 Year)")) {
+        // Simulate 36 ticks (approx 1 year at 10 days/tick scale? Just a chunk
+        // of ticks)
+        for (int i = 0; i < 36; ++i)
+          AgentSystem::UpdateCivilization(buffers, graph);
+      }
+      ImGui::SameLine();
+      if (ImGui::Button("1 Tick")) {
+        AgentSystem::UpdateCivilization(buffers, graph);
+      }
+    }
   }
 
   ImGui::End();
