@@ -65,9 +65,10 @@ struct WorldBuffers {
   // Simulation Layers (Allocated on Demand)
   float *temperature = nullptr;
   float *moisture = nullptr;
-  float *windDX = nullptr; // Wind Vector X
-  float *windDY = nullptr; // Wind Vector Y
-  float *flux = nullptr;   // River/Water accumulation volume
+  float *windDX = nullptr;   // Wind Vector X
+  float *windDY = nullptr;   // Wind Vector Y
+  float *flux = nullptr;     // River/Water accumulation volume (READ buffer)
+  float *nextFlux = nullptr; // Double-buffer for water (WRITE buffer)
 
   // Civilization & Life
   int *factionID = nullptr;
@@ -109,8 +110,10 @@ struct WorldBuffers {
     std::fill_n(windDX, count, 0.0f);
     std::fill_n(windDY, count, 0.0f);
 
-    flux = new float[count];        // Allocate Flux
-    std::fill_n(flux, count, 0.0f); // Zero it out
+    flux = new float[count];            // Allocate Flux
+    std::fill_n(flux, count, 0.0f);     // Zero it out
+    nextFlux = new float[count];        // Allocate NextFlux
+    std::fill_n(nextFlux, count, 0.0f); // Zero it out
   }
 
   void Cleanup() {
@@ -126,6 +129,7 @@ struct WorldBuffers {
     delete[] chaos;
     delete[] infrastructure;
     delete[] flux;
+    delete[] nextFlux;
 
     posX = nullptr; // Safety flag
   }

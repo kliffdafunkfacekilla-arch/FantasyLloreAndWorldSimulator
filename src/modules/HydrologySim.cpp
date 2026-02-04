@@ -1,17 +1,15 @@
 #include "../../include/SimulationModules.hpp"
 #include <algorithm>
 #include <cmath>
-#include <vector>
-
+#include <cstring> // For memcpy
 
 namespace HydrologySim {
 
 void Update(WorldBuffers &b, const NeighborGraph &g) {
-  if (!b.flux || !b.height || !g.neighborData)
+  if (!b.flux || !b.nextFlux || !b.height || !g.neighborData)
     return;
 
-  // 1. ADD RAINFALL
-  // Rain falls based on Moisture map
+  // 1. ADD RAINFALL (Write to current flux, then copy to nextFlux as base)
   for (uint32_t i = 0; i < b.count; ++i) {
     float rain = b.moisture[i] * 0.01f; // Small amount per tick
     if (b.height[i] < 0.2f)
@@ -19,21 +17,19 @@ void Update(WorldBuffers &b, const NeighborGraph &g) {
     b.flux[i] += rain;
   }
 
-  // 2. CALCULATE FLOW (Downhill)
-  // We need a temporary buffer to store the *changes* so we don't handle
-  // the same water multiple times in one sweep (unless we want
-  // order-dependency). For simplicity/speed, we'll do in-place but iterate
-  // carefully or accept some bias. Better: Use a "Mass Transfer" approach.
+  // Initialize nextFlux as copy of current flux (before flow modification)
+  std::memcpy(b.nextFlux, b.flux, b.count * sizeof(float));
 
-  // Loop through all cells
+  // 2. CALCULATE FLOW (Downhill) - DOUBLE BUFFERED
+  // Read from flux, write changes to nextFlux
   for (uint32_t i = 0; i < b.count; ++i) {
     float h = b.height[i];
-    float water = b.flux[i];
+    float water = b.flux[i]; // READ from current buffer
 
     if (water <= 0.0001f)
       continue;
     if (h < 0.2f) {
-      b.flux[i] = 0.0f; // Ocean absorbs water
+      b.nextFlux[i] = 0.0f; // Ocean absorbs water
       continue;
     }
 
@@ -48,8 +44,6 @@ void Update(WorldBuffers &b, const NeighborGraph &g) {
       int nIdx = g.neighborData[offset + k];
       float nH = b.height[nIdx];
 
-      // Water fills pits, so effective height = height + water level?
-      // For now, simple terrain height flow
       if (nH < lowestH) {
         lowestH = nH;
         lowestIdx = nIdx;
@@ -59,16 +53,18 @@ void Update(WorldBuffers &b, const NeighborGraph &g) {
     // If we found a lower spot, move water there
     if (lowestIdx != -1) {
       float drop = h - lowestH;
-      // Flow is proportional to slope (drop) and amount of water
-      // But don't move *all* of it in one tick, or it teleports.
-      float transfer = water * 0.5f;
+      // Flow is proportional to slope and amount of water
+      float transfer = water * std::min(0.5f, drop * 2.0f);
 
-      b.flux[i] -= transfer;
-      b.flux[lowestIdx] += transfer;
+      b.nextFlux[i] -= transfer;         // WRITE to next buffer
+      b.nextFlux[lowestIdx] += transfer; // WRITE to next buffer
     }
 
     // 3. EVAPORATION
-    b.flux[i] *= 0.99f;
+    b.nextFlux[i] *= 0.99f;
   }
+
+  // 4. SWAP BUFFERS (Copy nextFlux back to flux)
+  std::memcpy(b.flux, b.nextFlux, b.count * sizeof(float));
 }
 } // namespace HydrologySim
