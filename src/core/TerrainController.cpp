@@ -1,13 +1,15 @@
-#include "../../include/SimulationModules.hpp"
 #include "../../include/FastNoiseLite.h"
+#include "../../include/SimulationModules.hpp"
 #include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <vector>
 
-void TerrainController::GenerateProceduralTerrain(WorldBuffers& buffers, const WorldSettings& settings) {
+void TerrainController::GenerateProceduralTerrain(
+    WorldBuffers &buffers, const WorldSettings &settings) {
   if (settings.heightmapPath[0] != '\0') {
-    std::cout << "[TERRAIN] Heightmap path set: " << settings.heightmapPath << ". Use 'Import Heightmap' button to load.\n";
+    std::cout << "[TERRAIN] Heightmap path set: " << settings.heightmapPath
+              << ". Use 'Import Heightmap' button to load.\n";
   }
 
   std::cout << "[TERRAIN] Generating procedural terrain with Seed "
@@ -22,12 +24,17 @@ void TerrainController::GenerateProceduralTerrain(WorldBuffers& buffers, const W
   noise.SetFractalOctaves(4);
 
   int side = (int)std::sqrt(settings.cellCount);
-  if (side == 0) side = 1000; // Safety
+  if (side == 0)
+    side = 1000; // Safety
 
   for (uint32_t i = 0; i < settings.cellCount; ++i) {
     if (buffers.posX && buffers.posY) {
       buffers.posX[i] = (float)(i % side) / side;
       buffers.posY[i] = (float)(i / side) / side;
+      if (i < 5) {
+        std::cout << "[TERRAIN] Generated pos[" << i << "]: ("
+                  << buffers.posX[i] << ", " << buffers.posY[i] << ")\n";
+      }
     }
   }
 
@@ -44,55 +51,83 @@ void TerrainController::GenerateProceduralTerrain(WorldBuffers& buffers, const W
     h = std::clamp(h, 0.0f, 1.0f);
 
     if (buffers.height)
-        buffers.height[i] = h;
+      buffers.height[i] = h;
+
+    // Basic Temperature Generation (Latitude + Height)
+    if (buffers.temperature) {
+      // Temperature drops as you go from Equator (Y=0.5) to Poles (Y=0.0/1.0)
+      // Simple linear gradient for now
+      float latitude = std::abs(buffers.posY[i] - 0.5f) *
+                       2.0f; // 0.0 at equator, 1.0 at poles
+      float temp = 1.0f - latitude;
+
+      // Height cooling (lapse rate)
+      temp -= h * 0.5f;
+
+      buffers.temperature[i] = std::clamp(temp, 0.0f, 1.0f);
+    }
+
+    // Basic Moisture (Noise)
+    if (buffers.moisture) {
+      float m = noise.GetNoise(buffers.posX[i] * 50.0f + 1000.0f,
+                               buffers.posY[i] * 50.0f + 1000.0f);
+      m = (m + 1.0f) * 0.5f;
+      buffers.moisture[i] = m;
+    }
   }
 }
 
-void TerrainController::LoadFromImage(const char* path, WorldBuffers& buffers) {
+void TerrainController::LoadFromImage(const char *path, WorldBuffers &buffers) {
   if (!path || path[0] == '\0')
     return;
   std::cout << "[TERRAIN] Importing heightmap from: " << path << std::endl;
   LoadHeightmapData(path, buffers, buffers.count);
 }
 
-void TerrainController::ApplyThermalErosion(WorldBuffers& buffers, int iterations) {
-    // Simplified erosion (Smoothing)
-    // Assumes grid layout for simplicity as we don't have NeighborGraph passed here yet
+void TerrainController::ApplyThermalErosion(WorldBuffers &buffers,
+                                            int iterations) {
+  // Simplified erosion (Smoothing)
+  // Assumes grid layout for simplicity as we don't have NeighborGraph passed
+  // here yet
 
-    std::cout << "[TERRAIN] Apply Thermal Erosion (" << iterations << " passes)...\n";
+  std::cout << "[TERRAIN] Apply Thermal Erosion (" << iterations
+            << " passes)...\n";
 
-    int side = (int)std::sqrt(buffers.count);
-    if (side == 0) return;
+  int side = (int)std::sqrt(buffers.count);
+  if (side == 0)
+    return;
 
-    // Scratch buffer
-    std::vector<float> tempHeight(buffers.count);
+  // Scratch buffer
+  std::vector<float> tempHeight(buffers.count);
 
-    for (int iter = 0; iter < iterations; ++iter) {
-        for (uint32_t i = 0; i < buffers.count; ++i) {
-            float sum = buffers.height[i];
-            int count = 1;
+  for (int iter = 0; iter < iterations; ++iter) {
+    for (uint32_t i = 0; i < buffers.count; ++i) {
+      float sum = buffers.height[i];
+      int count = 1;
 
-            // Grid neighbors
-            int neighbors[] = { -side, side, -1, 1 };
-            for(int n : neighbors) {
-                int idx = (int)i + n;
-                // Bounds check
-                if (idx >= 0 && idx < (int)buffers.count) {
-                    // Check wrap-around for left/right
-                    if (n == -1 && i % side == 0) continue;
-                    if (n == 1 && (i + 1) % side == 0) continue;
+      // Grid neighbors
+      int neighbors[] = {-side, side, -1, 1};
+      for (int n : neighbors) {
+        int idx = (int)i + n;
+        // Bounds check
+        if (idx >= 0 && idx < (int)buffers.count) {
+          // Check wrap-around for left/right
+          if (n == -1 && i % side == 0)
+            continue;
+          if (n == 1 && (i + 1) % side == 0)
+            continue;
 
-                    sum += buffers.height[idx];
-                    count++;
-                }
-            }
-
-            tempHeight[i] = sum / count;
+          sum += buffers.height[idx];
+          count++;
         }
+      }
 
-        // Write back
-        for (uint32_t i = 0; i < buffers.count; ++i) {
-            buffers.height[i] = tempHeight[i];
-        }
+      tempHeight[i] = sum / count;
     }
+
+    // Write back
+    for (uint32_t i = 0; i < buffers.count; ++i) {
+      buffers.height[i] = tempHeight[i];
+    }
+  }
 }

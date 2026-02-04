@@ -1,0 +1,67 @@
+[CLEAN] Removing old binaries...
+Could Not Find C:\Users\krazy\Documents\GitHub\FantasyLloreAndWorldSimulator\bin\*.exe
+[COPY] Copying shaders...
+shaders\world.frag
+shaders\world.vert
+        2 file(s) copied.
+[BUILD] Compiling Omnis Engine...
+src/main.cpp:199:2: error: expected '}'
+  199 | }
+      |  ^
+src/visuals/MapRenderer.cpp:8:19: note: to match this '{'
+    8 | class MapRenderer {
+      |                   ^
+src/visuals/MapRenderer.cpp:67:49: error: function definition is not allowed here
+   67 |         void Setup(const WorldBuffers &buffers) {
+      |                                                 ^
+src/visuals/MapRenderer.cpp:100:52: error: function definition is not allowed here
+  100 |                            const WorldSettings &s) {
+      |                                                    ^
+src/visuals/MapRenderer.cpp:151:45: error: function definition is not allowed here
+  151 |         void Render(const WorldSettings &s) {
+      |                                             ^
+In file included from src/main.cpp:22:
+C:/msys64/mingw64/include/c++/15.2.0/sstream:58:1: error: namespaces can only be defined in global or namespace scope
+   58 | {
+      | ^
+In file included from src/main.cpp:22:
+In file included from C:/msys64/mingw64/include/c++/15.2.0/sstream:1255:
+C:/msys64/mingw64/include/c++/15.2.0/bits/sstream.tcc:44:1: error: namespaces can only be defined in global or namespace scope
+   44 | {
+      | ^
+src/main.cpp:23:40: error: function definition is not allowed here
+   23 | std::string ReadFile(const char *path) {
+      |                                        ^
+src/main.cpp:30:58: error: function definition is not allowed here
+   30 | void checkShader(GLuint shader, const std::string &type) {
+      |                                                          ^
+src/main.cpp:43:35: error: function definition is not allowed here
+   43 | void checkProgram(GLuint program) {
+      |                                   ^
+src/main.cpp:55:22: error: function definition is not allowed here
+   55 | GLuint LoadShaders() {
+      |                      ^
+src/main.cpp:97:48: error: function definition is not allowed here
+   97 |                    TerrainController &terrain) {
+      |                                                ^
+src/main.cpp:117:12: error: function definition is not allowed here
+  117 | int main() {
+      |            ^
+src/main.cpp:199:2: error: expected '}'
+  199 | }
+      |  ^
+src/visuals/MapRenderer.cpp:61:44: note: to match this '{'
+   61 |     for (uint32_t i = 0; i < b.count; ++i) {
+      |                                            ^
+src/main.cpp:199:2: error: expected '}'
+  199 | }
+      |  ^
+src/visuals/MapRenderer.cpp:60:63: note: to match this '{'
+   60 |   void UpdateVisuals(WorldBuffers &b, const WorldSettings &s) {
+      |                                                               ^
+src/main.cpp:199:2: error: expected ';' after class
+  199 | }
+      |  ^
+      |  ;
+15 errors generated.
+[ERROR] Build failed. Check the logs above.

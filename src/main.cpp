@@ -1,171 +1,276 @@
 #define GLEW_STATIC
 #define GLFW_INCLUDE_NONE
-#include <GL/glew.h>
-#include <GLFW/glfw3.h>
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+#include <GL/glew.h>
+#include <GLFW/glfw3.h>
+#include <cmath>
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
 
 // 1. Include Your Headers
-#include "WorldEngine.hpp"
+#include "PlatformUtils.hpp"
 #include "SimulationModules.hpp"
-#include "PlatformUtils.hpp" // Use the separate file for the File Browser
+#include "WorldEngine.hpp"
 
-// Include your Visuals (If not using a header, we include the cpp for Unity Build)
+// Include your Visuals
 #include "visuals/MapRenderer.cpp"
 
-// --- Helper: Shader Loader (Keep this here for simplicity) ---
-#include <fstream>
-#include <sstream>
-std::string ReadFile(const char* path) {
-    std::ifstream file(path);
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-    return buffer.str();
+// --- Helper: Shader Loader ---
+std::string ReadFile(const char *path) {
+  std::ifstream file(path);
+  std::stringstream buffer;
+  buffer << file.rdbuf();
+  return buffer.str();
+}
+
+void checkShader(GLuint shader, const std::string &type) {
+  GLint success;
+  GLchar infoLog[1024];
+  glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+  if (!success) {
+    glGetShaderInfoLog(shader, 1024, NULL, infoLog);
+    std::cout << "[ERROR] " << type << " Compilation Error:\n"
+              << infoLog << "\n";
+  } else {
+    // std::cout << "[LOG] " << type << " shader compiled successfully.\n";
+  }
+}
+
+void checkProgram(GLuint program) {
+  GLint success;
+  GLchar infoLog[1024];
+  glGetProgramiv(program, GL_LINK_STATUS, &success);
+  if (!success) {
+    glGetProgramInfoLog(program, 1024, NULL, infoLog);
+    std::cout << "[ERROR] Shader Program Link Error:\n" << infoLog << "\n";
+  }
 }
 
 GLuint LoadShaders() {
-    // Ensure world.vert and world.frag are in your bin/ folder!
-    std::string vertCode = ReadFile("world.vert");
-    std::string fragCode = ReadFile("world.frag");
+  std::cout << "[LOG] LoadShaders called.\n";
+  std::string vertCode = ReadFile("bin/world.vert");
+  if (vertCode.empty())
+    vertCode = ReadFile("world.vert");
 
-    if (vertCode.empty() || fragCode.empty()) {
-        printf("[ERROR] Shaders not found!\n");
-        return 0;
-    }
+  std::string fragCode = ReadFile("bin/world.frag");
+  if (fragCode.empty())
+    fragCode = ReadFile("world.frag");
 
-    const char* vShaderCode = vertCode.c_str();
-    const char* fShaderCode = fragCode.c_str();
+  if (vertCode.empty() || fragCode.empty()) {
+    printf("[ERROR] Shaders not found!\n");
+    return 0;
+  }
 
-    GLuint vertex = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertex, 1, &vShaderCode, NULL);
-    glCompileShader(vertex);
+  const char *vShaderCode = vertCode.c_str();
+  const char *fShaderCode = fragCode.c_str();
 
-    GLuint fragment = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragment, 1, &fShaderCode, NULL);
-    glCompileShader(fragment);
+  GLuint vertex = glCreateShader(GL_VERTEX_SHADER);
+  glShaderSource(vertex, 1, &vShaderCode, NULL);
+  glCompileShader(vertex);
+  checkShader(vertex, "VERTEX");
 
-    GLuint program = glCreateProgram();
-    glAttachShader(program, vertex);
-    glAttachShader(program, fragment);
-    glLinkProgram(program);
+  GLuint fragment = glCreateShader(GL_FRAGMENT_SHADER);
+  glShaderSource(fragment, 1, &fShaderCode, NULL);
+  glCompileShader(fragment);
+  checkShader(fragment, "FRAGMENT");
 
-    glDeleteShader(vertex);
-    glDeleteShader(fragment);
-    return program;
+  GLuint program = glCreateProgram();
+  glAttachShader(program, vertex);
+  glAttachShader(program, fragment);
+  glLinkProgram(program);
+  checkProgram(program);
+
+  glDeleteShader(vertex);
+  glDeleteShader(fragment);
+  return program;
 }
 
 // --- The God Mode Dashboard ---
-void DrawGodModeUI(WorldSettings& settings, WorldBuffers& buffers, TerrainController& terrain) {
-    ImGui::Begin("God Mode Dashboard");
+void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
+                   TerrainController &terrain) {
+  ImGui::Begin("God Mode Dashboard");
 
-    // Perspective
-    if (ImGui::CollapsingHeader("Perspective & Scale", ImGuiTreeNodeFlags_DefaultOpen)) {
-        const char* zoomLevels[] = { "Global", "Quadrant", "Regional", "Local" };
-        if (ImGui::Combo("View Level", &settings.zoomLevel, zoomLevels, 4)) {
-            settings.pointSize = (settings.zoomLevel == 0) ? 1.0f : (settings.zoomLevel == 1) ? 4.0f : (settings.zoomLevel == 2) ? 16.0f : 64.0f;
-        }
-        ImGui::SliderFloat2("View Offset", settings.viewOffset, 0.0f, 1.0f);
+  // 1. Perspective Control
+  if (ImGui::CollapsingHeader("Perspective & Scale",
+                              ImGuiTreeNodeFlags_DefaultOpen)) {
+    const char *zoomLevels[] = {"Global", "Quadrant", "Regional", "Local"};
+    if (ImGui::Combo("View Level", &settings.zoomLevel, zoomLevels, 4)) {
+      settings.pointSize = (settings.zoomLevel == 0)   ? 1.0f
+                           : (settings.zoomLevel == 1) ? 4.0f
+                           : (settings.zoomLevel == 2) ? 16.0f
+                                                       : 64.0f;
+    }
+    ImGui::SliderFloat2("View Offset", settings.viewOffset, 0.0f, 1.0f);
+    ImGui::SliderFloat("Point Size", &settings.pointSize, 1.0f, 128.0f);
+    ImGui::Text("Rendered Points: %d", (int)(buffers.count));
+  }
+
+  // 2. Core Generation Settings
+  if (ImGui::CollapsingHeader("Generation Settings",
+                              ImGuiTreeNodeFlags_DefaultOpen)) {
+    ImGui::InputInt("Seed", &settings.seed);
+
+    ImGui::Separator();
+    ImGui::Text("Terrain Shape");
+    ImGui::SliderFloat("Height Multiplier", &settings.heightMultiplier, 0.1f,
+                       10.0f);
+    ImGui::SliderFloat("Height Severity (Roughness)", &settings.heightSeverity,
+                       0.1f, 5.0f);
+    ImGui::SliderFloat("Feature Frequency", &settings.featureFrequency, 0.001f,
+                       0.1f);
+    ImGui::SliderFloat("Clustering", &settings.featureClustering, 1.0f, 5.0f);
+
+    ImGui::Separator();
+    ImGui::Text("Water & Levels");
+    ImGui::SliderFloat("Sea Level", &settings.seaLevel, 0.0f, 1.0f);
+    ImGui::SliderFloat("Height Min", &settings.heightMin, 0.0f, 1.0f);
+    ImGui::SliderFloat("Height Max", &settings.heightMax, 0.0f, 1.0f);
+
+    if (ImGui::Button("Regenerate Terrain")) {
+      terrain.GenerateProceduralTerrain(buffers, settings);
+    }
+  }
+
+  // 3. Climate & Atmosphere
+  if (ImGui::CollapsingHeader("Atmosphere & Climate")) {
+    ImGui::SliderFloat("Global Temp", &settings.globalTempModifier, 0.5f, 2.0f);
+    ImGui::SliderFloat("Rainfall Mod", &settings.rainfallModifier, 0.0f, 5.0f);
+
+    ImGui::Separator();
+    ImGui::Checkbox("Manual Wind Override", &settings.manualWindOverride);
+    if (settings.manualWindOverride) {
+      ImGui::SliderFloat("Wind Strength", &settings.globalWindStrength, 0.0f,
+                         5.0f);
+      ImGui::SliderFloat("Zone 1 (N.Pole)", &settings.windZones[0], -1.0f,
+                         1.0f);
+      ImGui::SliderFloat("Zone 2", &settings.windZones[1], -1.0f, 1.0f);
+      ImGui::SliderFloat("Zone 3 (Equator)", &settings.windZones[2], -1.0f,
+                         1.0f);
+      ImGui::SliderFloat("Zone 4", &settings.windZones[3], -1.0f, 1.0f);
+      ImGui::SliderFloat("Zone 5 (S.Pole)", &settings.windZones[4], -1.0f,
+                         1.0f);
     }
 
-    // Terrain
-    if (ImGui::CollapsingHeader("Terrain & Geology")) {
-        if (ImGui::Button("Import Heightmap")) {
-            // FIX #1: Call the function from PlatformUtils
-            std::string path = PlatformUtils::OpenFileDialog();
-            if (!path.empty()) terrain.LoadFromImage(path.c_str(), buffers);
-        }
-        ImGui::SliderFloat("Sea Level", &settings.seaLevel, 0.0f, 1.0f);
-        ImGui::SliderFloat("Roughness", &settings.heightSeverity, 0.1f, 5.0f);
+    // We could add a "Run Climate Sim" button if it's separate from Update loop
+    // But typically ClimateSim::Update runs every frame or when triggered.
+  }
 
-        if (ImGui::Button("Regenerate Procedural")) {
-            terrain.GenerateProceduralTerrain(buffers, settings);
-        }
-
-        ImGui::Separator();
-        ImGui::SliderInt("Erosion Passes", &settings.erosionIterations, 1, 100);
-        if (ImGui::Button("Run Thermal Erosion")) {
-             // Link to the Erosion Module
-             terrain.ApplyThermalErosion(buffers, settings.erosionIterations);
-        }
+  // 4. Geology & Erosion
+  if (ImGui::CollapsingHeader("Geology & Erosion")) {
+    ImGui::SliderInt("Erosion Iterations", &settings.erosionIterations, 1, 100);
+    if (ImGui::Button("Run Thermal Erosion")) {
+      terrain.ApplyThermalErosion(buffers, settings.erosionIterations);
     }
-
-    // Climate
-    if (ImGui::CollapsingHeader("Atmosphere")) {
-        ImGui::Checkbox("Manual Wind", &settings.manualWindOverride);
-        if (settings.manualWindOverride) {
-            ImGui::SliderFloat("N. Pole", &settings.windZones[0], -1.0f, 1.0f);
-            ImGui::SliderFloat("Equator", &settings.windZones[2], -1.0f, 1.0f);
-            ImGui::SliderFloat("S. Pole", &settings.windZones[4], -1.0f, 1.0f);
-        }
+    if (ImGui::Button("Import Heightmap")) {
+      std::string path = PlatformUtils::OpenFileDialog();
+      if (!path.empty()) {
+        terrain.LoadFromImage(path.c_str(), buffers);
+      }
     }
+  }
 
-    ImGui::End();
+  // 5. Civilization / Factions
+  if (ImGui::CollapsingHeader("Civilization")) {
+    ImGui::Checkbox("Enable Factions", &settings.enableFactions);
+  }
+
+  ImGui::End();
 }
 
 int main() {
-    if (!glfwInit()) return -1;
-    GLFWwindow* window = glfwCreateWindow(1280, 720, "Omnis World Engine", NULL, NULL);
-    if (!window) return -1;
-    glfwMakeContextCurrent(window);
-    glewInit();
+  std::cout << "[LOG] Starting Main...\n";
+  if (!glfwInit()) {
+    std::cout << "[ERROR] GLFW Init Failed!\n";
+    return -1;
+  }
 
-    // 2. Initialize Core Systems
-    WorldBuffers buffers;
-    buffers.Initialize(1000000);
-    WorldSettings settings;
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+  glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    // FIX #2: Instantiate the Controller
-    TerrainController terrain;
-    MapRenderer renderer;
-    renderer.Setup(buffers);
+  GLFWwindow *window =
+      glfwCreateWindow(1280, 720, "Omnis World Engine", NULL, NULL);
+  if (!window) {
+    std::cout << "[ERROR] Window Creation Failed!\n";
+    return -1;
+  }
 
-    // FIX #3: Load Shaders
-    GLuint shaderProgram = LoadShaders();
+  glfwMakeContextCurrent(window);
+  glewInit();
+  std::cout << "[LOG] GLEW Initialized.\n";
+  glEnable(GL_PROGRAM_POINT_SIZE);
 
-    // Generate Initial World
-    terrain.GenerateProceduralTerrain(buffers, settings);
+  // 2. Initialize Core Systems
+  WorldBuffers buffers;
+  buffers.Initialize(1000000);
+  WorldSettings settings;
 
-    // Setup ImGui
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGui_ImplGlfw_InitForOpenGL(window, true);
-    ImGui_ImplOpenGL3_Init("#version 330");
+  TerrainController terrain;
+  MapRenderer renderer;
+  renderer.Setup(buffers);
 
-    // 5. Main Loop
-    while (!glfwWindowShouldClose(window)) {
-        glfwPollEvents();
+  GLuint shaderProgram = LoadShaders();
 
-        // UI
-        ImGui_ImplOpenGL3_NewFrame(); ImGui_ImplGlfw_NewFrame(); ImGui::NewFrame();
-        DrawGodModeUI(settings, buffers, terrain);
+  // Generate Initial World
+  terrain.GenerateProceduralTerrain(buffers, settings);
 
-        // Simulation
-        ClimateSim::Update(buffers, settings);
+  // Setup ImGui
+  IMGUI_CHECKVERSION();
+  ImGui::CreateContext();
+  ImGui_ImplGlfw_InitForOpenGL(window, true);
+  ImGui_ImplOpenGL3_Init("#version 330");
 
-        // Render
-        int w, h; glfwGetFramebufferSize(window, &w, &h);
-        glViewport(0, 0, w, h);
-        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
+  // 5. Main Loop
+  std::cout << "[LOG] Entering Main Loop...\n";
+  while (!glfwWindowShouldClose(window)) {
+    glfwPollEvents();
 
-        // Activate Shaders and Render
-        glUseProgram(shaderProgram);
+    // UI
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+    DrawGodModeUI(settings, buffers, terrain);
 
-        // Update Uniforms
-        glUniform1f(glGetUniformLocation(shaderProgram, "u_zoom"), (float)pow(4.0, settings.zoomLevel));
-        glUniform2f(glGetUniformLocation(shaderProgram, "u_offset"), settings.viewOffset[0], settings.viewOffset[1]);
-        glUniform1f(glGetUniformLocation(shaderProgram, "u_pointSize"), settings.pointSize);
+    // Simulation Updates (Optional: could be gated by flags)
+    // ClimateSim::Update(buffers, settings);
 
-        renderer.UpdateVisuals(buffers, settings);
-        renderer.Render(settings);
+    // Render
+    int w, h;
+    glfwGetFramebufferSize(window, &w, &h);
+    glViewport(0, 0, w, h);
 
-        ImGui::Render();
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-        glfwSwapBuffers(window);
-    }
+    // Clear Screen
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
 
-    ImGui_ImplOpenGL3_Shutdown(); ImGui_ImplGlfw_Shutdown(); ImGui::DestroyContext();
-    glfwDestroyWindow(window); glfwTerminate();
-    return 0;
+    // Activate Shaders and Render
+    glUseProgram(shaderProgram);
+
+    // Update Uniforms
+    glUniform1f(glGetUniformLocation(shaderProgram, "u_zoom"),
+                (float)pow(4.0, settings.zoomLevel));
+    glUniform2f(glGetUniformLocation(shaderProgram, "u_offset"),
+                settings.viewOffset[0], settings.viewOffset[1]);
+    glUniform1f(glGetUniformLocation(shaderProgram, "u_pointSize"),
+                settings.pointSize);
+
+    renderer.UpdateVisuals(buffers, settings);
+    renderer.Render(settings);
+
+    ImGui::Render();
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    glfwSwapBuffers(window);
+  }
+
+  ImGui_ImplOpenGL3_Shutdown();
+  ImGui_ImplGlfw_Shutdown();
+  ImGui::DestroyContext();
+  glfwDestroyWindow(window);
+  glfwTerminate();
+  return 0;
 }

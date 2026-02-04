@@ -1,8 +1,11 @@
 @echo off
+set "PATH=C:\msys64\mingw64\bin;%PATH%"
 if not exist bin mkdir bin
 
 echo [CLEAN] Removing old binaries...
 del /q bin\*.exe
+echo [COPY] Copying shaders...
+copy /y shaders\* bin\
 
 echo [BUILD] Compiling Omnis Engine...
 clang++ -std=c++20 ^
@@ -11,7 +14,9 @@ clang++ -std=c++20 ^
     src/modules/*.cpp ^
     src/io/*.cpp ^
     deps/imgui/*.cpp ^
-    -I include -I deps/imgui -I deps/glfw/include -I deps/glew/include ^
+    deps/imgui/backends/imgui_impl_glfw.cpp ^
+    deps/imgui/backends/imgui_impl_opengl3.cpp ^
+    -I include -I deps/imgui -I deps/imgui/backends -I deps/glfw/include -I deps/glew/include ^
     -L C:/msys64/mingw64/lib ^
     -lglfw3 -lglew32 -lopengl32 -lgdi32 -luser32 -lshell32 -lcomdlg32 ^
     -static-libgcc -static-libstdc++ ^

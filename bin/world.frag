@@ -1,16 +1,8 @@
 #version 330 core
-
-// Output to screen
 out vec4 FragColor;
-
-// Input from Vertex Shader
-in vec3 CellColor;
+in vec3 CellColor; // Passed from Vertex Shader
 
 void main() {
-    // Standard Rendering (Square Pixels)
+    // We draw each cell as a small circle or dot
     FragColor = vec4(CellColor, 1.0);
-
-    // OPTIONAL: Round Points (Uncomment for circular dots)
-    // vec2 coord = gl_PointCoord - vec2(0.5);
-    // if(length(coord) > 0.5) discard;
 }
