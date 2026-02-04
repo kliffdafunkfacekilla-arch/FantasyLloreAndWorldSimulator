@@ -90,7 +90,8 @@ GLuint LoadShaders() {
 
 // --- The God Mode Dashboard ---
 void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
-                   TerrainController &terrain, int screenW, int screenH) {
+                   TerrainController &terrain, NeighborGraph &graph,
+                   NeighborFinder &finder, int screenW, int screenH) {
 
   // Docking Layout logic
   float uiWidth = (float)screenW / 3.0f;
@@ -127,27 +128,61 @@ void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
     ImGui::InputInt("Seed", &settings.seed);
 
     ImGui::Separator();
-    ImGui::Text("Terrain Shape");
-    ImGui::SliderFloat("Height Multiplier", &settings.heightMultiplier, 0.1f,
-                       10.0f);
-    ImGui::SliderFloat("Height Severity (Roughness)", &settings.heightSeverity,
-                       0.1f, 5.0f);
-    ImGui::SliderFloat("Feature Frequency", &settings.featureFrequency, 0.001f,
-                       0.1f);
-    ImGui::SliderFloat("Clustering", &settings.featureClustering, 1.0f, 5.0f);
+    ImGui::Text("Tectonics (Base Shape)");
+    ImGui::SliderFloat("Continent Size", &settings.continentFreq, 0.001f, 0.02f,
+                       "%.4f");
+    if (ImGui::IsItemHovered())
+      ImGui::SetTooltip("Lower = Bigger Continents");
 
     ImGui::Separator();
-    ImGui::Text("Water & Levels");
+    ImGui::Text("Orogeny (Mountains)");
+    ImGui::SliderFloat("Mountain Density", &settings.featureFrequency, 0.01f,
+                       0.1f);
+    ImGui::SliderFloat("Mountain Height", &settings.mountainInfluence, 0.0f,
+                       2.0f);
+
+    ImGui::Separator();
+    ImGui::Text("Reality Distortion");
+    ImGui::SliderFloat("Alien Warp", &settings.warpStrength, 0.0f, 5.0f);
+    if (ImGui::IsItemHovered())
+      ImGui::SetTooltip("0 = Earth-like, 5 = Fluid/Alien");
+
+    ImGui::Separator();
+    ImGui::Text("Vertical Scale");
+    ImGui::SliderFloat("Height Mult", &settings.heightMultiplier, 0.1f, 3.0f);
     ImGui::SliderFloat("Sea Level", &settings.seaLevel, 0.0f, 1.0f);
-    ImGui::SliderFloat("Height Min", &settings.heightMin, 0.0f, 1.0f);
-    ImGui::SliderFloat("Height Max", &settings.heightMax, 0.0f, 1.0f);
+    // ImGui::SliderFloat("Height Min", &settings.heightMin, 0.0f, 1.0f); //
+    // Hidden for simplicity unless needed
 
     if (ImGui::Button("Regenerate Terrain", ImVec2(-1, 0))) {
       terrain.GenerateProceduralTerrain(buffers, settings);
     }
   }
 
-  // 3. Climate & Atmosphere
+  // 3. Connectivity & Hydrology
+  if (ImGui::CollapsingHeader("Connectivity & Hydrology",
+                              ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (ImGui::Button("Build Neighbor Graph (Grid)", ImVec2(-1, 0))) {
+      finder.BuildGraph(buffers, buffers.count, graph);
+    }
+    if (graph.neighborData != nullptr) {
+      ImGui::TextColored(ImVec4(0, 1, 0, 1), "Graph Connected!");
+
+      if (ImGui::Button("Simulate Rivers (100 Ticks)", ImVec2(-1, 0))) {
+        for (int i = 0; i < 100; ++i)
+          HydrologySim::Update(buffers, graph);
+      }
+
+      ImGui::SameLine();
+      if (ImGui::Button("1 Tick")) {
+        HydrologySim::Update(buffers, graph);
+      }
+    } else {
+      ImGui::TextColored(ImVec4(1, 0, 0, 1), "Graph Not Built");
+    }
+  }
+
+  // 4. Climate & Atmosphere
   if (ImGui::CollapsingHeader("Atmosphere & Climate")) {
     ImGui::SliderFloat("Global Temp", &settings.globalTempModifier, 0.5f, 2.0f);
     ImGui::SliderFloat("Rainfall Mod", &settings.rainfallModifier, 0.0f, 5.0f);
@@ -228,6 +263,10 @@ int main() {
   buffers.Initialize(1000000);
   WorldSettings settings;
 
+  // Hydrology Systems
+  NeighborGraph graph;
+  NeighborFinder finder;
+
   TerrainController terrain;
   MapRenderer renderer;
   renderer.Setup(buffers);
@@ -267,7 +306,7 @@ int main() {
     ImGui::NewFrame();
 
     // Pass Logical Size (winW, winH) to ImGui
-    DrawGodModeUI(settings, buffers, terrain, winW, winH);
+    DrawGodModeUI(settings, buffers, terrain, graph, finder, winW, winH);
 
     // Render Logic (Uses Physical Framebuffer Coordinates)
     // We want the Map to start where the UI ends.
@@ -305,6 +344,7 @@ int main() {
     glfwSwapBuffers(window);
   }
 
+  finder.Cleanup(graph);
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();
   ImGui::DestroyContext();
