@@ -65,10 +65,10 @@ public:
 };
 
 // AgentSystem
-class AgentSystem {
-public:
-  void TickAgents(WorldBuffers &b, float deltaTime, uint32_t count);
-};
+namespace AgentSystem {
+void SpawnCivilization(WorldBuffers &b, int factionId);
+void UpdateCivilization(WorldBuffers &b, const NeighborGraph &g);
+} // namespace AgentSystem
 
 // ConflictSystem (Free function)
 void ResolveConflicts(WorldBuffers &b, const NeighborGraph &graph);
