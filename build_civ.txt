@@ -1,0 +1,12 @@
+[CLEAN] Removing old binaries...
+C:\Users\krazy\Documents\GitHub\FantasyLloreAndWorldSimulator\bin\OmnisWorldEngine.exe
+Access is denied.
+[COPY] Copying shaders...
+shaders\world.frag
+shaders\world.vert
+        2 file(s) copied.
+[BUILD] Compiling Omnis Engine...
+C:/msys64/mingw64/bin/ld: cannot open output file bin/OmnisWorldEngine.exe: Permission denied
+clang++: error: unable to remove file: Permission denied
+clang++: error: linker command failed with exit code 1 (use -v to see invocation)
+[ERROR] Build failed. Check the logs above.
