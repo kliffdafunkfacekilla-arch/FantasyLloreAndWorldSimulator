@@ -178,3 +178,12 @@ void TerrainController::ApplyThermalErosion(WorldBuffers &buffers,
     }
   }
 }
+
+void TerrainController::InvertHeights(WorldBuffers &buffers) {
+  if (!buffers.height)
+    return;
+  std::cout << "[TERRAIN] Inverting Heightmap...\n";
+  for (uint32_t i = 0; i < buffers.count; ++i) {
+    buffers.height[i] = 1.0f - buffers.height[i];
+  }
+}

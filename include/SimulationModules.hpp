@@ -5,7 +5,6 @@
 #include <string>
 #include <vector>
 
-
 // --- Forward Declarations for Logic Modules ---
 
 // 1. Terrain & Structure (src/core/TerrainController.cpp)
@@ -13,6 +12,7 @@ class TerrainController {
 public:
   void LoadFromImage(const char *path, WorldBuffers &buffers);
   void ApplyThermalErosion(WorldBuffers &buffers, int iterations);
+  void InvertHeights(WorldBuffers &buffers);
   // Helper to generate base noise if no image is present
   void GenerateProceduralTerrain(WorldBuffers &buffers,
                                  const WorldSettings &settings);

@@ -215,6 +215,9 @@ void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
         terrain.LoadFromImage(path.c_str(), buffers);
       }
     }
+    if (ImGui::Button("Invert Heights", ImVec2(-1, 0))) {
+      terrain.InvertHeights(buffers);
+    }
   }
 
   // 5. Civilization / Factions
