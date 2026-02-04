@@ -5,7 +5,6 @@
 #include <string>
 #include <vector>
 
-
 // --- Forward Declarations for Logic Modules ---
 
 // 1. Terrain & Structure (src/core/TerrainController.cpp)
@@ -13,6 +12,7 @@ class TerrainController {
 public:
   void LoadFromImage(const char *path, WorldBuffers &buffers);
   void ApplyThermalErosion(WorldBuffers &buffers, int iterations);
+  void InvertHeights(WorldBuffers &buffers);
   // Helper to generate base noise if no image is present
   void GenerateProceduralTerrain(WorldBuffers &buffers,
                                  const WorldSettings &settings);
@@ -65,10 +65,10 @@ public:
 };
 
 // AgentSystem
-class AgentSystem {
-public:
-  void TickAgents(WorldBuffers &b, float deltaTime, uint32_t count);
-};
+namespace AgentSystem {
+void SpawnCivilization(WorldBuffers &b, int factionId);
+void UpdateCivilization(WorldBuffers &b, const NeighborGraph &g);
+} // namespace AgentSystem
 
 // ConflictSystem (Free function)
 void ResolveConflicts(WorldBuffers &b, const NeighborGraph &graph);

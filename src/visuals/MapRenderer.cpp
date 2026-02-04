@@ -72,6 +72,11 @@ public:
           r = 0.95f;
           g = 0.95f;
           b = 1.0f;
+        } else if (buffers.population && buffers.population[i] > 500) {
+          // City (Red/Faction Color)
+          r = 1.0f;
+          g = 0.0f;
+          b = 0.0f;
         } else if (buffers.flux && buffers.flux[i] > 1.0f) {
           // River (Blue) - Color based on flow volume
           float intensity = std::min(buffers.flux[i] * 0.1f, 1.0f);
