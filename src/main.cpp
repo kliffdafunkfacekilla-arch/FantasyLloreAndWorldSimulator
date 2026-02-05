@@ -13,6 +13,7 @@
 #include <vector>
 
 // 1. Include Your Headers
+#include "AssetManager.hpp"
 #include "PlatformUtils.hpp"
 #include "SimulationModules.hpp"
 #include "WorldEngine.hpp"
@@ -366,6 +367,70 @@ void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
       ImGui::EndTabItem();
     }
 
+    // TAB 4: RULES & DESIGN
+    if (ImGui::BeginTabItem("Rules")) {
+      // --- RESOURCE EDITOR ---
+      ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "Resource Registry");
+
+      static int selectedRes = 0;
+      if (AssetManager::resourceRegistry.size() > 0) {
+        // Dropdown to select resource
+        if (ImGui::BeginCombo(
+                "Select Resource",
+                AssetManager::resourceRegistry[selectedRes].name.c_str())) {
+          for (size_t n = 0; n < AssetManager::resourceRegistry.size(); n++) {
+            bool is_selected = (selectedRes == (int)n);
+            if (ImGui::Selectable(
+                    AssetManager::resourceRegistry[n].name.c_str(),
+                    is_selected))
+              selectedRes = (int)n;
+            if (is_selected)
+              ImGui::SetItemDefaultFocus();
+          }
+          ImGui::EndCombo();
+        }
+
+        // Edit Properties
+        ResourceDef &r = AssetManager::resourceRegistry[selectedRes];
+
+        // Name (read-only display)
+        ImGui::Text("Name: %s", r.name.c_str());
+        ImGui::SliderFloat("Value", &r.value, 0.1f, 20.0f);
+        ImGui::SliderFloat("Scarcity", &r.scarcity, 0.0f, 1.0f);
+        ImGui::Checkbox("Renewable", &r.isRenewable);
+
+        ImGui::Text("Spawn Biomes:");
+        ImGui::Checkbox("Forest", &r.spawnsInForest);
+        ImGui::SameLine();
+        ImGui::Checkbox("Mountain", &r.spawnsInMountain);
+        ImGui::SameLine();
+        ImGui::Checkbox("Desert", &r.spawnsInDesert);
+        ImGui::SameLine();
+        ImGui::Checkbox("Ocean", &r.spawnsInOcean);
+      }
+
+      ImGui::Separator();
+
+      // --- CHAOS RULE EDITOR ---
+      ImGui::TextColored(ImVec4(1.0f, 0.0f, 1.0f, 1.0f), "Chaos Laws");
+      for (auto &rule : AssetManager::chaosRules) {
+        ImGui::PushID(rule.name.c_str());
+        ImGui::Text("%s", rule.name.c_str());
+        ImGui::SliderFloat("Chance", &rule.probability, 0.0f, 0.1f, "%.4f");
+        ImGui::SliderFloat("Threshold", &rule.minChaosLevel, 0.0f, 1.0f);
+        ImGui::SliderFloat("Severity", &rule.severity, 0.0f, 1.0f);
+        ImGui::PopID();
+        ImGui::Separator();
+      }
+
+      // SAVE BUTTON
+      if (ImGui::Button("SAVE ALL RULES TO JSON", ImVec2(-1, 40))) {
+        AssetManager::SaveAll();
+      }
+
+      ImGui::EndTabItem();
+    }
+
     ImGui::EndTabBar();
   }
 
@@ -451,6 +516,7 @@ int main() {
   // Initialize Subsystems
   AgentSystem::Initialize();
   LoreScribeNS::Initialize();
+  AssetManager::Initialize();
 
   // Setup ImGui
   IMGUI_CHECKVERSION();
