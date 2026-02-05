@@ -5,7 +5,6 @@
 #include <cstring>
 #include <iostream>
 
-
 namespace AgentSystem {
 
 // Registry of all species in the world
@@ -85,23 +84,43 @@ void UpdateBiology(WorldBuffers &b, const WorldSettings &s) {
     float temp = b.temperature[i];
     float rain = b.moisture[i];
     float h = b.height[i];
+    float chaos = (b.chaos) ? b.chaos[i] : 0.0f;
 
     if (h < s.seaLevel)
       continue; // Skip ocean
 
-    // Check if suitable for Trees (ID 1)
-    // Trees like moisture > 0.5 and moderate temp
-    if (rain > 0.5f && temp > 0.2f && temp < 0.8f) {
-      // If population low, grow trees
+    // --- CHAOS LOGIC: High magic kills life ---
+    if (chaos > 0.5f) {
+      // Dead Zone: Magic radiation kills population
+      b.population[i] = (uint32_t)(b.population[i] * 0.90f);
+      continue; // Skip normal growth in chaos zones
+    }
+
+    // --- NORMAL GROWTH ---
+    // Suitability = rain bonus + temp comfort - chaos penalty
+    float tempComfort = 1.0f - std::abs(temp - 0.5f); // Best at 0.5
+    float suitability = (rain * 0.5f) + tempComfort - (chaos * 2.0f);
+
+    if (suitability > 0.5f) {
+      // Good conditions - population grows
+      if (b.population[i] < 10000) {
+        b.population[i] += 5 * s.timeScale;
+      }
+    } else if (suitability < 0.2f) {
+      // Harsh conditions - starvation
+      b.population[i] = (uint32_t)(b.population[i] * 0.99f);
+    }
+
+    // Trees: High moisture, moderate temp, low chaos
+    if (rain > 0.5f && temp > 0.2f && temp < 0.8f && chaos < 0.3f) {
       if (b.population[i] < 1000) {
-        b.population[i] += 10 * s.timeScale; // Growth
+        b.population[i] += 10 * s.timeScale;
       }
     }
-    // Desert scrub - harsh conditions
-    else if (temp > 0.8f && rain < 0.2f) {
-      // Harsh conditions kill population
-      b.population[i] = (uint32_t)(b.population[i] * 0.98f);
-    }
+
+    // Hard cap
+    if (b.population[i] > 10000)
+      b.population[i] = 10000;
   }
 }
 

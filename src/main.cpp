@@ -125,6 +125,9 @@ void MasterRegenerate(WorldBuffers &buffers, WorldSettings &settings,
 // Global view mode for renderer (0=Terrain, 1=Chaos, 2=Economy)
 static int g_viewMode = 0;
 
+// Global inspector state (hover cell ID)
+static int g_hoveredIndex = -1;
+
 // --- The God Mode Dashboard (Tabbed Layout) ---
 void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
                    TerrainController &terrain, NeighborGraph &graph,
@@ -366,6 +369,31 @@ void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
     ImGui::EndTabBar();
   }
 
+  // --- CELL INSPECTOR ---
+  ImGui::Separator();
+  ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "CELL INSPECTOR");
+
+  if (g_hoveredIndex != -1 && g_hoveredIndex < (int)buffers.count) {
+    ImGui::Text("ID: %d", g_hoveredIndex);
+    ImGui::Text("Height: %.3f", buffers.height[g_hoveredIndex]);
+    if (buffers.temperature)
+      ImGui::Text("Temp:   %.3f", buffers.temperature[g_hoveredIndex]);
+    if (buffers.moisture)
+      ImGui::Text("Rain:   %.3f", buffers.moisture[g_hoveredIndex]);
+    if (buffers.population)
+      ImGui::Text("Pop:    %u", buffers.population[g_hoveredIndex]);
+    if (buffers.wealth)
+      ImGui::Text("Gold:   %.2f", buffers.wealth[g_hoveredIndex]);
+    if (buffers.chaos)
+      ImGui::Text("Chaos:  %.2f", buffers.chaos[g_hoveredIndex]);
+    if (buffers.infrastructure)
+      ImGui::Text("Infra:  %.2f", buffers.infrastructure[g_hoveredIndex]);
+    if (buffers.factionID)
+      ImGui::Text("Faction:%d", buffers.factionID[g_hoveredIndex]);
+  } else {
+    ImGui::TextDisabled("(Hover over map to inspect)");
+  }
+
   ImGui::End();
 }
 
@@ -443,6 +471,33 @@ int main() {
 
     int fbW, fbH;
     glfwGetFramebufferSize(window, &fbW, &fbH);
+
+    // --- MOUSE TO CELL FOR INSPECTOR ---
+    double mx, my;
+    glfwGetCursorPos(window, &mx, &my);
+
+    // Calculate map area (right 2/3 of window)
+    float uiWidth = (float)winW / 3.0f;
+    float mapStartX = uiWidth;
+    float mapWidth = (float)winW - uiWidth;
+
+    // Convert mouse to grid coords (1000x1000 grid for 1M cells)
+    int gridW = 1000;
+    if (mx > mapStartX && mx < winW && my > 0 && my < winH) {
+      float normX = (float)(mx - mapStartX) / mapWidth;
+      float normY = 1.0f - (float)(my / (float)winH); // Flip Y
+
+      int mapX = (int)(normX * gridW);
+      int mapY = (int)(normY * gridW);
+
+      if (mapX >= 0 && mapX < gridW && mapY >= 0 && mapY < gridW) {
+        g_hoveredIndex = mapY * gridW + mapX;
+      } else {
+        g_hoveredIndex = -1;
+      }
+    } else {
+      g_hoveredIndex = -1;
+    }
 
     // Calculate DPI Scale
     float dpiScaleX = (winW > 0) ? ((float)fbW / (float)winW) : 1.0f;
