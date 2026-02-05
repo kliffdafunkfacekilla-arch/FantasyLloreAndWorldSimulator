@@ -6,3 +6,71 @@ shaders\world.vert
 [BUILD] Compiling Omnis Engine...
 [SUCCESS] Engine built successfully.
 [RUN] Launching...
+[LOG] Starting Main...
+[LOG] GLEW Initialized.
+[LOG] MapRenderer::Setup called.
+[LOG] Generated VAO: 1, VBO_Pos: 1, VBO_Color: 2
+[LOG] MapRenderer::Setup finished. VAO unbound.
+[LOG] LoadShaders called.
+[TERRAIN] Generating Hybrid Terrain v2...
+[LOG] Entering Main Loop...
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[TERRAIN] Generating Hybrid Terrain v2...
+[GRAPH] Connecting 1,000,000 cells...
+[GRAPH] Grid Dimensions: 1000x1000
+[GRAPH] Adjacency list finalized. Total connections: 7988004
+[TERRAIN] Apply Thermal Erosion (10 passes)...
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[TERRAIN] Generating Hybrid Terrain v2...
+[GRAPH] Connecting 1,000,000 cells...
+[GRAPH] Grid Dimensions: 1000x1000
+[GRAPH] Adjacency list finalized. Total connections: 7988004

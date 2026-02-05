@@ -1,9 +1,0 @@
-[CLEAN] Removing old binaries...
-Could Not Find C:\Users\krazy\Documents\GitHub\FantasyLloreAndWorldSimulator\bin\*.exe
-[BUILD] Compiling Omnis Engine...
-src/main.cpp:6:10: fatal error: 'imgui_impl_glfw.h' file not found
-    6 | #include "imgui_impl_glfw.h"
-      |          ^~~~~~~~~~~~~~~~~~~
-1 error generated.
-[ERROR] Build failed. Check the logs above.
-Press any key to continue . . . 

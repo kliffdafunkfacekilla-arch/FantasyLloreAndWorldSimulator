@@ -1,0 +1,18 @@
+# Ignore build outputs
+bin/*.exe
+bin/*.csv
+bin/imgui.ini
+
+# Ignore logs and temp files
+*.log
+*.tmp
+build_*.txt
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Ignore IDE files
+.vscode/
+*.swp
+*~
