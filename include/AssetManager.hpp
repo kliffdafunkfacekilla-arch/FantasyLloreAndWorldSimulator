@@ -63,6 +63,7 @@ extern std::vector<AgentTemplate> speciesRegistry;
 extern std::vector<ResourceDef> resourceRegistry;
 extern std::vector<ChaosRule> chaosRules;
 extern std::vector<City> cityRegistry;
+extern std::vector<FactionData> factionRegistry;
 
 void Initialize();
 

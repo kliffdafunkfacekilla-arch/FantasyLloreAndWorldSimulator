@@ -12,6 +12,7 @@ std::vector<AgentTemplate> speciesRegistry;
 std::vector<ResourceDef> resourceRegistry;
 std::vector<ChaosRule> chaosRules;
 std::vector<City> cityRegistry;
+std::vector<FactionData> factionRegistry;
 
 void Initialize() {
   LoadAll();

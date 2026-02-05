@@ -48,6 +48,9 @@ struct FactionData {
   std::string name;
   float color[3]; // RGB for map rendering
 
+  // Cultural Identity
+  int coreCultureID; // Founding species (links to AgentTemplate)
+
   // Cultural Profile
   float expansionDrive; // Speed of border push
   float aggression;     // Threshold for declaring war
@@ -148,6 +151,8 @@ struct WorldBuffers {
 
   // Civilization & Life
   int *factionID = nullptr;
+  int *cultureID =
+      nullptr; // Species/ethnicity (separate from political faction)
   uint32_t *population = nullptr;
   float *chaos = nullptr;
   float *infrastructure = nullptr; // Roads/Cities
@@ -178,12 +183,14 @@ struct WorldBuffers {
     windDX = new float[count];
     windDY = new float[count];
     factionID = new int[count];
+    cultureID = new int[count];
     population = new uint32_t[count];
     chaos = new float[count];
     infrastructure = new float[count];
 
     // Zero out memory
     std::fill_n(factionID, count, 0);
+    std::fill_n(cultureID, count, 0);
     std::fill_n(population, count, 0);
     std::fill_n(chaos, count, 0.0f);
     std::fill_n(infrastructure, count, 0.0f);
@@ -215,6 +222,7 @@ struct WorldBuffers {
     delete[] windDX;
     delete[] windDY;
     delete[] factionID;
+    delete[] cultureID;
     delete[] population;
     delete[] chaos;
     delete[] infrastructure;
