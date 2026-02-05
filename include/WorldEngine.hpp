@@ -67,6 +67,10 @@ struct WorldSettings {
   int timeScale = 1;                  // Ticks per frame (Speed)
   bool enableRealtimeErosion = false; // Does wind/rain erode land live?
   float erosionRate = 0.01f;          // How fast mountains melt
+
+  // --- ISLAND MODE ---
+  bool islandMode = false;   // Force ocean at map edges
+  float edgeFalloff = 0.15f; // How wide the ocean border is (0.0-0.5)
 };
 
 // 2. The Million-Cell Memory (SoA Layout)

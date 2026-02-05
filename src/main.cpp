@@ -171,6 +171,12 @@ void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
       ImGui::SliderFloat("Terracing", &settings.terraceSteps, 0.0f, 2.0f);
 
       ImGui::Separator();
+      ImGui::Checkbox("Island Mode", &settings.islandMode);
+      if (settings.islandMode) {
+        ImGui::SliderFloat("Edge Falloff", &settings.edgeFalloff, 0.05f, 0.5f);
+      }
+
+      ImGui::Separator();
       ImGui::TextColored(ImVec4(0.5f, 1.0f, 0.5f, 1.0f), "Manual Controls");
 
       // Manual triggers for granular control

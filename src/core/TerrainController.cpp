@@ -84,6 +84,23 @@ void TerrainController::GenerateProceduralTerrain(
       finalHeight = std::round(finalHeight * steps) / steps;
     }
     finalHeight *= settings.heightMultiplier;
+
+    // E. Island Mode (Force ocean at edges)
+    if (settings.islandMode) {
+      // Distance from edge (0 at edge, 0.5 at center)
+      float px = buffers.posX[i];
+      float py = buffers.posY[i];
+      float edgeDistX = std::min(px, 1.0f - px);
+      float edgeDistY = std::min(py, 1.0f - py);
+      float edgeDist = std::min(edgeDistX, edgeDistY);
+
+      // Smooth falloff mask (0 at edge, 1 beyond falloff threshold)
+      float falloffMask = std::min(1.0f, edgeDist / settings.edgeFalloff);
+      falloffMask = falloffMask * falloffMask; // Smooth curve (quadratic)
+
+      finalHeight *= falloffMask;
+    }
+
     finalHeight =
         std::clamp(finalHeight, settings.heightMin, settings.heightMax);
 
