@@ -88,161 +88,169 @@ GLuint LoadShaders() {
   return program;
 }
 
-// --- The God Mode Dashboard ---
+// --- Master Regenerate Pipeline ---
+void MasterRegenerate(WorldBuffers &buffers, WorldSettings &settings,
+                      TerrainController &terrain, NeighborFinder &finder,
+                      NeighborGraph &graph) {
+
+  // 1. Reset Sim State
+  if (buffers.flux)
+    std::fill_n(buffers.flux, buffers.count, 0.0f);
+  if (buffers.nextFlux)
+    std::fill_n(buffers.nextFlux, buffers.count, 0.0f);
+  if (buffers.population)
+    std::fill_n(buffers.population, buffers.count, 0u);
+  if (buffers.factionID)
+    std::fill_n(buffers.factionID, buffers.count, 0);
+
+  // 2. Shape the Land
+  terrain.GenerateProceduralTerrain(buffers, settings);
+
+  // 3. Connect the Graph
+  finder.BuildGraph(buffers, buffers.count, graph);
+
+  // 4. Thermal Erosion (optional)
+  if (settings.erosionIterations > 0) {
+    terrain.ApplyThermalErosion(buffers, settings.erosionIterations);
+  }
+
+  // 5. Hydrology Warm-Up (30 ticks so rivers appear immediately)
+  if (graph.neighborData) {
+    for (int i = 0; i < 30; ++i) {
+      HydrologySim::Update(buffers, graph);
+    }
+  }
+}
+
+// --- The God Mode Dashboard (Tabbed Layout) ---
 void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
                    TerrainController &terrain, NeighborGraph &graph,
                    NeighborFinder &finder, int screenW, int screenH) {
 
-  // Docking Layout logic
-  float uiWidth = (float)screenW / 3.0f;
   ImGui::SetNextWindowPos(ImVec2(0, 0));
-  ImGui::SetNextWindowSize(ImVec2(uiWidth, (float)screenH));
+  ImGui::SetNextWindowSize(ImVec2((float)screenW / 3.0f, (float)screenH));
 
   ImGuiWindowFlags flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-                           ImGuiWindowFlags_NoCollapse |
                            ImGuiWindowFlags_NoTitleBar;
+  ImGui::Begin("Omnis Control", nullptr, flags);
 
-  ImGui::Begin("God Mode Dashboard", nullptr, flags);
+  ImGui::Text("OMNIS ENGINE | %d Cells", buffers.count);
 
-  ImGui::TextDisabled("OMNIS WORLD ENGINE v0.1");
+  // --- THE MASTER BUTTON ---
+  ImGui::Spacing();
+  if (ImGui::Button("GENERATE NEW WORLD", ImVec2(-1, 40))) {
+    MasterRegenerate(buffers, settings, terrain, finder, graph);
+  }
+  ImGui::Spacing();
   ImGui::Separator();
 
-  // 1. Perspective Control
-  if (ImGui::CollapsingHeader("Perspective & Scale",
-                              ImGuiTreeNodeFlags_DefaultOpen)) {
-    const char *zoomLevels[] = {"Global", "Quadrant", "Regional", "Local"};
-    if (ImGui::Combo("View Level", &settings.zoomLevel, zoomLevels, 4)) {
-      settings.pointSize = (settings.zoomLevel == 0)   ? 1.0f
-                           : (settings.zoomLevel == 1) ? 4.0f
-                           : (settings.zoomLevel == 2) ? 16.0f
-                                                       : 64.0f;
+  if (ImGui::BeginTabBar("ControlTabs")) {
+
+    // TAB 1: THE ARCHITECT (Generation)
+    if (ImGui::BeginTabItem("Architect")) {
+
+      ImGui::TextColored(ImVec4(0.5f, 1.0f, 1.0f, 1.0f), "Global Parameters");
+      ImGui::InputInt("Seed", &settings.seed);
+      if (ImGui::Button("Randomize Seed"))
+        settings.seed = rand();
+
+      ImGui::Separator();
+      ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.5f, 1.0f), "Shape & Form");
+
+      ImGui::SliderFloat("Land Mass", &settings.continentFreq, 0.001f, 0.02f,
+                         "Size: %.4f");
+      ImGui::SliderFloat("Sea Level", &settings.seaLevel, 0.0f, 1.0f);
+      ImGui::SliderInt("Erosion Passes", &settings.erosionIterations, 0, 50);
+
+      ImGui::Separator();
+      ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.5f, 1.0f), "Features");
+      ImGui::SliderFloat("Mtn Coverage", &settings.featureFrequency, 0.01f,
+                         0.1f);
+      ImGui::SliderFloat("Mtn Height", &settings.mountainInfluence, 0.0f, 3.0f);
+      ImGui::SliderFloat("Warping", &settings.warpStrength, 0.0f, 2.0f);
+      ImGui::SliderFloat("Terracing", &settings.terraceSteps, 0.0f, 2.0f);
+
+      ImGui::Separator();
+      ImGui::TextColored(ImVec4(0.5f, 1.0f, 0.5f, 1.0f), "Manual Controls");
+
+      // Manual triggers for granular control
+      if (ImGui::Button("Re-Shape Only"))
+        terrain.GenerateProceduralTerrain(buffers, settings);
+      ImGui::SameLine();
+      if (ImGui::Button("Erode Only"))
+        terrain.ApplyThermalErosion(buffers, 1);
+
+      if (ImGui::Button("Import Heightmap")) {
+        std::string path = PlatformUtils::OpenFileDialog();
+        if (!path.empty())
+          terrain.LoadFromImage(path.c_str(), buffers);
+      }
+      ImGui::SameLine();
+      if (ImGui::Button("Invert"))
+        terrain.InvertHeights(buffers);
+
+      ImGui::EndTabItem();
     }
-    ImGui::SliderFloat2("View Offset", settings.viewOffset, 0.0f, 1.0f);
-    ImGui::SliderFloat("Point Size", &settings.pointSize, 1.0f, 128.0f);
-    ImGui::Text("Rendered Points: %d", (int)(buffers.count));
-  }
 
-  // 2. Core Generation Settings
-  if (ImGui::CollapsingHeader("Generation Settings",
-                              ImGuiTreeNodeFlags_DefaultOpen)) {
-    ImGui::InputInt("Seed", &settings.seed);
+    // TAB 2: THE GOD (Simulation)
+    if (ImGui::BeginTabItem("Simulation")) {
 
-    ImGui::Separator();
-    ImGui::Text("Tectonics (Base Shape)");
-    ImGui::SliderFloat("Continent Size", &settings.continentFreq, 0.001f, 0.02f,
-                       "%.4f");
-    if (ImGui::IsItemHovered())
-      ImGui::SetTooltip("Lower = Bigger Continents");
+      ImGui::Text("Time Control");
+      static bool isPaused = true;
+      if (ImGui::Button(isPaused ? "PLAY" : "PAUSE", ImVec2(-1, 0)))
+        isPaused = !isPaused;
 
-    ImGui::Separator();
-    ImGui::Text("Orogeny (Mountains)");
-    ImGui::SliderFloat("Mountain Density", &settings.featureFrequency, 0.01f,
-                       0.1f);
-    ImGui::SliderFloat("Mountain Height", &settings.mountainInfluence, 0.0f,
-                       2.0f);
+      if (!isPaused && graph.neighborData) {
+        HydrologySim::Update(buffers, graph);
+        if (settings.enableFactions)
+          AgentSystem::UpdateCivilization(buffers, graph);
+      }
 
-    ImGui::Separator();
-    ImGui::Text("Reality Distortion");
-    ImGui::SliderFloat("Alien Warp", &settings.warpStrength, 0.0f, 5.0f);
-    if (ImGui::IsItemHovered())
-      ImGui::SetTooltip("0 = Earth-like, 5 = Fluid/Alien");
-
-    ImGui::Separator();
-    ImGui::Text("Vertical Scale");
-    ImGui::SliderFloat("Height Mult", &settings.heightMultiplier, 0.1f, 3.0f);
-    ImGui::SliderFloat("Sea Level", &settings.seaLevel, 0.0f, 1.0f);
-    // ImGui::SliderFloat("Height Min", &settings.heightMin, 0.0f, 1.0f); //
-    // Hidden for simplicity unless needed
-
-    if (ImGui::Button("Regenerate Terrain", ImVec2(-1, 0))) {
-      terrain.GenerateProceduralTerrain(buffers, settings);
-    }
-  }
-
-  // 3. Connectivity & Hydrology
-  if (ImGui::CollapsingHeader("Connectivity & Hydrology",
-                              ImGuiTreeNodeFlags_DefaultOpen)) {
-    if (ImGui::Button("Build Neighbor Graph (Grid)", ImVec2(-1, 0))) {
-      finder.BuildGraph(buffers, buffers.count, graph);
-    }
-    if (graph.neighborData != nullptr) {
-      ImGui::TextColored(ImVec4(0, 1, 0, 1), "Graph Connected!");
-
-      if (ImGui::Button("Simulate Rivers (100 Ticks)", ImVec2(-1, 0))) {
-        for (int i = 0; i < 100; ++i)
+      ImGui::Separator();
+      ImGui::Text("Hydrology");
+      ImGui::SliderFloat("Rainfall", &settings.rainfallModifier, 0.0f, 5.0f);
+      if (ImGui::Button("Force Rain Event")) {
+        for (int i = 0; i < 10; ++i)
           HydrologySim::Update(buffers, graph);
       }
 
-      ImGui::SameLine();
-      if (ImGui::Button("1 Tick")) {
-        HydrologySim::Update(buffers, graph);
+      if (graph.neighborData == nullptr) {
+        ImGui::TextColored(ImVec4(1, 0.5f, 0, 1), "Build graph first!");
       }
-    } else {
-      ImGui::TextColored(ImVec4(1, 0, 0, 1), "Graph Not Built");
-    }
-  }
 
-  // 4. Climate & Atmosphere
-  if (ImGui::CollapsingHeader("Atmosphere & Climate")) {
-    ImGui::SliderFloat("Global Temp", &settings.globalTempModifier, 0.5f, 2.0f);
-    ImGui::SliderFloat("Rainfall Mod", &settings.rainfallModifier, 0.0f, 5.0f);
-
-    ImGui::Separator();
-    ImGui::Checkbox("Manual Wind Override", &settings.manualWindOverride);
-    if (settings.manualWindOverride) {
-      ImGui::SliderFloat("Wind Strength", &settings.globalWindStrength, 0.0f,
-                         5.0f);
-      ImGui::SliderFloat("Zone 1 (N.Pole)", &settings.windZones[0], -1.0f,
-                         1.0f);
-      ImGui::SliderFloat("Zone 2", &settings.windZones[1], -1.0f, 1.0f);
-      ImGui::SliderFloat("Zone 3 (Equator)", &settings.windZones[2], -1.0f,
-                         1.0f);
-      ImGui::SliderFloat("Zone 4", &settings.windZones[3], -1.0f, 1.0f);
-      ImGui::SliderFloat("Zone 5 (S.Pole)", &settings.windZones[4], -1.0f,
-                         1.0f);
-    }
-  }
-
-  // 4. Geology & Erosion
-  if (ImGui::CollapsingHeader("Geology & Erosion")) {
-    ImGui::SliderInt("Erosion Iterations", &settings.erosionIterations, 1, 100);
-    if (ImGui::Button("Run Thermal Erosion", ImVec2(-1, 0))) {
-      terrain.ApplyThermalErosion(buffers, settings.erosionIterations);
-    }
-    if (ImGui::Button("Import Heightmap", ImVec2(-1, 0))) {
-      std::string path = PlatformUtils::OpenFileDialog();
-      if (!path.empty()) {
-        terrain.LoadFromImage(path.c_str(), buffers);
-      }
-    }
-    if (ImGui::Button("Invert Heights", ImVec2(-1, 0))) {
-      terrain.InvertHeights(buffers);
-    }
-  }
-
-  // 5. Civilization / Factions
-  if (ImGui::CollapsingHeader("Civilization")) {
-    ImGui::Checkbox("Enable Factions", &settings.enableFactions);
-
-    if (settings.enableFactions) {
       ImGui::Separator();
-      ImGui::Text("Empire Tools");
-
-      if (ImGui::Button("Spawn Faction 1 (Pioneers)")) {
-        AgentSystem::SpawnCivilization(buffers, 1);
+      ImGui::Text("Civilization");
+      ImGui::Checkbox("Enable Factions", &settings.enableFactions);
+      if (settings.enableFactions) {
+        if (ImGui::Button("Spawn Faction"))
+          AgentSystem::SpawnCivilization(buffers, 1);
+        ImGui::SameLine();
+        if (ImGui::Button("Grow (1 Yr)")) {
+          for (int i = 0; i < 36; ++i)
+            AgentSystem::UpdateCivilization(buffers, graph);
+        }
       }
 
-      if (ImGui::Button("Simulate Growth (1 Year)")) {
-        // Simulate 36 ticks (approx 1 year at 10 days/tick scale? Just a chunk
-        // of ticks)
-        for (int i = 0; i < 36; ++i)
-          AgentSystem::UpdateCivilization(buffers, graph);
-      }
-      ImGui::SameLine();
-      if (ImGui::Button("1 Tick")) {
-        AgentSystem::UpdateCivilization(buffers, graph);
-      }
+      ImGui::EndTabItem();
     }
+
+    // TAB 3: THE VIEWER (Visuals)
+    if (ImGui::BeginTabItem("Visuals")) {
+      ImGui::Text("Camera");
+      const char *zoomLevels[] = {"Global", "Quadrant", "Regional", "Local"};
+      if (ImGui::Combo("View Level", &settings.zoomLevel, zoomLevels, 4)) {
+        settings.pointSize = (settings.zoomLevel == 0)   ? 1.0f
+                             : (settings.zoomLevel == 1) ? 4.0f
+                             : (settings.zoomLevel == 2) ? 16.0f
+                                                         : 64.0f;
+      }
+      ImGui::SliderFloat2("View Offset", settings.viewOffset, 0.0f, 1.0f);
+      ImGui::SliderFloat("Point Size", &settings.pointSize, 1.0f, 128.0f);
+
+      ImGui::EndTabItem();
+    }
+
+    ImGui::EndTabBar();
   }
 
   ImGui::End();

@@ -52,6 +52,10 @@ struct WorldSettings {
 
   // Factions
   bool enableFactions = true;
+
+  // UI/UX
+  bool autoRegenerate = false; // Live preview mode
+  float terraceSteps = 0.0f;   // 0 = off, 1-2 = stepped terrain
 };
 
 // 2. The Million-Cell Memory (SoA Layout)
