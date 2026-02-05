@@ -66,11 +66,28 @@ public:
 
 // AgentSystem
 namespace AgentSystem {
+extern std::vector<AgentTemplate> speciesRegistry;
+void Initialize();
+void UpdateBiology(WorldBuffers &b, const WorldSettings &s);
 void SpawnCivilization(WorldBuffers &b, int factionId);
 void UpdateCivilization(WorldBuffers &b, const NeighborGraph &g);
 } // namespace AgentSystem
 
-// ConflictSystem (Free function)
+// ConflictSystem
+namespace ConflictSystem {
+void Update(WorldBuffers &b, const NeighborGraph &g, const WorldSettings &s);
+} // namespace ConflictSystem
+
+// LoreScribe namespace (simpler API)
+namespace LoreScribeNS {
+void Initialize();
+void LogEvent(int tick, const std::string &type, int location,
+              const std::string &desc);
+void Close();
+extern int currentYear;
+} // namespace LoreScribeNS
+
+// ConflictSystem (Free function - legacy)
 void ResolveConflicts(WorldBuffers &b, const NeighborGraph &graph);
 
 // ChaosField (Free function)

@@ -216,12 +216,20 @@ void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
           ClimateSim::Update(buffers, settings);
           HydrologySim::Update(buffers, graph);
 
+          // Biology (vegetation/wildlife growth)
+          AgentSystem::UpdateBiology(buffers, settings);
+
           if (settings.enableRealtimeErosion) {
             terrain.ApplyThermalErosion(buffers, 1);
           }
 
           if (settings.enableFactions) {
             AgentSystem::UpdateCivilization(buffers, graph);
+          }
+
+          // Conflict (war/border pushing)
+          if (settings.enableConflict) {
+            ConflictSystem::Update(buffers, graph, settings);
           }
         }
       }
@@ -252,6 +260,34 @@ void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
       if (graph.neighborData == nullptr) {
         ImGui::TextColored(ImVec4(1, 0.5f, 0, 1),
                            "Build graph first for simulation!");
+      }
+
+      ImGui::Separator();
+
+      // --- POLITICS & WAR ---
+      ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.0f, 1.0f), "Politics & War");
+      ImGui::Checkbox("Enable Conflict", &settings.enableConflict);
+
+      if (ImGui::Button("Spawn 5 Kingdoms")) {
+        for (int k = 0; k < 5; ++k) {
+          AgentSystem::SpawnCivilization(buffers, k + 1);
+        }
+        LoreScribeNS::LogEvent(0, "GENESIS", 0,
+                               "5 Civilizations have appeared.");
+      }
+
+      ImGui::Separator();
+
+      // --- BIOLOGY ---
+      ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.2f, 1.0f), "Biology");
+      ImGui::Checkbox("Simulate Vegetation", &settings.enableBiology);
+
+      // Human aggression tweaker
+      static float humanAggro = 0.5f;
+      if (ImGui::SliderFloat("Human Aggression", &humanAggro, 0.0f, 1.0f)) {
+        if (!AgentSystem::speciesRegistry.empty()) {
+          AgentSystem::speciesRegistry[0].aggression = humanAggro;
+        }
       }
 
       ImGui::Separator();
@@ -342,6 +378,10 @@ int main() {
 
   // Generate Initial World
   terrain.GenerateProceduralTerrain(buffers, settings);
+
+  // Initialize Subsystems
+  AgentSystem::Initialize();
+  LoreScribeNS::Initialize();
 
   // Setup ImGui
   IMGUI_CHECKVERSION();

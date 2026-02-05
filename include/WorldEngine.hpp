@@ -2,9 +2,48 @@
 
 #include <algorithm>
 #include <cstdint> // Added for uint32_t
-#include <iostream>
 #include <string>
 #include <vector>
+
+// --- AGENT & FACTION TEMPLATES ---
+
+struct AgentTemplate {
+  int id;
+  char name[32]; // Fixed size for easy binary IO
+
+  // Capabilities
+  bool isStatic; // Plant vs Animal
+  bool canBuild; // Civilization builder
+  bool canWar;   // Combat unit
+
+  // Behavior (0.0 - 1.0)
+  float aggression;   // Likelihood to attack neighbors
+  float intelligence; // Bonus to Tech/Defense
+  float sociality;    // Bonus to Pop Growth/Trade
+
+  // Biology
+  float idealTemp;        // 0.0 (Polar) to 1.0 (Desert)
+  float adaptiveRate;     // How fast they change idealTemp
+  float resourceNeeds[4]; // 0:Food, 1:Wood, 2:Iron, 3:Magic
+};
+
+struct FactionData {
+  int id;
+  std::string name;
+  float color[3]; // RGB for map rendering
+
+  // Cultural Profile
+  float expansionDrive; // Speed of border push
+  float aggression;     // Threshold for declaring war
+  float techLevel;      // Multiplier for Defense
+
+  // Assets (Tamed Wildlife)
+  std::vector<int> tamedSpeciesIDs;
+
+  // Stats
+  long totalPopulation;
+  int totalCells;
+};
 
 // 1. World Configuration (Linked to God Mode UI)
 struct WorldSettings {
@@ -48,10 +87,12 @@ struct WorldSettings {
   // View & Scale (Zoom System)
   int zoomLevel = 0;                  // 0=Global, 3=Local
   float pointSize = 1.0f;             // GPU point size
-  float viewOffset[2] = {0.5f, 0.5f}; // Camera X,Y
+  float viewOffset[2] = {0.0f, 0.0f}; // Camera X,Y (Start at origin)
 
-  // Factions
+  // Factions & Biology
   bool enableFactions = true;
+  bool enableBiology = true;  // Simulate vegetation/wildlife
+  bool enableConflict = true; // Enable war/border pushing
 
   // UI/UX
   bool autoRegenerate = false; // Live preview mode
