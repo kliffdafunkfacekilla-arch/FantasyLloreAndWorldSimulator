@@ -90,11 +90,23 @@ extern int currentYear;
 // ConflictSystem (Free function - legacy)
 void ResolveConflicts(WorldBuffers &b, const NeighborGraph &graph);
 
-// ChaosField (Free function)
+// ChaosField namespace
+namespace ChaosField {
+void SpawnRift(WorldBuffers &b, int index, float intensity);
+void ClearRifts();
+void Update(WorldBuffers &b, const NeighborGraph &g);
+} // namespace ChaosField
+
+// ChaosField (Free function - legacy)
 void UpdateChaos(WorldBuffers &b, const NeighborGraph &graph,
                  float diffusionRate);
 
-// LogisticsSystem (Free function)
+// LogisticsSystem namespace
+namespace LogisticsSystem {
+void Update(WorldBuffers &b, const NeighborGraph &g);
+} // namespace LogisticsSystem
+
+// LogisticsSystem (Free function - legacy)
 void ProcessLogistics(WorldBuffers &b, uint32_t count);
 
 // IO Helpers

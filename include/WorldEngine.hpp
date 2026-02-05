@@ -135,6 +135,7 @@ struct WorldBuffers {
   uint32_t *population = nullptr;
   float *chaos = nullptr;
   float *infrastructure = nullptr; // Roads/Cities
+  float *wealth = nullptr;         // Accumulated resources (Food/Iron/Gold)
 
   // Metadata
   uint32_t count = 0;
@@ -170,6 +171,9 @@ struct WorldBuffers {
     std::fill_n(windDX, count, 0.0f);
     std::fill_n(windDY, count, 0.0f);
 
+    wealth = new float[count];
+    std::fill_n(wealth, count, 0.0f);
+
     flux = new float[count];            // Allocate Flux
     std::fill_n(flux, count, 0.0f);     // Zero it out
     nextFlux = new float[count];        // Allocate NextFlux
@@ -188,6 +192,7 @@ struct WorldBuffers {
     delete[] population;
     delete[] chaos;
     delete[] infrastructure;
+    delete[] wealth;
     delete[] flux;
     delete[] nextFlux;
 

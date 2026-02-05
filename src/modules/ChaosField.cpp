@@ -1,36 +1,77 @@
 #include "../../include/SimulationModules.hpp"
-#include <vector>
+#include <algorithm>
 #include <cstring> // For memcpy
+#include <vector>
 
-void UpdateChaos(WorldBuffers& b, const NeighborGraph& graph, float diffusionRate) {
-    // 1. Create a temporary buffer to avoid simulation artifacts (Double Buffering)
-    // We allocate on heap because 1M floats is too big for stack
-    static std::vector<float> nextChaos(b.count > 0 ? b.count : 1000000);
-    if (nextChaos.size() != b.count) nextChaos.resize(b.count);
 
-    for (uint32_t i = 0; i < b.count; ++i) {
-        float current = b.chaos[i];
-        float flow = 0.0f;
+namespace ChaosField {
 
-        int offset = graph.offsetTable[i];
-        int count = graph.countTable[i];
+struct Rift {
+  int index;
+  float intensity;
+};
+std::vector<Rift> activeRifts;
 
-        // Gather chaos from neighbors
-        for (int n = 0; n < count; ++n) {
-            int neighborIdx = graph.neighborData[offset + n];
-            float neighborChaos = b.chaos[neighborIdx];
+void SpawnRift(WorldBuffers &b, int index, float intensity) {
+  if (index < 0 || index >= (int)b.count)
+    return;
+  activeRifts.push_back({index, intensity});
+  if (b.chaos)
+    b.chaos[index] = intensity;
+}
 
-            // Diffusion Formula: Move from High to Low
-            flow += (neighborChaos - current) * diffusionRate;
-        }
+void ClearRifts() { activeRifts.clear(); }
 
-        nextChaos[i] = current + flow;
+void Update(WorldBuffers &b, const NeighborGraph &g) {
+  if (!b.chaos || !g.neighborData)
+    return;
 
-        // Decay (Chaos naturally fades over time)
-        nextChaos[i] *= 0.99f;
+  // 1. EMIT CHAOS (Source)
+  for (const auto &rift : activeRifts) {
+    if (rift.index >= 0 && rift.index < (int)b.count) {
+      b.chaos[rift.index] = rift.intensity;
+    }
+  }
+
+  // 2. DIFFUSION (Gas simulation)
+  static std::vector<float> nextChaos;
+  if (nextChaos.size() != b.count)
+    nextChaos.resize(b.count);
+
+  float diffusionRate = 0.1f;
+  float decayRate = 0.98f; // Magic fades over distance
+
+  for (uint32_t i = 0; i < b.count; ++i) {
+    float current = b.chaos[i];
+
+    // Get average of neighbors
+    float neighborSum = 0.0f;
+    int offset = g.offsetTable[i];
+    int count = g.countTable[i];
+
+    for (int k = 0; k < count; ++k) {
+      int nIdx = g.neighborData[offset + k];
+      neighborSum += b.chaos[nIdx];
     }
 
-    // 2. Write back to the main buffer
-    if (b.chaos)
-        std::memcpy(b.chaos, nextChaos.data(), b.count * sizeof(float));
+    if (count > 0) {
+      float avg = neighborSum / count;
+      // Move towards average (Diffusion)
+      current += (avg - current) * diffusionRate;
+    }
+
+    nextChaos[i] = current * decayRate;
+  }
+
+  // Apply back
+  std::memcpy(b.chaos, nextChaos.data(), b.count * sizeof(float));
+}
+
+} // namespace ChaosField
+
+// Legacy free function (calls namespace version)
+void UpdateChaos(WorldBuffers &b, const NeighborGraph &graph,
+                 float diffusionRate) {
+  (void)diffusionRate; // Use internal rate
+  ChaosField::Update(b, graph);
 }

@@ -122,6 +122,9 @@ void MasterRegenerate(WorldBuffers &buffers, WorldSettings &settings,
   }
 }
 
+// Global view mode for renderer (0=Terrain, 1=Chaos, 2=Economy)
+static int g_viewMode = 0;
+
 // --- The God Mode Dashboard (Tabbed Layout) ---
 void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
                    TerrainController &terrain, NeighborGraph &graph,
@@ -303,6 +306,34 @@ void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
         }
       }
 
+      ImGui::Separator();
+
+      // --- THE CHAOS ENGINE ---
+      ImGui::TextColored(ImVec4(0.8f, 0.4f, 1.0f, 1.0f), "The Chaos Engine");
+
+      if (ImGui::Button("Open Rift (Center)")) {
+        // Spawn a rift at map center (approx 500,500 for 1M cells)
+        int centerIdx = (int)(buffers.count / 2);
+        ChaosField::SpawnRift(buffers, centerIdx, 1.0f);
+        LoreScribeNS::LogEvent(0, "MAGIC", centerIdx,
+                               "A Chaos Rift has opened!");
+      }
+      ImGui::SameLine();
+      if (ImGui::Button("Clear All Chaos")) {
+        if (buffers.chaos)
+          std::fill_n(buffers.chaos, buffers.count, 0.0f);
+        ChaosField::ClearRifts();
+      }
+
+      ImGui::Separator();
+
+      // --- ECONOMY & LOGISTICS ---
+      ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.2f, 1.0f), "Economy & Logistics");
+      if (ImGui::Button("Simulate Economy (10 ticks)")) {
+        for (int i = 0; i < 10; ++i)
+          LogisticsSystem::Update(buffers, graph);
+      }
+
       ImGui::EndTabItem();
     }
 
@@ -318,6 +349,16 @@ void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
       }
       ImGui::SliderFloat2("View Offset", settings.viewOffset, 0.0f, 1.0f);
       ImGui::SliderFloat("Point Size", &settings.pointSize, 1.0f, 128.0f);
+
+      ImGui::Separator();
+      ImGui::TextColored(ImVec4(0.5f, 1.0f, 1.0f, 1.0f), "Visualization Mode");
+      static int viewMode = 0;
+      g_viewMode = viewMode; // Sync to global
+      ImGui::RadioButton("Terrain", &viewMode, 0);
+      ImGui::SameLine();
+      ImGui::RadioButton("Chaos", &viewMode, 1);
+      ImGui::SameLine();
+      ImGui::RadioButton("Economy", &viewMode, 2);
 
       ImGui::EndTabItem();
     }
@@ -443,7 +484,7 @@ int main() {
     glUniform1f(glGetUniformLocation(shaderProgram, "u_pointSize"),
                 settings.pointSize);
 
-    renderer.UpdateVisuals(buffers, settings);
+    renderer.UpdateVisuals(buffers, settings, g_viewMode);
     renderer.Render(settings);
 
     ImGui::Render();

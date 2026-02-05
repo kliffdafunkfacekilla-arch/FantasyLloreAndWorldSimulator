@@ -43,14 +43,37 @@ public:
   }
 
   // 2. Update Batches
-  void UpdateVisuals(const WorldBuffers &buffers, const WorldSettings &s) {
+  // viewMode: 0=Terrain, 1=Chaos, 2=Economy
+  void UpdateVisuals(const WorldBuffers &buffers, const WorldSettings &s,
+                     int viewMode = 0) {
     colorBuffer.resize(buffers.count * 3);
 
     for (size_t i = 0; i < buffers.count; ++i) {
       float h = buffers.height[i];
       float r = 0, g = 0, b = 0;
 
-      if (h < s.seaLevel) {
+      // --- SPECIAL VIEW MODES ---
+      if (viewMode == 1 && buffers.chaos) {
+        // CHAOS VIEW (Purple magic)
+        float c = buffers.chaos[i];
+        r = c;
+        g = 0.0f;
+        b = c;
+        if (c > 0.01f) {
+          r += 0.2f;
+          b += 0.4f;
+        } // Glow effect
+        r = std::min(r, 1.0f);
+        b = std::min(b, 1.0f);
+      } else if (viewMode == 2 && buffers.wealth) {
+        // ECONOMY VIEW (Gold/Red for cities)
+        float w = buffers.wealth ? buffers.wealth[i] : 0.0f;
+        float infra = buffers.infrastructure ? buffers.infrastructure[i] : 0.0f;
+
+        r = std::min(1.0f, (w / 100.0f) + infra);
+        g = std::min(1.0f, (w / 100.0f));
+        b = 0.0f;
+      } else if (h < s.seaLevel) {
         // Ocean
         float depth = h / s.seaLevel;
         r = 0.0f;
