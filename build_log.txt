@@ -27,3 +27,5 @@ C:/msys64/mingw64/include/c++/15.2.0/bits/stl_algo.h:4831:5: note: candidate fun
       |     ^    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 2 errors generated.
 [ERROR] Build failed. Check the logs above.
+Press any key to continue . . . 
+Terminate batch job (Y/N)? Terminate batch job (Y/N)? 

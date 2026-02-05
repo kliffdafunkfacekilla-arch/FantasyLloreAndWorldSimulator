@@ -17,3 +17,5 @@ src/visuals/MapRenderer.cpp:53:40: error: no member named 'colorB' in 'WorldBuff
       |                                ~~~~~~~ ^
 3 errors generated.
 [ERROR] Build failed. Check the logs above.
+Press any key to continue . . . 
+Terminate batch job (Y/N)? Terminate batch job (Y/N)? 
