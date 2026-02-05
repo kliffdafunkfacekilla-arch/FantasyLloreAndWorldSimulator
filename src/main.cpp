@@ -195,27 +195,57 @@ void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
     // TAB 2: THE GOD (Simulation)
     if (ImGui::BeginTabItem("Simulation")) {
 
-      ImGui::Text("Time Control");
+      // --- MASTER TIME CONTROLS ---
+      ImGui::TextColored(ImVec4(0.5f, 1.0f, 0.5f, 1.0f), "Chronos Controls");
       static bool isPaused = true;
-      if (ImGui::Button(isPaused ? "PLAY" : "PAUSE", ImVec2(-1, 0)))
+      if (ImGui::Button(isPaused ? "RESUME TIME" : "PAUSE TIME",
+                        ImVec2(-1, 40)))
         isPaused = !isPaused;
 
+      ImGui::SliderInt("Time Scale", &settings.timeScale, 1, 10, "%dx Speed");
+
+      // Run simulation ticks when not paused
       if (!isPaused && graph.neighborData) {
-        HydrologySim::Update(buffers, graph);
-        if (settings.enableFactions)
-          AgentSystem::UpdateCivilization(buffers, graph);
+        for (int tick = 0; tick < settings.timeScale; ++tick) {
+          ClimateSim::Update(buffers, settings);
+          HydrologySim::Update(buffers, graph);
+
+          if (settings.enableRealtimeErosion) {
+            terrain.ApplyThermalErosion(buffers, 1);
+          }
+
+          if (settings.enableFactions) {
+            AgentSystem::UpdateCivilization(buffers, graph);
+          }
+        }
       }
 
       ImGui::Separator();
-      ImGui::Text("Hydrology");
-      ImGui::SliderFloat("Rainfall", &settings.rainfallModifier, 0.0f, 5.0f);
-      if (ImGui::Button("Force Rain Event")) {
-        for (int i = 0; i < 10; ++i)
-          HydrologySim::Update(buffers, graph);
+
+      // --- WEATHER & EROSION ---
+      ImGui::TextColored(ImVec4(0.5f, 0.8f, 1.0f, 1.0f), "Dynamic Weather");
+
+      ImGui::SliderFloat("Wind Angle", &settings.windAngle, 0.0f, 6.28f,
+                         "%.2f rad");
+      ImGui::SliderFloat("Wind Force", &settings.windStrengthSim, 0.0f, 0.5f);
+
+      ImGui::SliderFloat("Global Temp", &settings.globalTemperature, -0.5f,
+                         0.5f);
+      ImGui::SliderFloat("Global Rain", &settings.globalMoisture, -0.5f, 0.5f);
+
+      ImGui::Separator();
+
+      // --- DESTRUCTIVE FORCES ---
+      ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.5f, 1.0f), "Natural Forces");
+      ImGui::Checkbox("Enable Realtime Erosion",
+                      &settings.enableRealtimeErosion);
+      if (settings.enableRealtimeErosion) {
+        ImGui::TextDisabled("Warning: Mountains will melt over time!");
       }
 
       if (graph.neighborData == nullptr) {
-        ImGui::TextColored(ImVec4(1, 0.5f, 0, 1), "Build graph first!");
+        ImGui::TextColored(ImVec4(1, 0.5f, 0, 1),
+                           "Build graph first for simulation!");
       }
 
       ImGui::Separator();

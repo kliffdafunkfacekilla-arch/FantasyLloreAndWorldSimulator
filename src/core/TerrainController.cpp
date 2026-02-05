@@ -8,36 +8,37 @@
 void TerrainController::GenerateProceduralTerrain(
     WorldBuffers &buffers, const WorldSettings &settings) {
 
-  std::cout << "[TERRAIN] Generating Hybrid Terrain v2...\n";
+  std::cout << "[TERRAIN] Generating Fractal Terrain...\n";
 
-  // 1. SETUP GENERATORS
-  // A. Base Shape (The Coastlines)
+  // 1. CONTINENTS (The "Blob" Fix - Using FBm)
   FastNoiseLite baseNoise;
   baseNoise.SetSeed(settings.seed);
   baseNoise.SetFrequency(settings.continentFreq);
   baseNoise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+  baseNoise.SetFractalType(FastNoiseLite::FractalType_FBm);
+  baseNoise.SetFractalOctaves(5);
+  baseNoise.SetFractalLacunarity(2.0f);
+  baseNoise.SetFractalGain(0.5f);
 
-  // B. Mountain Location (Where do mountains exist?)
-  // We use a separate low-freq noise to draw "zones" for mountain ranges
+  // 2. MOUNTAIN ZONES
   FastNoiseLite mountainMaskNoise;
   mountainMaskNoise.SetSeed(settings.seed + 101);
   mountainMaskNoise.SetFrequency(settings.continentFreq * 2.0f);
   mountainMaskNoise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
 
-  // C. Mountain Detail (The actual jagged spikes)
+  // 3. MOUNTAIN PEAKS
   FastNoiseLite mountainNoise;
   mountainNoise.SetSeed(settings.seed + 1);
   mountainNoise.SetFrequency(settings.featureFrequency);
   mountainNoise.SetFractalType(FastNoiseLite::FractalType_Ridged);
   mountainNoise.SetFractalOctaves(5);
 
-  // D. Warper
+  // 4. WARP (Alien shapes)
   FastNoiseLite warper;
   warper.SetSeed(settings.seed + 2);
   warper.SetFrequency(settings.continentFreq);
   warper.SetDomainWarpType(FastNoiseLite::DomainWarpType_OpenSimplex2);
-  warper.SetDomainWarpAmp(settings.warpStrength *
-                          30.0f); // Boosted amp for visibility
+  warper.SetDomainWarpAmp(settings.warpStrength * 30.0f);
 
   // Initialize Grid positions
   int side = (int)std::sqrt(settings.cellCount);
@@ -51,81 +52,62 @@ void TerrainController::GenerateProceduralTerrain(
     }
   }
 
-  // 2. GENERATION LOOP
   for (uint32_t i = 0; i < settings.cellCount; ++i) {
-    // Coordinate Setup
     float x = buffers.posX[i] * 100.0f;
     float y = buffers.posY[i] * 100.0f;
 
-    // STEP A: Warp first (Distorts everything equally)
+    // Apply Warp
     if (settings.warpStrength > 0.0f) {
       warper.DomainWarp(x, y);
     }
 
-    // STEP B: Get the distinct layers
-
-    // 1. Continent Height (0.0 to 1.0)
+    // A. Continents (Now Fractal!)
     float baseH = (baseNoise.GetNoise(x, y) + 1.0f) * 0.5f;
 
-    // 2. Mountain Mask (0.0 to 1.0) - Defines "Tectonic Zones"
+    // B. Mountains
     float mask = (mountainMaskNoise.GetNoise(x + 500, y + 500) + 1.0f) * 0.5f;
-
-    // 3. Mountain Spikes (0.0 to 1.0) - The rough texture
     float peaks = (mountainNoise.GetNoise(x, y) + 1.0f) * 0.5f;
-    peaks = std::pow(peaks, 2.0f); // Make them pointy
+    peaks = std::pow(peaks, 2.0f);
 
-    // STEP C: The New Mixing Logic
-
-    // Start with the flat ground
+    // C. Combine
     float finalHeight = baseH;
+    float mountZone = std::max(0.0f, mask - 0.4f) * 2.0f;
 
-    // "Mountain Influence" now controls the THRESHOLD of the mask.
-    // Low Influence = Mountains only in very specific spots (ranges)
-    // High Influence = Mountains everywhere
-    // We remap the mask so that only the "hotspots" get mountains.
-    float mountZone = std::max(0.0f, mask - 0.4f) * 2.0f; // Clip bottom 40%
-
-    // If we are on land (baseH > seaLevel) OR if mountains are huge enough to
-    // form islands
     if (baseH > settings.seaLevel - 0.05f) {
-      // Add mountains ON TOP, unconstrained by base height
-      // We multiply by mountZone so they fade in naturally at the edges of
-      // ranges
       float mountainHeight = peaks * mountZone * settings.mountainInfluence;
-
-      // Add to base, but don't just multiply. Stack them.
       finalHeight += mountainHeight;
     }
 
-    // STEP D: Post-Process
-    finalHeight *= settings.heightMultiplier;
-
-    // Terracing (Optional stepped terrain effect)
+    // D. Terracing & Clamping
     if (settings.terraceSteps > 0.0f) {
       float steps = settings.terraceSteps * 10.0f;
       finalHeight = std::round(finalHeight * steps) / steps;
     }
-
-    // Soft Clamp (Prevent flat-topping)
+    finalHeight *= settings.heightMultiplier;
     finalHeight =
         std::clamp(finalHeight, settings.heightMin, settings.heightMax);
 
     if (buffers.height)
       buffers.height[i] = finalHeight;
 
-    // --- BIOME UPDATE (Simplified) ---
+    // --- CLIMATE CONTROLS ---
     if (buffers.temperature) {
-      // Higher = Colder
-      float altitudeCooling = finalHeight * 0.7f;
+      // Base Latitudinal Temp (Equator is hot, Poles are cold)
       float latTemp = 1.0f - (std::abs(buffers.posY[i] - 0.5f) * 2.0f);
-      buffers.temperature[i] =
-          std::clamp(latTemp - altitudeCooling, 0.0f, 1.0f);
+
+      // Altitude Cooling
+      float altitudeCooling = finalHeight * 0.5f;
+
+      // Combine + Add User Setting
+      float t = latTemp - altitudeCooling + settings.globalTemperature;
+      buffers.temperature[i] = std::clamp(t, 0.0f, 1.0f);
     }
 
     if (buffers.moisture) {
-      // Simple noise for moisture
-      buffers.moisture[i] =
-          (baseNoise.GetNoise(x + 900, y + 900) + 1.0f) * 0.5f;
+      // Noise + User Setting
+      float m = (baseNoise.GetNoise(x + 900, y + 900) + 1.0f) * 0.5f;
+      m += settings.globalMoisture;
+      buffers.moisture[i] = std::clamp(m, 0.0f, 1.0f);
     }
   }
 }

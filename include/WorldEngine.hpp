@@ -56,6 +56,17 @@ struct WorldSettings {
   // UI/UX
   bool autoRegenerate = false; // Live preview mode
   float terraceSteps = 0.0f;   // 0 = off, 1-2 = stepped terrain
+
+  // --- CLIMATE & WEATHER ---
+  float windAngle = 0.0f;         // 0.0 to 6.28 (Radians)
+  float windStrengthSim = 0.1f;   // How fast heat/moisture moves
+  float globalTemperature = 0.0f; // -0.5 to 0.5 (Colder / Warmer)
+  float globalMoisture = 0.0f;    // -0.5 to 0.5 (Drier / Wetter)
+
+  // --- SIMULATION CONTROLS ---
+  int timeScale = 1;                  // Ticks per frame (Speed)
+  bool enableRealtimeErosion = false; // Does wind/rain erode land live?
+  float erosionRate = 0.01f;          // How fast mountains melt
 };
 
 // 2. The Million-Cell Memory (SoA Layout)

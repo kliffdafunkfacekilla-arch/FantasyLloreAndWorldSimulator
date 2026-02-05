@@ -74,3 +74,353 @@ shaders\world.vert
 [GRAPH] Connecting 1,000,000 cells...
 [GRAPH] Grid Dimensions: 1000x1000
 [GRAPH] Adjacency list finalized. Total connections: 7988004
+[TERRAIN] Apply Thermal Erosion (10 passes)...
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[TERRAIN] Generating Hybrid Terrain v2...
+[GRAPH] Connecting 1,000,000 cells...
+[GRAPH] Grid Dimensions: 1000x1000
+[GRAPH] Adjacency list finalized. Total connections: 7988004
+[TERRAIN] Apply Thermal Erosion (10 passes)...
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[TERRAIN] Generating Hybrid Terrain v2...
+[TERRAIN] Generating Hybrid Terrain v2...
+[RENDERER] Drawing 1000000 points.
+[TERRAIN] Generating Hybrid Terrain v2...
+[TERRAIN] Generating Hybrid Terrain v2...
+[RENDERER] Drawing 1000000 points.
+[TERRAIN] Generating Hybrid Terrain v2...
+[TERRAIN] Generating Hybrid Terrain v2...
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[TERRAIN] Generating Hybrid Terrain v2...
+[RENDERER] Drawing 1000000 points.
+[TERRAIN] Generating Hybrid Terrain v2...
+[RENDERER] Drawing 1000000 points.
+[TERRAIN] Generating Hybrid Terrain v2...
+[RENDERER] Drawing 1000000 points.
+[TERRAIN] Generating Hybrid Terrain v2...
+[RENDERER] Drawing 1000000 points.
+[TERRAIN] Generating Hybrid Terrain v2...
+[TERRAIN] Generating Hybrid Terrain v2...
+[RENDERER] Drawing 1000000 points.
+[TERRAIN] Generating Hybrid Terrain v2...
+[RENDERER] Drawing 1000000 points.
+[TERRAIN] Generating Hybrid Terrain v2...
+[RENDERER] Drawing 1000000 points.
+[TERRAIN] Generating Hybrid Terrain v2...
+[TERRAIN] Generating Hybrid Terrain v2...
+[RENDERER] Drawing 1000000 points.
+[TERRAIN] Generating Hybrid Terrain v2...
+[RENDERER] Drawing 1000000 points.
+[TERRAIN] Generating Hybrid Terrain v2...
+[RENDERER] Drawing 1000000 points.
+[TERRAIN] Generating Hybrid Terrain v2...
+[RENDERER] Drawing 1000000 points.
+[TERRAIN] Generating Hybrid Terrain v2...
+[RENDERER] Drawing 1000000 points.
+[TERRAIN] Apply Thermal Erosion (1 passes)...
+[TERRAIN] Apply Thermal Erosion (1 passes)...
+[TERRAIN] Apply Thermal Erosion (1 passes)...
+[TERRAIN] Apply Thermal Erosion (1 passes)...
+[RENDERER] Drawing 1000000 points.
+[TERRAIN] Apply Thermal Erosion (1 passes)...
+[TERRAIN] Apply Thermal Erosion (1 passes)...
+[TERRAIN] Apply Thermal Erosion (1 passes)...
+[TERRAIN] Apply Thermal Erosion (1 passes)...
+[TERRAIN] Apply Thermal Erosion (1 passes)...
+[TERRAIN] Apply Thermal Erosion (1 passes)...
+[TERRAIN] Apply Thermal Erosion (1 passes)...
+[TERRAIN] Apply Thermal Erosion (1 passes)...
+[TERRAIN] Apply Thermal Erosion (1 passes)...
+[TERRAIN] Apply Thermal Erosion (1 passes)...
+[TERRAIN] Apply Thermal Erosion (1 passes)...
+[TERRAIN] Apply Thermal Erosion (1 passes)...
+[TERRAIN] Apply Thermal Erosion (1 passes)...
+[TERRAIN] Apply Thermal Erosion (1 passes)...
+[TERRAIN] Apply Thermal Erosion (1 passes)...
+[TERRAIN] Apply Thermal Erosion (1 passes)...
+[TERRAIN] Apply Thermal Erosion (1 passes)...
+[TERRAIN] Apply Thermal Erosion (1 passes)...
+[TERRAIN] Apply Thermal Erosion (1 passes)...
+[TERRAIN] Apply Thermal Erosion (1 passes)...
+[TERRAIN] Apply Thermal Erosion (1 passes)...
+[RENDERER] Drawing 1000000 points.
+[TERRAIN] Apply Thermal Erosion (1 passes)...
+[TERRAIN] Apply Thermal Erosion (1 passes)...
+[TERRAIN] Apply Thermal Erosion (1 passes)...
+[RENDERER] Drawing 1000000 points.
+[TERRAIN] Generating Hybrid Terrain v2...
+[TERRAIN] Generating Hybrid Terrain v2...
+[RENDERER] Drawing 1000000 points.
+[TERRAIN] Generating Hybrid Terrain v2...
+[TERRAIN] Generating Hybrid Terrain v2...
+[GRAPH] Connecting 1,000,000 cells...
+[GRAPH] Grid Dimensions: 1000x1000
+[GRAPH] Adjacency list finalized. Total connections: 7988004
+[TERRAIN] Apply Thermal Erosion (50 passes)...
+[TERRAIN] Generating Hybrid Terrain v2...
+[GRAPH] Connecting 1,000,000 cells...
+[GRAPH] Grid Dimensions: 1000x1000
+[GRAPH] Adjacency list finalized. Total connections: 7988004
+[TERRAIN] Apply Thermal Erosion (50 passes)...
+[RENDERER] Drawing 1000000 points.
+[TERRAIN] Generating Hybrid Terrain v2...
+[GRAPH] Connecting 1,000,000 cells...
+[GRAPH] Grid Dimensions: 1000x1000
+[GRAPH] Adjacency list finalized. Total connections: 7988004
+[TERRAIN] Apply Thermal Erosion (50 passes)...
+[TERRAIN] Generating Hybrid Terrain v2...
+[GRAPH] Connecting 1,000,000 cells...
+[GRAPH] Grid Dimensions: 1000x1000
+[GRAPH] Adjacency list finalized. Total connections: 7988004
+[TERRAIN] Apply Thermal Erosion (50 passes)...
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[TERRAIN] Generating Hybrid Terrain v2...
+[GRAPH] Connecting 1,000,000 cells...
+[GRAPH] Grid Dimensions: 1000x1000
+[GRAPH] Adjacency list finalized. Total connections: 7988004
+[TERRAIN] Apply Thermal Erosion (11 passes)...
+[RENDERER] Drawing 1000000 points.
+[TERRAIN] Generating Hybrid Terrain v2...
+[GRAPH] Connecting 1,000,000 cells...
+[GRAPH] Grid Dimensions: 1000x1000
+[GRAPH] Adjacency list finalized. Total connections: 7988004
+[TERRAIN] Apply Thermal Erosion (11 passes)...
+[TERRAIN] Inverting Heightmap...
+[TERRAIN] Generating Hybrid Terrain v2...
+[GRAPH] Connecting 1,000,000 cells...
+[GRAPH] Grid Dimensions: 1000x1000
+[GRAPH] Adjacency list finalized. Total connections: 7988004
+[TERRAIN] Apply Thermal Erosion (11 passes)...
+[TERRAIN] Generating Hybrid Terrain v2...
+[GRAPH] Connecting 1,000,000 cells...
+[GRAPH] Grid Dimensions: 1000x1000
+[GRAPH] Adjacency list finalized. Total connections: 7988004
+[TERRAIN] Apply Thermal Erosion (11 passes)...
+[RENDERER] Drawing 1000000 points.
+[TERRAIN] Inverting Heightmap...
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000
