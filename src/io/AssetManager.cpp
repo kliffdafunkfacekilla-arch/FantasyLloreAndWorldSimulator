@@ -1,15 +1,17 @@
 #include "../../include/AssetManager.hpp"
+#include "../../include/SimulationModules.hpp"
 #include <cstdlib>
+#include <cstring>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
-
 
 namespace AssetManager {
 std::vector<PointOfInterest> poiList;
 std::vector<AgentTemplate> speciesRegistry;
 std::vector<ResourceDef> resourceRegistry;
 std::vector<ChaosRule> chaosRules;
+std::vector<City> cityRegistry;
 
 void Initialize() {
   LoadAll();
@@ -35,8 +37,72 @@ void Initialize() {
         {"Resource Decay", ChaosEffect::DESTROY_RESOURCE, 0.05f, 0.3f, 0.5f});
   }
 
+  // Default species
+  if (speciesRegistry.empty()) {
+    AgentTemplate human = {};
+    human.id = 0;
+    std::strncpy(human.name, "Human", 31);
+    human.isStatic = false;
+    human.canBuild = true;
+    human.canWar = true;
+    human.idealTemp = 0.5f;
+    human.tempTolerance = 0.3f;
+    human.reproductionRate = 0.05f;
+    human.movementSpeed = 0.2f;
+    human.aggression = 0.5f;
+    human.strength = 1.0f;
+    human.spawnsInForest = true;
+    human.spawnsInMountain = false;
+    speciesRegistry.push_back(human);
+
+    AgentTemplate elf = {};
+    elf.id = 1;
+    std::strncpy(elf.name, "Elf", 31);
+    elf.isStatic = false;
+    elf.canBuild = true;
+    elf.canWar = true;
+    elf.idealTemp = 0.4f;
+    elf.tempTolerance = 0.2f;
+    elf.reproductionRate = 0.02f;
+    elf.movementSpeed = 0.3f;
+    elf.aggression = 0.2f;
+    elf.strength = 0.8f;
+    elf.spawnsInForest = true;
+    speciesRegistry.push_back(elf);
+
+    AgentTemplate tree = {};
+    tree.id = 2;
+    std::strncpy(tree.name, "Oak Tree", 31);
+    tree.isStatic = true;
+    tree.canBuild = false;
+    tree.idealTemp = 0.5f;
+    tree.tempTolerance = 0.3f;
+    tree.reproductionRate = 0.1f;
+    tree.resourceProduction[0] = 0.5f; // Food (fruits)
+    tree.resourceProduction[1] = 2.0f; // Wood
+    tree.spawnsInForest = true;
+    speciesRegistry.push_back(tree);
+  }
+
   std::cout << "[ASSETS] Initialized with " << resourceRegistry.size()
-            << " resources and " << chaosRules.size() << " chaos rules.\n";
+            << " resources, " << chaosRules.size() << " chaos rules, "
+            << speciesRegistry.size() << " species.\n";
+}
+
+void RegisterCity(int location, int faction, int year) {
+  City c;
+  c.id = (int)cityRegistry.size();
+  c.locationIndex = location;
+  c.factionID = faction;
+  c.population = 1000;
+  c.yearFounded = year;
+  c.name = NameGenerator::GenerateCityName();
+
+  cityRegistry.push_back(c);
+
+  std::string msg = "The city of " + c.name + " has been founded.";
+  LoreScribeNS::LogEvent(year, "FOUNDING", location, msg);
+  std::cout << "[CITY] " << msg << "\n";
 }
 
 void LoadAll(const std::string &path) {

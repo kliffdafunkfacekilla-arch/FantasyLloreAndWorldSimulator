@@ -3,7 +3,6 @@
 #include <string>
 #include <vector>
 
-
 // --- 1. RESOURCE DEFINITION ---
 struct ResourceDef {
   int id;
@@ -47,12 +46,23 @@ struct PointOfInterest {
   bool trackEvents;
 };
 
+// --- 4. CITY ---
+struct City {
+  int id;
+  std::string name;
+  int locationIndex;
+  int factionID;
+  int population;
+  int yearFounded;
+};
+
 namespace AssetManager {
 // Registries
 extern std::vector<PointOfInterest> poiList;
 extern std::vector<AgentTemplate> speciesRegistry;
 extern std::vector<ResourceDef> resourceRegistry;
 extern std::vector<ChaosRule> chaosRules;
+extern std::vector<City> cityRegistry;
 
 void Initialize();
 
@@ -63,4 +73,7 @@ void SaveAll(const std::string &path = "data/rules.json");
 // Helpers
 int GetResourceID(const std::string &name);
 ResourceDef *GetResource(int id);
+
+// City Management
+void RegisterCity(int location, int faction, int year);
 } // namespace AssetManager

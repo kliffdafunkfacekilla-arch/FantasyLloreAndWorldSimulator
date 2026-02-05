@@ -87,6 +87,13 @@ void Close();
 extern int currentYear;
 } // namespace LoreScribeNS
 
+// NameGenerator namespace
+namespace NameGenerator {
+std::string GeneratePersonName();
+std::string GenerateFactionName();
+std::string GenerateCityName();
+} // namespace NameGenerator
+
 // ConflictSystem (Free function - legacy)
 void ResolveConflicts(WorldBuffers &b, const NeighborGraph &graph);
 

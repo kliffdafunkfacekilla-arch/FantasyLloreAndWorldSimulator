@@ -138,9 +138,8 @@ void TerrainController::LoadFromImage(const char *path, WorldBuffers &buffers) {
 
 void TerrainController::ApplyThermalErosion(WorldBuffers &buffers,
                                             int iterations) {
-  // Simplified erosion (Smoothing)
-  // Assumes grid layout for simplicity as we don't have NeighborGraph passed
-  // here yet
+  if (iterations <= 0)
+    return;
 
   std::cout << "[TERRAIN] Apply Thermal Erosion (" << iterations
             << " passes)...\n";
@@ -149,37 +148,51 @@ void TerrainController::ApplyThermalErosion(WorldBuffers &buffers,
   if (side == 0)
     return;
 
-  // Talus Threshold: Material only moves if diff > 4 / side
-  // This prevents infinite slumping on flat-ish ground
-  float talus = 4.0f / side;
+  // Use temp buffer to prevent feedback loops (explosion fix)
+  std::vector<float> tempHeight(buffers.count);
+  for (uint32_t i = 0; i < buffers.count; ++i) {
+    tempHeight[i] = buffers.height[i];
+  }
+
+  float talusAngle = 0.004f; // Minimum slope before slippage
+  float erosionSpeed = 0.1f; // Only move 10% per tick (stability)
 
   for (int iter = 0; iter < iterations; ++iter) {
     for (uint32_t i = 0; i < buffers.count; ++i) {
       float h = buffers.height[i];
+      int x = i % side;
+      int y = i / side;
 
-      int neighbors[] = {-side, side, -1, 1};
-      for (int n : neighbors) {
-        int idx = (int)i + n;
+      // Check 4 neighbors
+      int neighbors[] = {
+          (x > 0) ? (int)i - 1 : -1, (x < side - 1) ? (int)i + 1 : -1,
+          (y > 0) ? (int)i - side : -1, (y < side - 1) ? (int)i + side : -1};
 
-        // Bounds check
-        if (idx >= 0 && idx < (int)buffers.count) {
-          // Basic wrap check
-          if (n == -1 && i % side == 0)
-            continue;
-          if (n == 1 && (i + 1) % side == 0)
-            continue;
+      for (int k = 0; k < 4; ++k) {
+        int nIdx = neighbors[k];
+        if (nIdx == -1)
+          continue;
 
-          float hN = buffers.height[idx];
-          float diff = h - hN;
+        float nH = buffers.height[nIdx];
+        float diff = h - nH;
 
-          if (diff > talus) {
-            float transfer = diff * 0.5f; // Move half the excess
-            buffers.height[i] -= transfer;
-            buffers.height[idx] += transfer;
-            // Note: This is in-place mass transfer (unstable but organic)
-          }
+        // Only move dirt if slope exceeds threshold
+        if (diff > talusAngle) {
+          float transfer = (diff - talusAngle) * erosionSpeed;
+
+          // CRITICAL: Cap transfer to prevent explosion
+          if (transfer > diff * 0.5f)
+            transfer = diff * 0.5f;
+
+          tempHeight[i] -= transfer;
+          tempHeight[nIdx] += transfer;
         }
       }
+    }
+
+    // Write back for next iteration
+    for (uint32_t i = 0; i < buffers.count; ++i) {
+      buffers.height[i] = tempHeight[i];
     }
   }
 }

@@ -11,20 +11,36 @@ struct AgentTemplate {
   int id;
   char name[32]; // Fixed size for easy binary IO
 
-  // Capabilities
-  bool isStatic; // Plant vs Animal
-  bool canBuild; // Civilization builder
+  // --- TYPE ---
+  bool isStatic; // TRUE = Plant/Fungi, FALSE = Animal/Monster
+  bool canBuild; // Can build cities (Civ)
   bool canWar;   // Combat unit
 
-  // Behavior (0.0 - 1.0)
-  float aggression;   // Likelihood to attack neighbors
-  float intelligence; // Bonus to Tech/Defense
-  float sociality;    // Bonus to Pop Growth/Trade
-
-  // Biology
+  // --- BIOLOGY ---
   float idealTemp;        // 0.0 (Polar) to 1.0 (Desert)
+  float tempTolerance;    // How flexible (0.1=Picky, 0.5=Hardy)
+  float reproductionRate; // Plants: Growth / Animals: Birth rate
+  float lifespan;         // In ticks (approx)
   float adaptiveRate;     // How fast they change idealTemp
-  float resourceNeeds[4]; // 0:Food, 1:Wood, 2:Iron, 3:Magic
+
+  // --- BEHAVIOR ---
+  float movementSpeed; // 0.0 for plants, 1.0 = moves 1 tile/tick
+  float aggression;    // 0.0 = Pacifist, 1.0 = Attacks anything
+  float strength;      // Combat power / Grazing resistance
+  float intelligence;  // Bonus to Tech/Defense
+  float sociality;     // Bonus to Pop Growth/Trade
+
+  // --- DIET / ECONOMY ---
+  // 0:Food, 1:Wood, 2:Iron, 3:Magic
+  float resourceNeeds[4];       // Legacy: What they need
+  float resourceProduction[4];  // What they MAKE (Plants make Food/Wood)
+  float resourceConsumption[4]; // What they EAT (Animals eat Food)
+
+  // --- BIOME SPAWN ---
+  bool spawnsInForest;
+  bool spawnsInMountain;
+  bool spawnsInDesert;
+  bool spawnsInOcean;
 };
 
 struct FactionData {
@@ -137,6 +153,11 @@ struct WorldBuffers {
   float *infrastructure = nullptr; // Roads/Cities
   float *wealth = nullptr;         // Accumulated resources (Food/Iron/Gold)
 
+  // --- CONSTRUCTION LAYER ---
+  // 0:None, 1:Road, 2:Wall, 3:Farm, 4:Mine, 5:Tower
+  uint8_t *structureType = nullptr;
+  float *defense = nullptr; // Calculated defense (Walls + Terrain)
+
   // Metadata
   uint32_t count = 0;
 
@@ -174,6 +195,11 @@ struct WorldBuffers {
     wealth = new float[count];
     std::fill_n(wealth, count, 0.0f);
 
+    structureType = new uint8_t[count];
+    std::fill_n(structureType, count, (uint8_t)0);
+    defense = new float[count];
+    std::fill_n(defense, count, 0.0f);
+
     flux = new float[count];            // Allocate Flux
     std::fill_n(flux, count, 0.0f);     // Zero it out
     nextFlux = new float[count];        // Allocate NextFlux
@@ -193,6 +219,8 @@ struct WorldBuffers {
     delete[] chaos;
     delete[] infrastructure;
     delete[] wealth;
+    delete[] structureType;
+    delete[] defense;
     delete[] flux;
     delete[] nextFlux;
 
