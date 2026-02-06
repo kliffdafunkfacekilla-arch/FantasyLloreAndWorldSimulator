@@ -199,52 +199,94 @@ void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
       ImGui::EndTabItem();
     }
 
-    // TAB 2: SIM & SETUP (Climate & Time)
+    // TAB 2: SIM & SETUP (The God View)
     if (ImGui::BeginTabItem("Sim & Setup")) {
       g_activeTab = 1;
 
-      ImGui::TextColored(ImVec4(0.5f, 1.0f, 1.0f, 1.0f),
-                         "3-Zone Climate Config");
-
-      if (ImGui::CollapsingHeader("North Pole Zone")) {
-        ImGui::SliderFloat("North Wind Dir", &settings.windDirNorth, 0.0f,
-                           6.28f);
-        ImGui::SliderFloat("North Wind Force", &settings.windStrengthNorth,
-                           0.0f, 1.0f);
-        ImGui::SliderFloat("North Temp Offset", &settings.tempOffsetNorth,
-                           -0.5f, 0.5f);
-      }
-      if (ImGui::CollapsingHeader("Equatorial Zone")) {
-        ImGui::SliderFloat("Equator Wind Dir", &settings.windDirEquator, 0.0f,
-                           6.28f);
-        ImGui::SliderFloat("Equator Wind Force", &settings.windStrengthEquator,
-                           0.0f, 1.0f);
-      }
-      if (ImGui::CollapsingHeader("South Pole Zone")) {
-        ImGui::SliderFloat("South Wind Dir", &settings.windDirSouth, 0.0f,
-                           6.28f);
-        ImGui::SliderFloat("South Wind Force", &settings.windStrengthSouth,
-                           0.0f, 1.0f);
-        ImGui::SliderFloat("South Temp Offset", &settings.tempOffsetSouth,
-                           -0.5f, 0.5f);
-      }
-
-      ImGui::Separator();
-      ImGui::TextColored(ImVec4(0.5f, 1.0f, 0.5f, 1.0f), "Simulation Control");
+      // 1. CHRONOS (Time Control)
+      ImGui::TextColored(ImVec4(0.5f, 1.0f, 0.5f, 1.0f), "Chronos Controls");
       if (ImGui::Button(g_isPaused ? "RESUME TIME" : "PAUSE TIME",
-                        ImVec2(-1, 40)))
+                        ImVec2(-1, 35)))
         g_isPaused = !g_isPaused;
-
-      ImGui::SliderInt("Time Scale", &settings.timeScale, 1, 10, "%dx Speed");
-
+      ImGui::SliderInt("Time Scale", &settings.timeScale, 1, 15, "%dx Speed");
       ImGui::Separator();
-      ImGui::Checkbox("Simulate Vegetation", &settings.enableBiology);
-      ImGui::Checkbox("Enable Factions", &settings.enableFactions);
-      ImGui::Checkbox("Enable Conflict", &settings.enableConflict);
 
-      if (ImGui::Button("Spawn Civilizations", ImVec2(-1, 30))) {
-        for (int k = 0; k < 5; ++k)
-          AgentSystem::SpawnCivilization(buffers, k + 1);
+      // 2. CLIMATE (3-Zone System)
+      if (ImGui::CollapsingHeader("3-Zone Climate Config",
+                                  ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ImGui::TreeNode("North Pole Zone")) {
+          ImGui::SliderFloat("Wind Dir", &settings.windDirNorth, 0.0f, 6.28f);
+          ImGui::SliderFloat("Wind Force", &settings.windStrengthNorth, 0.0f,
+                             1.0f);
+          ImGui::SliderFloat("Temp Offset", &settings.tempOffsetNorth, -0.5f,
+                             0.5f);
+          ImGui::TreePop();
+        }
+        if (ImGui::TreeNode("Equatorial Zone")) {
+          ImGui::SliderFloat("Wind Dir", &settings.windDirEquator, 0.0f, 6.28f);
+          ImGui::SliderFloat("Wind Force", &settings.windStrengthEquator, 0.0f,
+                             1.0f);
+          ImGui::TreePop();
+        }
+        if (ImGui::TreeNode("South Pole Zone")) {
+          ImGui::SliderFloat("Wind Dir", &settings.windDirSouth, 0.0f, 6.28f);
+          ImGui::SliderFloat("Wind Force", &settings.windStrengthSouth, 0.0f,
+                             1.0f);
+          ImGui::SliderFloat("Temp Offset", &settings.tempOffsetSouth, -0.5f,
+                             0.5f);
+          ImGui::TreePop();
+        }
+        ImGui::SliderFloat("Global Temp Mod", &settings.globalTempModifier,
+                           0.5f, 1.5f);
+        ImGui::SliderFloat("Global Rain Mod", &settings.rainfallModifier, 0.5f,
+                           1.5f);
+      }
+
+      // 3. CIVILIZATION & BIOLOGY
+      if (ImGui::CollapsingHeader("Life & Politics")) {
+        ImGui::Checkbox("Simulate Vegetation", &settings.enableBiology);
+        ImGui::Checkbox("Enable Factions", &settings.enableFactions);
+        ImGui::Checkbox("Enable War", &settings.enableConflict);
+
+        if (ImGui::Button("Spawn 5 Kingdoms", ImVec2(-1, 30))) {
+          for (int k = 0; k < 5; ++k)
+            AgentSystem::SpawnCivilization(buffers, k + 1);
+          LoreScribeNS::LogEvent(0, "GENESIS", 0,
+                                 "5 Civilizations have appeared.");
+        }
+
+        static float speciesAggro = 0.5f;
+        if (ImGui::SliderFloat("World Aggression", &speciesAggro, 0.0f, 1.0f)) {
+          if (!AgentSystem::speciesRegistry.empty())
+            AgentSystem::speciesRegistry[0].aggression = speciesAggro;
+        }
+      }
+
+      // 4. THE CHAOS ENGINE
+      if (ImGui::CollapsingHeader("The Chaos Engine")) {
+        ImGui::TextColored(ImVec4(0.8f, 0.4f, 1.0f, 1.0f),
+                           "Reality Distortion");
+        if (ImGui::Button("Open Rift (Center)")) {
+          int centerIdx = (int)(buffers.count / 2);
+          ChaosField::SpawnRift(buffers, centerIdx, 1.0f);
+          LoreScribeNS::LogEvent(0, "MAGIC", centerIdx,
+                                 "A Chaos Rift has opened!");
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Clear All Chaos")) {
+          if (buffers.chaos)
+            std::fill_n(buffers.chaos, buffers.count, 0.0f);
+          ChaosField::ClearRifts();
+        }
+        ImGui::Checkbox("Realtime Erosion", &settings.enableRealtimeErosion);
+      }
+
+      // 5. ECONOMY & LOGISTICS
+      if (ImGui::CollapsingHeader("Economy & Logistics")) {
+        if (ImGui::Button("Update Economy (10 ticks)", ImVec2(-1, 30))) {
+          for (int i = 0; i < 10; ++i)
+            LogisticsSystem::Update(buffers, graph);
+        }
       }
 
       ImGui::EndTabItem();
@@ -260,6 +302,59 @@ void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
       const char *modes[] = {"Terrain (Biomes)", "Chaos (Mana)",
                              "Economy (Wealth)"};
       ImGui::Combo("View Mode", &g_viewMode, modes, 3);
+      ImGui::EndTabItem();
+    }
+
+    // TAB 4: RULES (Data & Design)
+    if (ImGui::BeginTabItem("Rules")) {
+      g_activeTab = 3;
+
+      ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "Resource Registry");
+      static int selectedRes = 0;
+      if (!AssetManager::resourceRegistry.empty()) {
+        if (ImGui::BeginCombo(
+                "Select Resource",
+                AssetManager::resourceRegistry[selectedRes].name.c_str())) {
+          for (size_t n = 0; n < AssetManager::resourceRegistry.size(); n++) {
+            bool is_selected = (selectedRes == (int)n);
+            if (ImGui::Selectable(
+                    AssetManager::resourceRegistry[n].name.c_str(),
+                    is_selected))
+              selectedRes = (int)n;
+            if (is_selected)
+              ImGui::SetItemDefaultFocus();
+          }
+          ImGui::EndCombo();
+        }
+
+        ResourceDef &r = AssetManager::resourceRegistry[selectedRes];
+        ImGui::SliderFloat("Value", &r.value, 0.1f, 20.0f);
+        ImGui::SliderFloat("Scarcity", &r.scarcity, 0.0f, 1.0f);
+        ImGui::Checkbox("Renewable", &r.isRenewable);
+        ImGui::Text("Spawn Biomes:");
+        ImGui::Checkbox("Forest", &r.spawnsInForest);
+        ImGui::SameLine();
+        ImGui::Checkbox("Mountain", &r.spawnsInMountain);
+        ImGui::Checkbox("Desert", &r.spawnsInDesert);
+        ImGui::SameLine();
+        ImGui::Checkbox("Ocean", &r.spawnsInOcean);
+      }
+
+      ImGui::Separator();
+      ImGui::TextColored(ImVec4(1.0f, 0.0f, 1.0f, 1.0f), "Chaos Laws");
+      for (auto &rule : AssetManager::chaosRules) {
+        ImGui::PushID(rule.name.c_str());
+        ImGui::Text("%s", rule.name.c_str());
+        ImGui::SliderFloat("Chance", &rule.probability, 0.0001f, 0.1f, "%.4f");
+        ImGui::SliderFloat("Severity", &rule.severity, 0.0f, 1.0f);
+        ImGui::PopID();
+      }
+
+      if (ImGui::Button("SAVE RULES TO JSON", ImVec2(-1, 40)))
+        AssetManager::SaveAll();
+      if (ImGui::Button("EDIT AGENTS / JSON", ImVec2(-1, 30)))
+        g_showDBEditor = !g_showDBEditor;
+
       ImGui::EndTabItem();
     }
 

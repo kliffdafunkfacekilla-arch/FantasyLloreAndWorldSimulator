@@ -1,0 +1,38 @@
+[CLEAN] Removing old binaries...
+Could Not Find C:\Users\krazy\Documents\GitHub\FantasyLloreAndWorldSimulator\bin\*.exe
+[COPY] Copying shaders...
+shaders\world.frag
+shaders\world.vert
+        2 file(s) copied.
+[BUILD] Compiling Omnis Engine...
+[SUCCESS] Engine built successfully.
+[RUN] Launching...
+[LOG] Starting Main...
+[LOG] MapRenderer::Setup called.
+[LOG] Generated VAO: 1, VBO_Pos: 1, VBO_Color: 2
+[LOG] MapRenderer::Setup finished. VAO unbound.
+[LOG] LoadShaders called.
+[TERRAIN] Generating Fractal Terrain...
+[GRAPH] Connecting 1,000,000 cells...
+[GRAPH] Grid Dimensions: 1000x1000
+[GRAPH] Adjacency list finalized. Total connections: 7988004
+[TERRAIN] Apply Thermal Erosion (10 passes)...
+[AGENTS] Species Registry initialized with 3 templates.
+[LORE] History book opened.
+[ASSETS] Loading rules from data/rules.json
+[ASSETS] Initialized with 4 resources, 3 chaos rules, 3 species.
+[LOG] Entering Main Loop...
+[RENDERER] Drawing 1000000 points.
+[ASSETS] World State Saved: saves/sim_start.bin
+[WORKFLOW] Autosaved sim_start.bin. Simulation Ready.
+[RENDERER] Drawing 1000000 points.
+[ASSETS] World State Saved: saves/sim_end.bin
+[WORKFLOW] Autosaved sim_end.bin. Simulation Paused.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.
+[RENDERER] Drawing 1000000 points.

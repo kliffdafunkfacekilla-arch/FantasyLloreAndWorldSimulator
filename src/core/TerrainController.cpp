@@ -47,8 +47,8 @@ void TerrainController::GenerateProceduralTerrain(
 
   for (uint32_t i = 0; i < settings.cellCount; ++i) {
     if (buffers.posX && buffers.posY) {
-      buffers.posX[i] = (float)(i % side) / side;
-      buffers.posY[i] = (float)(i / side) / side;
+      buffers.posX[i] = (float)(i % side) / (float)side;
+      buffers.posY[i] = (float)(i / side) / (float)side;
     }
   }
 
