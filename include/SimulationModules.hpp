@@ -16,6 +16,14 @@ public:
   // Helper to generate base noise if no image is present
   void GenerateProceduralTerrain(WorldBuffers &buffers,
                                  const WorldSettings &settings);
+
+  // Paint Tools
+  void RaiseTerrain(WorldBuffers &buffers, int centerIdx, float radius,
+                    float speed);
+  void LowerTerrain(WorldBuffers &buffers, int centerIdx, float radius,
+                    float speed);
+  void SmoothTerrain(WorldBuffers &buffers, int centerIdx, float radius,
+                     float speed);
 };
 
 // 2. Climate Engine (src/modules/ClimateSim.cpp)

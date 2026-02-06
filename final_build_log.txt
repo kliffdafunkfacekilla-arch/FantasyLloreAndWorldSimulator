@@ -1,0 +1,13 @@
+[CLEAN] Removing old binaries...
+Could Not Find C:\Users\krazy\Documents\GitHub\FantasyLloreAndWorldSimulator\bin\*.exe
+[COPY] Copying shaders...
+shaders\world.frag
+shaders\world.vert
+        2 file(s) copied.
+[BUILD] Compiling Omnis Engine...
+C:/msys64/mingw64/bin/ld: C:/Users/krazy/AppData/Local/Temp/main-8dfb1e.o:main.cpp:(.text+0xed9): undefined reference to `AssetManager::SaveSimulationState(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, WorldBuffers const&, WorldSettings const&)'
+C:/msys64/mingw64/bin/ld: C:/Users/krazy/AppData/Local/Temp/main-8dfb1e.o:main.cpp:(.text+0x1023): undefined reference to `AssetManager::SaveSimulationState(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, WorldBuffers const&, WorldSettings const&)'
+C:/msys64/mingw64/bin/ld: C:/Users/krazy/AppData/Local/Temp/main-8dfb1e.o:main.cpp:(.text+0x18a5): undefined reference to `AssetManager::SaveSimulationState(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, WorldBuffers const&, WorldSettings const&)'
+C:/msys64/mingw64/bin/ld: C:/Users/krazy/AppData/Local/Temp/main-8dfb1e.o:main.cpp:(.text+0x19af): undefined reference to `AssetManager::LoadSimulationState(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, WorldBuffers&, WorldSettings&)'
+clang++: error: linker command failed with exit code 1 (use -v to see invocation)
+[ERROR] Build failed. Check the logs above.

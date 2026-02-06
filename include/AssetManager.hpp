@@ -109,6 +109,12 @@ void Initialize();
 void LoadAll(const std::string &path = "data/rules.json");
 void SaveAll(const std::string &path = "data/rules.json");
 
+// Simulation State Save/Load
+void SaveSimulationState(const std::string &path, const WorldBuffers &buffers,
+                         const WorldSettings &settings);
+void LoadSimulationState(const std::string &path, WorldBuffers &buffers,
+                         WorldSettings &settings);
+
 // Helpers
 int GetResourceID(const std::string &name);
 ResourceDef *GetResource(int id);

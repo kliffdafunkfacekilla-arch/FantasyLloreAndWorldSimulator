@@ -287,4 +287,110 @@ void CreateNewAgent() {
             << ")" << std::endl;
 }
 
+void SaveSimulationState(const std::string &path, const WorldBuffers &buffers,
+                         const WorldSettings &settings) {
+  std::ofstream out(path, std::ios::binary);
+  if (!out.is_open()) {
+    std::cerr << "[ERROR] Could not open " << path << " for writing\n";
+    return;
+  }
+
+  // Header: Magic + Version + Count
+  uint32_t magic = 0x004d4e53; // "OMNS"
+  uint32_t version = 1;
+  uint32_t count = buffers.count;
+  out.write((char *)&magic, 4);
+  out.write((char *)&version, 4);
+  out.write((char *)&count, 4);
+
+  // Settings
+  out.write((char *)&settings, sizeof(WorldSettings));
+
+  // Buffers
+  auto saveArr = [&](float *ptr, size_t size) {
+    if (ptr)
+      out.write((char *)ptr, size);
+  };
+  auto saveArrInt = [&](int *ptr, size_t size) {
+    if (ptr)
+      out.write((char *)ptr, size);
+  };
+  auto saveArrU = [&](uint32_t *ptr, size_t size) {
+    if (ptr)
+      out.write((char *)ptr, size);
+  };
+
+  saveArr(buffers.height, count * sizeof(float));
+  saveArr(buffers.temperature, count * sizeof(float));
+  saveArr(buffers.moisture, count * sizeof(float));
+  saveArrU(buffers.population, count * sizeof(uint32_t));
+  saveArrInt(buffers.factionID, count * sizeof(int));
+  saveArrInt(buffers.cultureID, count * sizeof(int));
+  saveArrInt(buffers.civTier, count * sizeof(int));
+  saveArrInt(buffers.buildingID, count * sizeof(int));
+
+  if (buffers.resourceInventory) {
+    out.write((char *)buffers.resourceInventory, count * 8 * sizeof(float));
+  }
+
+  std::cout << "[ASSETS] World State Saved: " << path << std::endl;
+}
+
+void LoadSimulationState(const std::string &path, WorldBuffers &buffers,
+                         WorldSettings &settings) {
+  std::ifstream in(path, std::ios::binary);
+  if (!in.is_open()) {
+    std::cerr << "[ERROR] Could not open " << path << " for reading\n";
+    return;
+  }
+
+  uint32_t magic, version, count;
+  in.read((char *)&magic, 4);
+  in.read((char *)&version, 4);
+  in.read((char *)&count, 4);
+
+  if (magic != 0x004d4e53) {
+    std::cerr << "[ERROR] Invalid world file magic\n";
+    return;
+  }
+
+  // Resize buffers if mismatch
+  if (count != buffers.count) {
+    std::cout << "[ASSETS] Resizing buffers to match save: " << count << "\n";
+    buffers.Initialize(count);
+  }
+
+  // Settings
+  in.read((char *)&settings, sizeof(WorldSettings));
+
+  // Buffers
+  auto loadArr = [&](float *ptr, size_t size) {
+    if (ptr)
+      in.read((char *)ptr, size);
+  };
+  auto loadArrInt = [&](int *ptr, size_t size) {
+    if (ptr)
+      in.read((char *)ptr, size);
+  };
+  auto loadArrU = [&](uint32_t *ptr, size_t size) {
+    if (ptr)
+      in.read((char *)ptr, size);
+  };
+
+  loadArr(buffers.height, count * sizeof(float));
+  loadArr(buffers.temperature, count * sizeof(float));
+  loadArr(buffers.moisture, count * sizeof(float));
+  loadArrU(buffers.population, count * sizeof(uint32_t));
+  loadArrInt(buffers.factionID, count * sizeof(int));
+  loadArrInt(buffers.cultureID, count * sizeof(int));
+  loadArrInt(buffers.civTier, count * sizeof(int));
+  loadArrInt(buffers.buildingID, count * sizeof(int));
+
+  if (buffers.resourceInventory) {
+    in.read((char *)buffers.resourceInventory, count * 8 * sizeof(float));
+  }
+
+  std::cout << "[ASSETS] World State Loaded: " << path << std::endl;
+}
+
 } // namespace AssetManager

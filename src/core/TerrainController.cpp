@@ -78,14 +78,10 @@ void TerrainController::GenerateProceduralTerrain(
       finalHeight += mountainHeight;
     }
 
-    // D. Terracing & Clamping
-    if (settings.terraceSteps > 0.0f) {
-      float steps = settings.terraceSteps * 10.0f;
-      finalHeight = std::round(finalHeight * steps) / steps;
-    }
+    // D. Multiplier
     finalHeight *= settings.heightMultiplier;
 
-    // E. Island Mode (Force ocean at edges)
+    // E. Island Mode (Force ocean at edges with ORGANIC noise)
     if (settings.islandMode) {
       // Distance from edge (0 at edge, 0.5 at center)
       float px = buffers.posX[i];
@@ -94,9 +90,18 @@ void TerrainController::GenerateProceduralTerrain(
       float edgeDistY = std::min(py, 1.0f - py);
       float edgeDist = std::min(edgeDistX, edgeDistY);
 
-      // Smooth falloff mask (0 at edge, 1 beyond falloff threshold)
-      float falloffMask = std::min(1.0f, edgeDist / settings.edgeFalloff);
-      falloffMask = falloffMask * falloffMask; // Smooth curve (quadratic)
+      // Add noise to the edge distance to make it non-square
+      float distortion =
+          (baseNoise.GetNoise(px * 200.0f, py * 200.0f) + 1.0f) * 0.5f;
+      float distortedDist =
+          edgeDist + (distortion - 0.5f) * settings.edgeFalloff * 0.5f;
+
+      // Smooth falloff mask
+      float falloffThreshold = settings.edgeFalloff;
+      float falloffMask =
+          std::clamp(distortedDist / falloffThreshold, 0.0f, 1.0f);
+      falloffMask = falloffMask * falloffMask *
+                    (3.0f - 2.0f * falloffMask); // Smoother Hermite curve
 
       finalHeight *= falloffMask;
     }
@@ -203,5 +208,101 @@ void TerrainController::InvertHeights(WorldBuffers &buffers) {
   std::cout << "[TERRAIN] Inverting Heightmap...\n";
   for (uint32_t i = 0; i < buffers.count; ++i) {
     buffers.height[i] = 1.0f - buffers.height[i];
+  }
+}
+
+void TerrainController::RaiseTerrain(WorldBuffers &buffers, int centerIdx,
+                                     float radius, float speed) {
+  if (!buffers.height || centerIdx < 0 || centerIdx >= (int)buffers.count)
+    return;
+  int side = (int)std::sqrt(buffers.count);
+  int cx = centerIdx % side;
+  int cy = centerIdx / side;
+  int r = (int)std::ceil(radius);
+
+  for (int y = cy - r; y <= cy + r; ++y) {
+    for (int x = cx - r; x <= cx + r; ++x) {
+      if (x >= 0 && x < side && y >= 0 && y < side) {
+        int idx = y * side + x;
+        float dx = (float)(x - cx);
+        float dy = (float)(y - cy);
+        float dist = std::sqrt(dx * dx + dy * dy);
+        if (dist <= radius) {
+          float falloff = 1.0f - (dist / radius);
+          buffers.height[idx] += speed * falloff;
+          if (buffers.height[idx] > 1.0f)
+            buffers.height[idx] = 1.0f;
+        }
+      }
+    }
+  }
+}
+
+void TerrainController::LowerTerrain(WorldBuffers &buffers, int centerIdx,
+                                     float radius, float speed) {
+  if (!buffers.height || centerIdx < 0 || centerIdx >= (int)buffers.count)
+    return;
+  int side = (int)std::sqrt(buffers.count);
+  int cx = centerIdx % side;
+  int cy = centerIdx / side;
+  int r = (int)std::ceil(radius);
+
+  for (int y = cy - r; y <= cy + r; ++y) {
+    for (int x = cx - r; x <= cx + r; ++x) {
+      if (x >= 0 && x < side && y >= 0 && y < side) {
+        int idx = y * side + x;
+        float dx = (float)(x - cx);
+        float dy = (float)(y - cy);
+        float dist = std::sqrt(dx * dx + dy * dy);
+        if (dist <= radius) {
+          float falloff = 1.0f - (dist / radius);
+          buffers.height[idx] -= speed * falloff;
+          if (buffers.height[idx] < 0.0f)
+            buffers.height[idx] = 0.0f;
+        }
+      }
+    }
+  }
+}
+
+void TerrainController::SmoothTerrain(WorldBuffers &buffers, int centerIdx,
+                                      float radius, float speed) {
+  if (!buffers.height || centerIdx < 0 || centerIdx >= (int)buffers.count)
+    return;
+  int side = (int)std::sqrt(buffers.count);
+  int cx = centerIdx % side;
+  int cy = centerIdx / side;
+  int r = (int)std::ceil(radius);
+
+  for (int y = cy - r; y <= cy + r; ++y) {
+    for (int x = cx - r; x <= cx + r; ++x) {
+      if (x >= 0 && x < side && y >= 0 && y < side) {
+        int idx = y * side + x;
+        float dx = (float)(x - cx);
+        float dy = (float)(y - cy);
+        float dist = std::sqrt(dx * dx + dy * dy);
+        if (dist <= radius) {
+          float falloff = 1.0f - (dist / radius);
+
+          // Average with neighbors
+          float avg = 0.0f;
+          int count = 0;
+          for (int ny = y - 1; ny <= y + 1; ny++) {
+            for (int nx = x - 1; nx <= x + 1; nx++) {
+              if (nx >= 0 && nx < side && ny >= 0 && ny < side) {
+                avg += buffers.height[ny * side + nx];
+                count++;
+              }
+            }
+          }
+          if (count > 0) {
+            avg /= count;
+            buffers.height[idx] =
+                buffers.height[idx] * (1.0f - speed * falloff) +
+                avg * (speed * falloff);
+          }
+        }
+      }
+    }
   }
 }

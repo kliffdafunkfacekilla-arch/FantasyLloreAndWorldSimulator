@@ -6,6 +6,7 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <cmath>
+#include <ctime>
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -132,6 +133,15 @@ static int g_hoveredIndex = -1;
 // Database Editor state
 static bool g_showDBEditor = false;
 
+// --- GAME PHASE STATE ---
+enum class GamePhase { TERRAIN_EDIT, AGENT_SETUP, SIMULATION };
+static GamePhase g_phase = GamePhase::TERRAIN_EDIT;
+
+// Paint Tool Settings
+static int g_paintMode = 0; // 0=Raise, 1=Lower, 2=Smooth
+static float g_brushSize = 25.0f;
+static float g_brushSpeed = 0.01f;
+
 // Forward declaration for EditorUI
 void DrawDatabaseEditor(bool *p_open);
 
@@ -149,14 +159,42 @@ void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
 
   ImGui::Text("OMNIS ENGINE | %d Cells", buffers.count);
 
-  // --- THE MASTER BUTTON ---
-  ImGui::Spacing();
-  if (ImGui::Button("GENERATE NEW WORLD", ImVec2(-1, 40))) {
-    MasterRegenerate(buffers, settings, terrain, finder, graph);
+  // --- PHASE CONTROLS ---
+  ImGui::Separator();
+  const char *phaseNames[] = {"1. TERRAIN EDIT", "2. AGENT SETUP",
+                              "3. SIMULATION"};
+  ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "PHASE: %s",
+                     phaseNames[(int)g_phase]);
+
+  if (g_phase == GamePhase::TERRAIN_EDIT) {
+    if (ImGui::Button("LOCK TERRAIN & PROCEED >>", ImVec2(-1, 35)))
+      g_phase = GamePhase::AGENT_SETUP;
+  } else if (g_phase == GamePhase::AGENT_SETUP) {
+    if (ImGui::Button("START SIMULATION >>", ImVec2(-1, 35))) {
+      g_phase = GamePhase::SIMULATION;
+      AssetManager::SaveSimulationState("saves/sim_start.bin", buffers,
+                                        settings);
+    }
+    if (ImGui::Button("<< BACK TO TERRAIN", ImVec2(-1, 20)))
+      g_phase = GamePhase::TERRAIN_EDIT;
+  } else {
+    if (ImGui::Button("STOP SIMULATION", ImVec2(-1, 35))) {
+      g_phase = GamePhase::AGENT_SETUP;
+      AssetManager::SaveSimulationState("saves/sim_end.bin", buffers, settings);
+    }
+  }
+  ImGui::Separator();
+
+  // --- THE MASTER BUTTON (Only in Edit Phase) ---
+  if (g_phase == GamePhase::TERRAIN_EDIT) {
+    ImGui::Spacing();
+    if (ImGui::Button("GENERATE NEW WORLD", ImVec2(-1, 40))) {
+      MasterRegenerate(buffers, settings, terrain, finder, graph);
+    }
   }
 
   // --- DATABASE EDITOR BUTTON ---
-  if (ImGui::Button("EDIT RULES / JSON", ImVec2(-1, 30))) {
+  if (ImGui::Button("EDIT AGENTS / JSON", ImVec2(-1, 30))) {
     g_showDBEditor = !g_showDBEditor;
   }
   ImGui::Spacing();
@@ -186,7 +224,6 @@ void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
                          0.1f);
       ImGui::SliderFloat("Mtn Height", &settings.mountainInfluence, 0.0f, 3.0f);
       ImGui::SliderFloat("Warping", &settings.warpStrength, 0.0f, 2.0f);
-      ImGui::SliderFloat("Terracing", &settings.terraceSteps, 0.0f, 2.0f);
 
       ImGui::Separator();
       ImGui::Checkbox("Island Mode", &settings.islandMode);
@@ -194,10 +231,25 @@ void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
         ImGui::SliderFloat("Edge Falloff", &settings.edgeFalloff, 0.05f, 0.5f);
       }
 
+      // --- PAINT TOOLS ---
+      if (g_phase == GamePhase::TERRAIN_EDIT) {
+        ImGui::Separator();
+        ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "Paint Tools");
+        ImGui::RadioButton("Raise", &g_paintMode, 0);
+        ImGui::SameLine();
+        ImGui::RadioButton("Lower", &g_paintMode, 1);
+        ImGui::SameLine();
+        ImGui::RadioButton("Smooth", &g_paintMode, 2);
+
+        ImGui::SliderFloat("Brush Size", &g_brushSize, 1.0f, 100.0f);
+        ImGui::SliderFloat("Brush Speed", &g_brushSpeed, 0.001f, 0.1f);
+      }
+
       ImGui::Separator();
       ImGui::TextColored(ImVec4(0.5f, 1.0f, 0.5f, 1.0f), "Manual Controls");
 
       // Manual triggers for granular control
+      ImGui::BeginDisabled(g_phase != GamePhase::TERRAIN_EDIT);
       if (ImGui::Button("Re-Shape Only"))
         terrain.GenerateProceduralTerrain(buffers, settings);
       ImGui::SameLine();
@@ -212,29 +264,69 @@ void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
       ImGui::SameLine();
       if (ImGui::Button("Invert"))
         terrain.InvertHeights(buffers);
+      ImGui::EndDisabled();
+
+      ImGui::Separator();
+      ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.0f, 1.0f), "Save / Load State");
+      if (ImGui::Button("QUICK SAVE", ImVec2(120, 30))) {
+        AssetManager::SaveSimulationState("saves/quicksave.bin", buffers,
+                                          settings);
+      }
+      ImGui::SameLine();
+      if (ImGui::Button("QUICK LOAD", ImVec2(120, 30))) {
+        AssetManager::LoadSimulationState("saves/quicksave.bin", buffers,
+                                          settings);
+      }
 
       ImGui::EndTabItem();
     }
 
-    // TAB 2: THE GOD (Simulation)
-    if (ImGui::BeginTabItem("Simulation")) {
+    // TAB 2: THE GOD (Sim & Setup)
+    if (ImGui::BeginTabItem("Sim & Setup")) {
 
-      // --- MASTER TIME CONTROLS ---
+      if (g_phase == GamePhase::AGENT_SETUP ||
+          g_phase == GamePhase::SIMULATION) {
+        ImGui::TextColored(ImVec4(0.5f, 1.0f, 1.0f, 1.0f),
+                           "Climate & Wind (Setup)");
+        ImGui::SliderFloat("Global Temp Offset", &settings.globalTemperature,
+                           -0.5f, 0.5f);
+        ImGui::SliderFloat("Global Moisture Offset", &settings.globalMoisture,
+                           -0.5f, 0.5f);
+
+        // 5-Band Wind Setting Placeholder
+        static float windBands[5] = {0.1f, 0.3f, 0.5f, 0.3f, 0.1f};
+        if (ImGui::TreeNode("5-Band Prevailing Winds")) {
+          for (int i = 0; i < 5; ++i) {
+            char buf[32];
+            sprintf(buf, "Band %d Intensity", i);
+            ImGui::SliderFloat(buf, &windBands[i], 0.0f, 1.0f);
+          }
+          ImGui::TreePop();
+        }
+      }
+
+      ImGui::Separator();
       ImGui::TextColored(ImVec4(0.5f, 1.0f, 0.5f, 1.0f), "Chronos Controls");
+
+      if (g_phase != GamePhase::SIMULATION) {
+        ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f),
+                           "SIMULATION LOCKED: Transition to Phase 3 to run.");
+      }
+
       static bool isPaused = true;
+      ImGui::BeginDisabled(g_phase != GamePhase::SIMULATION);
       if (ImGui::Button(isPaused ? "RESUME TIME" : "PAUSE TIME",
                         ImVec2(-1, 40)))
         isPaused = !isPaused;
+      ImGui::EndDisabled();
 
       ImGui::SliderInt("Time Scale", &settings.timeScale, 1, 10, "%dx Speed");
 
-      // Run simulation ticks when not paused
-      if (!isPaused && graph.neighborData) {
+      // Run simulation ticks when not paused AND in simulation phase
+      if (g_phase == GamePhase::SIMULATION && !isPaused && graph.neighborData) {
         for (int tick = 0; tick < settings.timeScale; ++tick) {
           ClimateSim::Update(buffers, settings);
           HydrologySim::Update(buffers, graph);
-
-          // Biology (vegetation/wildlife growth)
           AgentSystem::UpdateBiology(buffers, settings);
 
           if (settings.enableRealtimeErosion) {
@@ -245,10 +337,12 @@ void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
             AgentSystem::UpdateCivilization(buffers, graph);
           }
 
-          // Conflict (war/border pushing)
           if (settings.enableConflict) {
             ConflictSystem::Update(buffers, graph, settings);
           }
+
+          UnitSystem::Update(buffers, 1000);
+          CivilizationSim::Update(buffers, graph, settings);
         }
       }
 
@@ -511,6 +605,10 @@ int main() {
   buffers.Initialize(1000000);
   WorldSettings settings;
 
+  // Random seed on startup
+  srand((unsigned int)time(NULL));
+  settings.seed = rand();
+
   // Hydrology Systems
   NeighborGraph graph;
   NeighborFinder finder;
@@ -593,15 +691,10 @@ int main() {
       DrawDatabaseEditor(&g_showDBEditor);
     }
 
-    // Render Logic (Uses Physical Framebuffer Coordinates)
-    // We want the Map to start where the UI ends.
-    // UI Width is winW / 3.0f (Logical)
-    // So Map Offset is (winW / 3.0f) * dpiScaleX (Physical)
+    int renderMapX = (int)((winW / 3.0f) * dpiScaleX);
+    int renderMapW = fbW - renderMapX;
 
-    int mapX = (int)((winW / 3.0f) * dpiScaleX);
-    int mapW = fbW - mapX;
-
-    glViewport(mapX, 0, mapW, fbH);
+    glViewport(renderMapX, 0, renderMapW, fbH);
 
     // Clear Screen
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
