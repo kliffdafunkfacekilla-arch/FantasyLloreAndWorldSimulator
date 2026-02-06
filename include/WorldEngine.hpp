@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdint> // Added for uint32_t
+#include <map>
 #include <string>
 #include <vector>
 
@@ -75,6 +76,36 @@ struct FactionData {
   // Stats
   long totalPopulation;
   int totalCells;
+};
+
+// --- NEW: AgentDefinition (for EditorUI) ---
+struct AgentDefinition {
+  int id;
+  std::string name;
+
+  // Type
+  AgentType type;
+
+  // Appearance
+  float color[3];
+
+  // Biology - Temperature
+  float idealTemp;      // Perfect temperature (0-1)
+  float idealMoisture;  // Perfect moisture (0-1)
+  float deadlyTempLow;  // Die below this
+  float deadlyTempHigh; // Die above this
+  float deadlyMoistureLow;
+  float deadlyMoistureHigh;
+
+  // Behavior
+  float resilience;      // Resistance to death
+  float expansionRate;   // How fast they spread
+  float aggression;      // Combat tendency
+  float foodRequirement; // How much food per tick
+
+  // Economy - Resource desires: -1=avoid, 0=neutral, +1=seek
+  std::map<int, float> diet;   // What they consume
+  std::map<int, float> output; // What they produce
 };
 
 // 1. World Configuration (Linked to God Mode UI)

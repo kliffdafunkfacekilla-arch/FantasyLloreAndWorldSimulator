@@ -13,6 +13,7 @@ clang++ -std=c++20 ^
     src/core/*.cpp ^
     src/modules/*.cpp ^
     src/io/*.cpp ^
+    src/ui/*.cpp ^
     deps/imgui/*.cpp ^
     deps/imgui/backends/imgui_impl_glfw.cpp ^
     deps/imgui/backends/imgui_impl_opengl3.cpp ^

@@ -13,6 +13,7 @@ std::vector<ResourceDef> resourceRegistry;
 std::vector<ChaosRule> chaosRules;
 std::vector<City> cityRegistry;
 std::vector<FactionData> factionRegistry;
+std::vector<AgentDefinition> agentRegistry;
 
 void Initialize() {
   LoadAll();
@@ -256,6 +257,34 @@ void SpawnUnit(UnitType type, int faction, int startIdx, int targetIdx,
   }
 
   activeUnits.push_back(u);
+}
+
+void CreateNewAgent() {
+  AgentDefinition a;
+  a.id = (int)agentRegistry.size();
+  a.name = "New Agent";
+  a.type = AgentType::FAUNA;
+  a.color[0] = 0.5f;
+  a.color[1] = 0.5f;
+  a.color[2] = 0.5f;
+
+  // Default biology
+  a.idealTemp = 0.5f;
+  a.idealMoisture = 0.5f;
+  a.deadlyTempLow = 0.0f;
+  a.deadlyTempHigh = 1.0f;
+  a.deadlyMoistureLow = 0.0f;
+  a.deadlyMoistureHigh = 1.0f;
+
+  // Default behavior
+  a.resilience = 0.5f;
+  a.expansionRate = 0.1f;
+  a.aggression = 0.0f;
+  a.foodRequirement = 1.0f;
+
+  agentRegistry.push_back(a);
+  std::cout << "[ASSETS] Created new agent: " << a.name << " (ID: " << a.id
+            << ")" << std::endl;
 }
 
 } // namespace AssetManager

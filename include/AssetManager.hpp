@@ -94,6 +94,9 @@ extern std::vector<ChaosRule> chaosRules;
 extern std::vector<City> cityRegistry;
 extern std::vector<FactionData> factionRegistry;
 
+// NEW: Agent Definitions (for EditorUI)
+extern std::vector<AgentDefinition> agentRegistry;
+
 // Mobile Units
 extern std::vector<Unit> activeUnits;
 
@@ -120,4 +123,7 @@ void SetRelation(int factionA, int factionB, float value);
 // Unit Spawning
 void SpawnUnit(UnitType type, int faction, int startIdx, int targetIdx,
                int mapWidth = 1000);
+
+// Agent Editor
+void CreateNewAgent();
 } // namespace AssetManager

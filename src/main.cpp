@@ -129,6 +129,12 @@ static int g_viewMode = 0;
 // Global inspector state (hover cell ID)
 static int g_hoveredIndex = -1;
 
+// Database Editor state
+static bool g_showDBEditor = false;
+
+// Forward declaration for EditorUI
+void DrawDatabaseEditor(bool *p_open);
+
 // --- The God Mode Dashboard (Tabbed Layout) ---
 void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
                    TerrainController &terrain, NeighborGraph &graph,
@@ -147,6 +153,11 @@ void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
   ImGui::Spacing();
   if (ImGui::Button("GENERATE NEW WORLD", ImVec2(-1, 40))) {
     MasterRegenerate(buffers, settings, terrain, finder, graph);
+  }
+
+  // --- DATABASE EDITOR BUTTON ---
+  if (ImGui::Button("EDIT RULES / JSON", ImVec2(-1, 30))) {
+    g_showDBEditor = !g_showDBEditor;
   }
   ImGui::Spacing();
   ImGui::Separator();
@@ -576,6 +587,11 @@ int main() {
 
     // Pass Logical Size (winW, winH) to ImGui
     DrawGodModeUI(settings, buffers, terrain, graph, finder, winW, winH);
+
+    // Draw Database Editor if open
+    if (g_showDBEditor) {
+      DrawDatabaseEditor(&g_showDBEditor);
+    }
 
     // Render Logic (Uses Physical Framebuffer Coordinates)
     // We want the Map to start where the UI ends.
