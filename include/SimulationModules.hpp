@@ -113,6 +113,14 @@ namespace LogisticsSystem {
 void Update(WorldBuffers &b, const NeighborGraph &g);
 } // namespace LogisticsSystem
 
+// CivilizationSim namespace
+namespace CivilizationSim {
+void Update(WorldBuffers &b, const NeighborGraph &g, const WorldSettings &s);
+void EvolveSettlements(WorldBuffers &b);
+void ConstructBuildings(WorldBuffers &b);
+void ProduceResources(WorldBuffers &b);
+} // namespace CivilizationSim
+
 // LogisticsSystem (Free function - legacy)
 void ProcessLogistics(WorldBuffers &b, uint32_t count);
 
