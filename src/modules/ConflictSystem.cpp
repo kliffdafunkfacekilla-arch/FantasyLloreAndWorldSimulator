@@ -213,6 +213,31 @@ void Update(WorldBuffers &b, const NeighborGraph &g, const WorldSettings &s) {
   for (uint32_t i = 0; i < b.count; ++i) {
     b.factionID[i] = nextFactionID[i];
   }
+
+  // --- BANDIT SPAWN LOGIC ---
+  // Rich but undefended settlements attract raiders
+  if (rand() % 1000 < 5) { // 0.5% chance per tick
+    int idx = rand() % b.count;
+
+    float wealth = (b.wealth) ? b.wealth[idx] : 0.0f;
+    float defense = (b.defense) ? b.defense[idx] : 0.0f;
+
+    if (wealth > 200.0f && defense < 5.0f && b.population[idx] > 100) {
+      // BANDITS RAID!
+      float stolen = wealth * 0.3f;
+      b.wealth[idx] -= stolen;
+
+      // Population loss
+      b.population[idx] = (uint32_t)(b.population[idx] * 0.8f);
+
+      // Increase chaos
+      if (b.chaos)
+        b.chaos[idx] += 0.15f;
+
+      LoreScribeNS::LogEvent(0, "RAID", idx,
+                             "Bandits looted an undefended settlement");
+    }
+  }
 }
 
 } // namespace ConflictSystem
