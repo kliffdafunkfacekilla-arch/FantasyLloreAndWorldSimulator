@@ -163,6 +163,13 @@ struct WorldBuffers {
   uint8_t *structureType = nullptr;
   float *defense = nullptr; // Calculated defense (Walls + Terrain)
 
+  // --- ECONOMY LAYER ---
+  // civTier: 0=Wild, 1=Tribe, 2=Village, 3=Town, 4=City
+  int *civTier = nullptr;
+  int *buildingID = nullptr;          // Which building type is here
+  float *resourceInventory = nullptr; // Flattened [cellIdx * 8 + resID]
+  static const int MAX_RESOURCES = 8;
+
   // Metadata
   uint32_t count = 0;
 
@@ -211,6 +218,14 @@ struct WorldBuffers {
     std::fill_n(flux, count, 0.0f);     // Zero it out
     nextFlux = new float[count];        // Allocate NextFlux
     std::fill_n(nextFlux, count, 0.0f); // Zero it out
+
+    // Economy layer
+    civTier = new int[count];
+    std::fill_n(civTier, count, 0);
+    buildingID = new int[count];
+    std::fill_n(buildingID, count, 0);
+    resourceInventory = new float[count * MAX_RESOURCES];
+    std::fill_n(resourceInventory, count * MAX_RESOURCES, 0.0f);
   }
 
   void Cleanup() {
@@ -231,8 +246,27 @@ struct WorldBuffers {
     delete[] defense;
     delete[] flux;
     delete[] nextFlux;
+    delete[] civTier;
+    delete[] buildingID;
+    delete[] resourceInventory;
 
     posX = nullptr; // Safety flag
+  }
+
+  // --- RESOURCE HELPERS ---
+  float GetResource(uint32_t cellIdx, int resID) const {
+    if (!resourceInventory || resID < 0 || resID >= MAX_RESOURCES)
+      return 0.0f;
+    return resourceInventory[cellIdx * MAX_RESOURCES + resID];
+  }
+
+  void AddResource(uint32_t cellIdx, int resID, float amount) {
+    if (!resourceInventory || resID < 0 || resID >= MAX_RESOURCES)
+      return;
+    float &val = resourceInventory[cellIdx * MAX_RESOURCES + resID];
+    val += amount;
+    if (val < 0.0f)
+      val = 0.0f; // No negative resources
   }
 };
 
