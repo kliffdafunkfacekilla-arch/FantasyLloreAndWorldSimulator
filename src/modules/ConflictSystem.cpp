@@ -5,7 +5,6 @@
 #include <cmath>
 #include <vector>
 
-
 namespace ConflictSystem {
 
 // Helper: Calculate how much a faction wants a specific tile
@@ -140,6 +139,16 @@ void Update(WorldBuffers &b, const NeighborGraph &g, const WorldSettings &s) {
         else if (b.height[nIdx] > 0.55f)
           defenseScore *= 1.5f;
 
+        // --- CIVIL WAR BONUS ---
+        // Same culture fighting = 50% attack bonus (internal knowledge)
+        if (b.cultureID) {
+          int myCulture = b.cultureID[i];
+          int enemyCulture = b.cultureID[nIdx];
+          if (myCulture == enemyCulture && myCulture > 0) {
+            attackPower *= 1.5f;
+          }
+        }
+
         if (attackPower > defenseScore * 1.5f) {
           // Lore event for city conquest
           if (nPop > 1000 && nInfra > 0.5f) {
@@ -166,6 +175,31 @@ void Update(WorldBuffers &b, const NeighborGraph &g, const WorldSettings &s) {
           // Conquest
           nextFactionID[nIdx] = myFaction;
           b.population[nIdx] = (uint32_t)(myPop * 0.2f);
+
+          // --- CULTURE SYSTEM ---
+          // Genocide vs Assimilation based on attacker aggression
+          if (b.cultureID) {
+            int myCulture = b.cultureID[i];
+            int enemyCulture = b.cultureID[nIdx];
+
+            // Get faction aggression (default 0.5)
+            float aggression = 0.5f;
+            if (myFaction > 0 &&
+                myFaction <= (int)AssetManager::factionRegistry.size()) {
+              aggression =
+                  AssetManager::factionRegistry[myFaction - 1].aggression;
+            }
+
+            if (aggression > 0.7f) {
+              // GENOCIDE: Replace their culture
+              b.cultureID[nIdx] = myCulture;
+              LoreScribeNS::LogEvent(0, "GENOCIDE", nIdx,
+                                     "Population replaced by conquerors");
+            } else {
+              // ASSIMILATION: Keep defender's culture (multi-ethnic empire)
+              // Culture stays as enemyCulture
+            }
+          }
 
           // Chaos from war
           if (b.chaos)
