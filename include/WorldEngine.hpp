@@ -5,6 +5,13 @@
 #include <string>
 #include <vector>
 
+// --- AGENT TYPE ENUM ---
+enum class AgentType {
+  FLORA,    // Plants: Spreads by seeds, terraforms climate
+  FAUNA,    // Animals: Migrates, consumes flora/fauna
+  CIVILIZED // Factions: Builds structures, trades, wars
+};
+
 // --- AGENT & FACTION TEMPLATES ---
 
 struct AgentTemplate {
@@ -12,9 +19,14 @@ struct AgentTemplate {
   char name[32]; // Fixed size for easy binary IO
 
   // --- TYPE ---
-  bool isStatic; // TRUE = Plant/Fungi, FALSE = Animal/Monster
-  bool canBuild; // Can build cities (Civ)
-  bool canWar;   // Combat unit
+  AgentType type;        // FLORA, FAUNA, or CIVILIZED
+  bool isStatic;         // TRUE = Plant/Fungi, FALSE = Animal/Monster
+  bool canBuild;         // Can build cities (Civ)
+  bool canWar;           // Combat unit
+  bool isDomesticatable; // Can be tamed by civilizations
+
+  // --- APPEARANCE ---
+  float color[3]; // RGB for map rendering
 
   // --- BIOLOGY ---
   float idealTemp;        // 0.0 (Polar) to 1.0 (Desert)
@@ -22,6 +34,7 @@ struct AgentTemplate {
   float reproductionRate; // Plants: Growth / Animals: Birth rate
   float lifespan;         // In ticks (approx)
   float adaptiveRate;     // How fast they change idealTemp
+  float climateEffect;    // How much this modifies temp/moisture per tick
 
   // --- BEHAVIOR ---
   float movementSpeed; // 0.0 for plants, 1.0 = moves 1 tile/tick
