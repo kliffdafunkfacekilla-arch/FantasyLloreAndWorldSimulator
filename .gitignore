@@ -3,6 +3,11 @@ bin/*.exe
 bin/*.csv
 bin/imgui.ini
 
+# Ignore runtime/saves
+saves/
+imgui.ini
+*.bak
+
 # Ignore logs and temp files
 *.log
 *.tmp
