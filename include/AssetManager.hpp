@@ -1,5 +1,6 @@
 #pragma once
 #include "WorldEngine.hpp"
+#include <map>
 #include <string>
 #include <vector>
 
@@ -56,6 +57,34 @@ struct City {
   int yearFounded;
 };
 
+// --- 5. MOBILE UNITS ---
+enum class UnitType {
+  SETTLER, // Creates new cities
+  TRADER,  // Moves resources
+  ARMY,    // Conquers tiles
+  AIRSHIP  // Ignores terrain, fast
+};
+
+struct Unit {
+  int id;
+  UnitType type;
+  int factionID;
+
+  // Position (float for smooth movement)
+  float x, y;
+  int targetX, targetY;
+
+  // Stats
+  float speed;
+  float combatStrength;
+
+  // Cargo (for traders/settlers)
+  int resourceID;
+  float resourceAmount;
+
+  bool isAlive;
+};
+
 namespace AssetManager {
 // Registries
 extern std::vector<PointOfInterest> poiList;
@@ -64,6 +93,12 @@ extern std::vector<ResourceDef> resourceRegistry;
 extern std::vector<ChaosRule> chaosRules;
 extern std::vector<City> cityRegistry;
 extern std::vector<FactionData> factionRegistry;
+
+// Mobile Units
+extern std::vector<Unit> activeUnits;
+
+// Diplomacy Matrix: Key = "factionA_factionB", Value = -100 to +100
+extern std::map<std::string, float> diplomacyMatrix;
 
 void Initialize();
 
@@ -77,4 +112,12 @@ ResourceDef *GetResource(int id);
 
 // City Management
 void RegisterCity(int location, int faction, int year);
+
+// Diplomacy Helpers
+float GetRelation(int factionA, int factionB);
+void SetRelation(int factionA, int factionB, float value);
+
+// Unit Spawning
+void SpawnUnit(UnitType type, int faction, int startIdx, int targetIdx,
+               int mapWidth = 1000);
 } // namespace AssetManager

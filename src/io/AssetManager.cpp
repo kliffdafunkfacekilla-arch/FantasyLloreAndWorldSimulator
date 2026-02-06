@@ -194,4 +194,68 @@ ResourceDef *GetResource(int id) {
   }
   return nullptr;
 }
+
+// --- MOBILE UNITS ---
+std::vector<Unit> activeUnits;
+std::map<std::string, float> diplomacyMatrix;
+
+// Diplomacy key helper
+std::string GetDiplomacyKey(int a, int b) {
+  if (a > b)
+    std::swap(a, b);
+  return std::to_string(a) + "_" + std::to_string(b);
+}
+
+float GetRelation(int factionA, int factionB) {
+  if (factionA == factionB)
+    return 100.0f;
+  std::string key = GetDiplomacyKey(factionA, factionB);
+  auto it = diplomacyMatrix.find(key);
+  if (it == diplomacyMatrix.end())
+    return 0.0f;
+  return it->second;
+}
+
+void SetRelation(int factionA, int factionB, float value) {
+  diplomacyMatrix[GetDiplomacyKey(factionA, factionB)] = value;
+}
+
+void SpawnUnit(UnitType type, int faction, int startIdx, int targetIdx,
+               int mapWidth) {
+  if (startIdx < 0 || targetIdx < 0)
+    return;
+
+  Unit u;
+  u.id = rand();
+  u.type = type;
+  u.factionID = faction;
+  u.isAlive = true;
+
+  u.x = (float)(startIdx % mapWidth);
+  u.y = (float)(startIdx / mapWidth);
+  u.targetX = targetIdx % mapWidth;
+  u.targetY = targetIdx / mapWidth;
+
+  u.resourceID = 0;
+  u.resourceAmount = 0.0f;
+  u.combatStrength = 10.0f;
+
+  switch (type) {
+  case UnitType::TRADER:
+    u.speed = 1.0f;
+    break;
+  case UnitType::ARMY:
+    u.speed = 0.5f;
+    u.combatStrength = 50.0f;
+    break;
+  case UnitType::AIRSHIP:
+    u.speed = 2.0f;
+    break;
+  default:
+    u.speed = 0.5f;
+  }
+
+  activeUnits.push_back(u);
+}
+
 } // namespace AssetManager
