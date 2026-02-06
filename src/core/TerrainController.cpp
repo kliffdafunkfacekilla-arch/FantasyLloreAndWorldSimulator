@@ -83,31 +83,44 @@ void TerrainController::GenerateProceduralTerrain(
 
     // E. Island Mode (Force ocean at edges with ORGANIC noise)
     if (settings.islandMode) {
-      // Distance from edge (0 at edge, 0.5 at center)
-      float px = buffers.posX[i];
-      float py = buffers.posY[i];
-      float edgeDistX = std::min(px, 1.0f - px);
-      float edgeDistY = std::min(py, 1.0f - py);
-      float edgeDist = std::min(edgeDistX, edgeDistY);
+      // Use radial distance for a more natural circular island shape
+      float dx = buffers.posX[i] - 0.5f;
+      float dy = buffers.posY[i] - 0.5f;
+      float d =
+          std::sqrt(dx * dx + dy * dy) * 2.0f; // 0 at center, 1 at corners
 
-      // Add noise to the edge distance to make it non-square
-      float distortion =
-          (baseNoise.GetNoise(px * 200.0f, py * 200.0f) + 1.0f) * 0.5f;
-      float distortedDist =
-          edgeDist + (distortion - 0.5f) * settings.edgeFalloff * 0.5f;
+      // Add noise to the radial distance to make it organic (not a perfect
+      // circle)
+      float distortion = (baseNoise.GetNoise(buffers.posX[i] * 200.0f,
+                                             buffers.posY[i] * 200.0f) +
+                          1.0f) *
+                         0.5f;
+      float distortedDist = d + (distortion - 0.5f) * settings.edgeFalloff;
 
       // Smooth falloff mask
-      float falloffThreshold = settings.edgeFalloff;
-      float falloffMask =
-          std::clamp(distortedDist / falloffThreshold, 0.0f, 1.0f);
-      falloffMask = falloffMask * falloffMask *
-                    (3.0f - 2.0f * falloffMask); // Smoother Hermite curve
+      float falloffThreshold = 1.0f - settings.edgeFalloff;
+      float falloffMask = 1.0f;
+      if (distortedDist > falloffThreshold) {
+        float f =
+            (distortedDist - falloffThreshold) / (1.0f - falloffThreshold);
+        falloffMask = std::max(0.0f, 1.0f - f * f * (3.0f - 2.0f * f));
+      }
+
+      // Final margin check for absolute safety
+      float px = buffers.posX[i];
+      float py = buffers.posY[i];
+      float marginNorm = settings.islandMargin / 1000.0f;
+      if (px < marginNorm || px > 1.0f - marginNorm || py < marginNorm ||
+          py > 1.0f - marginNorm) {
+        falloffMask = 0.0f;
+      }
 
       finalHeight *= falloffMask;
     }
 
+    // Manual clamp for C++ compatibility
     finalHeight =
-        std::clamp(finalHeight, settings.heightMin, settings.heightMax);
+        std::max(settings.heightMin, std::min(settings.heightMax, finalHeight));
 
     if (buffers.height)
       buffers.height[i] = finalHeight;
@@ -121,15 +134,14 @@ void TerrainController::GenerateProceduralTerrain(
       float altitudeCooling = finalHeight * 0.5f;
 
       // Combine + Add User Setting
-      float t = latTemp - altitudeCooling + settings.globalTemperature;
-      buffers.temperature[i] = std::clamp(t, 0.0f, 1.0f);
+      float temp = 0.3f + 0.7f * latTemp - (finalHeight * 0.5f);
+      buffers.temperature[i] = std::max(0.0f, std::min(1.0f, temp));
     }
 
     if (buffers.moisture) {
-      // Noise + User Setting
-      float m = (baseNoise.GetNoise(x + 900, y + 900) + 1.0f) * 0.5f;
-      m += settings.globalMoisture;
-      buffers.moisture[i] = std::clamp(m, 0.0f, 1.0f);
+      // Simple moisture based on proximity to sea/temp
+      float moisture = (finalHeight < 0.2f) ? 0.8f : 0.4f;
+      buffers.moisture[i] = moisture;
     }
   }
 }

@@ -2,7 +2,6 @@
 #include <algorithm>
 #include <cmath>
 
-
 namespace ClimateSim {
 
 // Helper to get neighbor in wind direction (Approximation)
@@ -28,23 +27,43 @@ void Update(WorldBuffers &b, const WorldSettings &s) {
 
   // Simple Advection: Move values from upwind neighbor to current cell
   for (uint32_t i = 0; i < b.count; ++i) {
-    int upwindIdx = GetUpwindNeighbor(i, side, side, s.windAngle);
+    float yCell = (float)(i / side) / (float)side;
+
+    float angle = s.windDirEquator;
+    float strength = s.windStrengthEquator;
+    float tempBias = 0.0f;
+
+    if (yCell < 0.33f) {
+      angle = s.windDirNorth;
+      strength = s.windStrengthNorth;
+      tempBias = s.tempOffsetNorth;
+    } else if (yCell > 0.66f) {
+      angle = s.windDirSouth;
+      strength = s.windStrengthSouth;
+      tempBias = s.tempOffsetSouth;
+    }
+
+    int upwindIdx = GetUpwindNeighbor(i, side, side, angle);
 
     if (upwindIdx != (int)i) {
       // Move Temperature
       float tempDiff = b.temperature[upwindIdx] - b.temperature[i];
-      b.temperature[i] += tempDiff * s.windStrengthSim;
+      b.temperature[i] += tempDiff * strength * 0.1f; // Scaled strength
 
       // Move Moisture
       float moistDiff = b.moisture[upwindIdx] - b.moisture[i];
-      b.moisture[i] += moistDiff * s.windStrengthSim;
+      b.moisture[i] += moistDiff * strength * 0.1f;
     }
 
-    // Apply Global Biases constantly (so the world doesn't normalize to grey)
-    b.temperature[i] = std::max(
-        0.0f, std::min(b.temperature[i] + (s.globalTemperature * 0.01f), 1.0f));
-    b.moisture[i] = std::max(
-        0.0f, std::min(b.moisture[i] + (s.globalMoisture * 0.01f), 1.0f));
+    // Apply Biases
+    b.temperature[i] =
+        std::max(0.0f, std::min(b.temperature[i] + (tempBias * 0.001f), 1.0f));
+
+    // Scale global modifiers
+    b.temperature[i] =
+        std::max(0.0f, std::min(b.temperature[i] * s.globalTempModifier, 1.0f));
+    b.moisture[i] =
+        std::max(0.0f, std::min(b.moisture[i] * s.rainfallModifier, 1.0f));
   }
 }
 

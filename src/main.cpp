@@ -90,12 +90,11 @@ GLuint LoadShaders() {
   return program;
 }
 
-// --- Master Regenerate Pipeline ---
+// Hydrology Warm-Up (100 ticks for prominent rivers)
 void MasterRegenerate(WorldBuffers &buffers, WorldSettings &settings,
                       TerrainController &terrain, NeighborFinder &finder,
                       NeighborGraph &graph) {
 
-  // 1. Reset Sim State
   if (buffers.flux)
     std::fill_n(buffers.flux, buffers.count, 0.0f);
   if (buffers.nextFlux)
@@ -105,37 +104,26 @@ void MasterRegenerate(WorldBuffers &buffers, WorldSettings &settings,
   if (buffers.factionID)
     std::fill_n(buffers.factionID, buffers.count, 0);
 
-  // 2. Shape the Land
   terrain.GenerateProceduralTerrain(buffers, settings);
-
-  // 3. Connect the Graph
   finder.BuildGraph(buffers, buffers.count, graph);
 
-  // 4. Thermal Erosion (optional)
   if (settings.erosionIterations > 0) {
     terrain.ApplyThermalErosion(buffers, settings.erosionIterations);
   }
 
-  // 5. Hydrology Warm-Up (30 ticks so rivers appear immediately)
   if (graph.neighborData) {
-    for (int i = 0; i < 30; ++i) {
+    for (int i = 0; i < 200; ++i) {
       HydrologySim::Update(buffers, graph);
     }
   }
 }
 
-// Global view mode for renderer (0=Terrain, 1=Chaos, 2=Economy)
+// --- GLOBALS ---
 static int g_viewMode = 0;
-
-// Global inspector state (hover cell ID)
 static int g_hoveredIndex = -1;
-
-// Database Editor state
 static bool g_showDBEditor = false;
-
-// --- GAME PHASE STATE ---
-enum class GamePhase { TERRAIN_EDIT, AGENT_SETUP, SIMULATION };
-static GamePhase g_phase = GamePhase::TERRAIN_EDIT;
+static int g_activeTab = 0;
+static bool g_isPaused = true;
 
 // Paint Tool Settings
 static int g_paintMode = 0; // 0=Raise, 1=Lower, 2=Smooth
@@ -147,8 +135,8 @@ void DrawDatabaseEditor(bool *p_open);
 
 // --- The God Mode Dashboard (Tabbed Layout) ---
 void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
-                   TerrainController &terrain, NeighborGraph &graph,
-                   NeighborFinder &finder, int screenW, int screenH) {
+                   TerrainController &terrain, NeighborFinder &finder,
+                   NeighborGraph &graph, int screenW, int screenH) {
 
   ImGui::SetNextWindowPos(ImVec2(0, 0));
   ImGui::SetNextWindowSize(ImVec2((float)screenW / 3.0f, (float)screenH));
@@ -158,52 +146,15 @@ void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
   ImGui::Begin("Omnis Control", nullptr, flags);
 
   ImGui::Text("OMNIS ENGINE | %d Cells", buffers.count);
-
-  // --- PHASE CONTROLS ---
-  ImGui::Separator();
-  const char *phaseNames[] = {"1. TERRAIN EDIT", "2. AGENT SETUP",
-                              "3. SIMULATION"};
-  ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "PHASE: %s",
-                     phaseNames[(int)g_phase]);
-
-  if (g_phase == GamePhase::TERRAIN_EDIT) {
-    if (ImGui::Button("LOCK TERRAIN & PROCEED >>", ImVec2(-1, 35)))
-      g_phase = GamePhase::AGENT_SETUP;
-  } else if (g_phase == GamePhase::AGENT_SETUP) {
-    if (ImGui::Button("START SIMULATION >>", ImVec2(-1, 35))) {
-      g_phase = GamePhase::SIMULATION;
-      AssetManager::SaveSimulationState("saves/sim_start.bin", buffers,
-                                        settings);
-    }
-    if (ImGui::Button("<< BACK TO TERRAIN", ImVec2(-1, 20)))
-      g_phase = GamePhase::TERRAIN_EDIT;
-  } else {
-    if (ImGui::Button("STOP SIMULATION", ImVec2(-1, 35))) {
-      g_phase = GamePhase::AGENT_SETUP;
-      AssetManager::SaveSimulationState("saves/sim_end.bin", buffers, settings);
-    }
-  }
   ImGui::Separator();
 
-  // --- THE MASTER BUTTON (Only in Edit Phase) ---
-  if (g_phase == GamePhase::TERRAIN_EDIT) {
-    ImGui::Spacing();
-    if (ImGui::Button("GENERATE NEW WORLD", ImVec2(-1, 40))) {
-      MasterRegenerate(buffers, settings, terrain, finder, graph);
-    }
-  }
-
-  // --- DATABASE EDITOR BUTTON ---
-  if (ImGui::Button("EDIT AGENTS / JSON", ImVec2(-1, 30))) {
-    g_showDBEditor = !g_showDBEditor;
-  }
-  ImGui::Spacing();
-  ImGui::Separator();
-
+  // --- TABBED WORKFLOW ---
+  int prevTab = g_activeTab;
   if (ImGui::BeginTabBar("ControlTabs")) {
 
-    // TAB 1: THE ARCHITECT (Generation)
+    // TAB 1: ARCHITECT (Painting & Terrain)
     if (ImGui::BeginTabItem("Architect")) {
+      g_activeTab = 0;
 
       ImGui::TextColored(ImVec4(0.5f, 1.0f, 1.0f, 1.0f), "Global Parameters");
       ImGui::InputInt("Seed", &settings.seed);
@@ -212,354 +163,131 @@ void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
 
       ImGui::Separator();
       ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.5f, 1.0f), "Shape & Form");
-
       ImGui::SliderFloat("Land Mass", &settings.continentFreq, 0.001f, 0.02f,
                          "Size: %.4f");
       ImGui::SliderFloat("Sea Level", &settings.seaLevel, 0.0f, 1.0f);
-      ImGui::SliderInt("Erosion Passes", &settings.erosionIterations, 0, 50);
-
-      ImGui::Separator();
-      ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.5f, 1.0f), "Features");
-      ImGui::SliderFloat("Mtn Coverage", &settings.featureFrequency, 0.01f,
-                         0.1f);
-      ImGui::SliderFloat("Mtn Height", &settings.mountainInfluence, 0.0f, 3.0f);
-      ImGui::SliderFloat("Warping", &settings.warpStrength, 0.0f, 2.0f);
-
-      ImGui::Separator();
       ImGui::Checkbox("Island Mode", &settings.islandMode);
       if (settings.islandMode) {
         ImGui::SliderFloat("Edge Falloff", &settings.edgeFalloff, 0.05f, 0.5f);
-      }
-
-      // --- PAINT TOOLS ---
-      if (g_phase == GamePhase::TERRAIN_EDIT) {
-        ImGui::Separator();
-        ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "Paint Tools");
-        ImGui::RadioButton("Raise", &g_paintMode, 0);
-        ImGui::SameLine();
-        ImGui::RadioButton("Lower", &g_paintMode, 1);
-        ImGui::SameLine();
-        ImGui::RadioButton("Smooth", &g_paintMode, 2);
-
-        ImGui::SliderFloat("Brush Size", &g_brushSize, 1.0f, 100.0f);
-        ImGui::SliderFloat("Brush Speed", &g_brushSpeed, 0.001f, 0.1f);
+        ImGui::SliderFloat("Edge Margin", &settings.islandMargin, 0.0f, 200.0f);
       }
 
       ImGui::Separator();
-      ImGui::TextColored(ImVec4(0.5f, 1.0f, 0.5f, 1.0f), "Manual Controls");
-
-      // Manual triggers for granular control
-      ImGui::BeginDisabled(g_phase != GamePhase::TERRAIN_EDIT);
-      if (ImGui::Button("Re-Shape Only"))
-        terrain.GenerateProceduralTerrain(buffers, settings);
+      ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "Sculpting Tools");
+      ImGui::RadioButton("Raise", &g_paintMode, 0);
       ImGui::SameLine();
-      if (ImGui::Button("Erode Only"))
-        terrain.ApplyThermalErosion(buffers, 1);
+      ImGui::RadioButton("Lower", &g_paintMode, 1);
+      ImGui::SameLine();
+      ImGui::RadioButton("Smooth", &g_paintMode, 2);
+      ImGui::SliderFloat("Brush Size", &g_brushSize, 1.0f, 100.0f);
+      ImGui::SliderFloat("Brush Speed", &g_brushSpeed, 0.001f, 0.1f);
 
-      if (ImGui::Button("Import Heightmap")) {
-        std::string path = PlatformUtils::OpenFileDialog();
-        if (!path.empty())
-          terrain.LoadFromImage(path.c_str(), buffers);
+      if (ImGui::Button("REGENERATE WORLD", ImVec2(-1, 40))) {
+        MasterRegenerate(buffers, settings, terrain, finder, graph);
       }
-      ImGui::SameLine();
-      if (ImGui::Button("Invert"))
-        terrain.InvertHeights(buffers);
-      ImGui::EndDisabled();
 
       ImGui::Separator();
-      ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.0f, 1.0f), "Save / Load State");
-      if (ImGui::Button("QUICK SAVE", ImVec2(120, 30))) {
+      ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.0f, 1.0f), "Persistence");
+      if (ImGui::Button("QUICK SAVE", ImVec2(120, 30)))
         AssetManager::SaveSimulationState("saves/quicksave.bin", buffers,
                                           settings);
-      }
       ImGui::SameLine();
-      if (ImGui::Button("QUICK LOAD", ImVec2(120, 30))) {
+      if (ImGui::Button("QUICK LOAD", ImVec2(120, 30)))
         AssetManager::LoadSimulationState("saves/quicksave.bin", buffers,
                                           settings);
-      }
 
       ImGui::EndTabItem();
     }
 
-    // TAB 2: THE GOD (Sim & Setup)
+    // TAB 2: SIM & SETUP (Climate & Time)
     if (ImGui::BeginTabItem("Sim & Setup")) {
+      g_activeTab = 1;
 
-      if (g_phase == GamePhase::AGENT_SETUP ||
-          g_phase == GamePhase::SIMULATION) {
-        ImGui::TextColored(ImVec4(0.5f, 1.0f, 1.0f, 1.0f),
-                           "Climate & Wind (Setup)");
-        ImGui::SliderFloat("Global Temp Offset", &settings.globalTemperature,
-                           -0.5f, 0.5f);
-        ImGui::SliderFloat("Global Moisture Offset", &settings.globalMoisture,
-                           -0.5f, 0.5f);
+      ImGui::TextColored(ImVec4(0.5f, 1.0f, 1.0f, 1.0f),
+                         "3-Zone Climate Config");
 
-        // 5-Band Wind Setting Placeholder
-        static float windBands[5] = {0.1f, 0.3f, 0.5f, 0.3f, 0.1f};
-        if (ImGui::TreeNode("5-Band Prevailing Winds")) {
-          for (int i = 0; i < 5; ++i) {
-            char buf[32];
-            sprintf(buf, "Band %d Intensity", i);
-            ImGui::SliderFloat(buf, &windBands[i], 0.0f, 1.0f);
-          }
-          ImGui::TreePop();
-        }
+      if (ImGui::CollapsingHeader("North Pole Zone")) {
+        ImGui::SliderFloat("North Wind Dir", &settings.windDirNorth, 0.0f,
+                           6.28f);
+        ImGui::SliderFloat("North Wind Force", &settings.windStrengthNorth,
+                           0.0f, 1.0f);
+        ImGui::SliderFloat("North Temp Offset", &settings.tempOffsetNorth,
+                           -0.5f, 0.5f);
+      }
+      if (ImGui::CollapsingHeader("Equatorial Zone")) {
+        ImGui::SliderFloat("Equator Wind Dir", &settings.windDirEquator, 0.0f,
+                           6.28f);
+        ImGui::SliderFloat("Equator Wind Force", &settings.windStrengthEquator,
+                           0.0f, 1.0f);
+      }
+      if (ImGui::CollapsingHeader("South Pole Zone")) {
+        ImGui::SliderFloat("South Wind Dir", &settings.windDirSouth, 0.0f,
+                           6.28f);
+        ImGui::SliderFloat("South Wind Force", &settings.windStrengthSouth,
+                           0.0f, 1.0f);
+        ImGui::SliderFloat("South Temp Offset", &settings.tempOffsetSouth,
+                           -0.5f, 0.5f);
       }
 
       ImGui::Separator();
-      ImGui::TextColored(ImVec4(0.5f, 1.0f, 0.5f, 1.0f), "Chronos Controls");
-
-      if (g_phase != GamePhase::SIMULATION) {
-        ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f),
-                           "SIMULATION LOCKED: Transition to Phase 3 to run.");
-      }
-
-      static bool isPaused = true;
-      ImGui::BeginDisabled(g_phase != GamePhase::SIMULATION);
-      if (ImGui::Button(isPaused ? "RESUME TIME" : "PAUSE TIME",
+      ImGui::TextColored(ImVec4(0.5f, 1.0f, 0.5f, 1.0f), "Simulation Control");
+      if (ImGui::Button(g_isPaused ? "RESUME TIME" : "PAUSE TIME",
                         ImVec2(-1, 40)))
-        isPaused = !isPaused;
-      ImGui::EndDisabled();
+        g_isPaused = !g_isPaused;
 
       ImGui::SliderInt("Time Scale", &settings.timeScale, 1, 10, "%dx Speed");
 
-      // Run simulation ticks when not paused AND in simulation phase
-      if (g_phase == GamePhase::SIMULATION && !isPaused && graph.neighborData) {
-        for (int tick = 0; tick < settings.timeScale; ++tick) {
-          ClimateSim::Update(buffers, settings);
-          HydrologySim::Update(buffers, graph);
-          AgentSystem::UpdateBiology(buffers, settings);
-
-          if (settings.enableRealtimeErosion) {
-            terrain.ApplyThermalErosion(buffers, 1);
-          }
-
-          if (settings.enableFactions) {
-            AgentSystem::UpdateCivilization(buffers, graph);
-          }
-
-          if (settings.enableConflict) {
-            ConflictSystem::Update(buffers, graph, settings);
-          }
-
-          UnitSystem::Update(buffers, 1000);
-          CivilizationSim::Update(buffers, graph, settings);
-        }
-      }
-
       ImGui::Separator();
-
-      // --- WEATHER & EROSION ---
-      ImGui::TextColored(ImVec4(0.5f, 0.8f, 1.0f, 1.0f), "Dynamic Weather");
-
-      ImGui::SliderFloat("Wind Angle", &settings.windAngle, 0.0f, 6.28f,
-                         "%.2f rad");
-      ImGui::SliderFloat("Wind Force", &settings.windStrengthSim, 0.0f, 0.5f);
-
-      ImGui::SliderFloat("Global Temp", &settings.globalTemperature, -0.5f,
-                         0.5f);
-      ImGui::SliderFloat("Global Rain", &settings.globalMoisture, -0.5f, 0.5f);
-
-      ImGui::Separator();
-
-      // --- DESTRUCTIVE FORCES ---
-      ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.5f, 1.0f), "Natural Forces");
-      ImGui::Checkbox("Enable Realtime Erosion",
-                      &settings.enableRealtimeErosion);
-      if (settings.enableRealtimeErosion) {
-        ImGui::TextDisabled("Warning: Mountains will melt over time!");
-      }
-
-      if (graph.neighborData == nullptr) {
-        ImGui::TextColored(ImVec4(1, 0.5f, 0, 1),
-                           "Build graph first for simulation!");
-      }
-
-      ImGui::Separator();
-
-      // --- POLITICS & WAR ---
-      ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.0f, 1.0f), "Politics & War");
+      ImGui::Checkbox("Simulate Vegetation", &settings.enableBiology);
+      ImGui::Checkbox("Enable Factions", &settings.enableFactions);
       ImGui::Checkbox("Enable Conflict", &settings.enableConflict);
 
-      if (ImGui::Button("Spawn 5 Kingdoms")) {
-        for (int k = 0; k < 5; ++k) {
+      if (ImGui::Button("Spawn Civilizations", ImVec2(-1, 30))) {
+        for (int k = 0; k < 5; ++k)
           AgentSystem::SpawnCivilization(buffers, k + 1);
-        }
-        LoreScribeNS::LogEvent(0, "GENESIS", 0,
-                               "5 Civilizations have appeared.");
-      }
-
-      ImGui::Separator();
-
-      // --- BIOLOGY ---
-      ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.2f, 1.0f), "Biology");
-      ImGui::Checkbox("Simulate Vegetation", &settings.enableBiology);
-
-      // Human aggression tweaker
-      static float humanAggro = 0.5f;
-      if (ImGui::SliderFloat("Human Aggression", &humanAggro, 0.0f, 1.0f)) {
-        if (!AgentSystem::speciesRegistry.empty()) {
-          AgentSystem::speciesRegistry[0].aggression = humanAggro;
-        }
-      }
-
-      ImGui::Separator();
-      ImGui::Text("Civilization");
-      ImGui::Checkbox("Enable Factions", &settings.enableFactions);
-      if (settings.enableFactions) {
-        if (ImGui::Button("Spawn Faction"))
-          AgentSystem::SpawnCivilization(buffers, 1);
-        ImGui::SameLine();
-        if (ImGui::Button("Grow (1 Yr)")) {
-          for (int i = 0; i < 36; ++i)
-            AgentSystem::UpdateCivilization(buffers, graph);
-        }
-      }
-
-      ImGui::Separator();
-
-      // --- THE CHAOS ENGINE ---
-      ImGui::TextColored(ImVec4(0.8f, 0.4f, 1.0f, 1.0f), "The Chaos Engine");
-
-      if (ImGui::Button("Open Rift (Center)")) {
-        // Spawn a rift at map center (approx 500,500 for 1M cells)
-        int centerIdx = (int)(buffers.count / 2);
-        ChaosField::SpawnRift(buffers, centerIdx, 1.0f);
-        LoreScribeNS::LogEvent(0, "MAGIC", centerIdx,
-                               "A Chaos Rift has opened!");
-      }
-      ImGui::SameLine();
-      if (ImGui::Button("Clear All Chaos")) {
-        if (buffers.chaos)
-          std::fill_n(buffers.chaos, buffers.count, 0.0f);
-        ChaosField::ClearRifts();
-      }
-
-      ImGui::Separator();
-
-      // --- ECONOMY & LOGISTICS ---
-      ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.2f, 1.0f), "Economy & Logistics");
-      if (ImGui::Button("Simulate Economy (10 ticks)")) {
-        for (int i = 0; i < 10; ++i)
-          LogisticsSystem::Update(buffers, graph);
       }
 
       ImGui::EndTabItem();
     }
 
-    // TAB 3: THE VIEWER (Visuals)
+    // TAB 3: VISUALS
     if (ImGui::BeginTabItem("Visuals")) {
-      ImGui::Text("Camera");
-      const char *zoomLevels[] = {"Global", "Quadrant", "Regional", "Local"};
-      if (ImGui::Combo("View Level", &settings.zoomLevel, zoomLevels, 4)) {
-        settings.pointSize = (settings.zoomLevel == 0)   ? 1.0f
-                             : (settings.zoomLevel == 1) ? 4.0f
-                             : (settings.zoomLevel == 2) ? 16.0f
-                                                         : 64.0f;
-      }
+      g_activeTab = 2;
+      const char *zoomLevels[] = {"Global", "Regional", "Local", "Cell"};
+      ImGui::Combo("Zoom Level", &settings.zoomLevel, zoomLevels, 4);
       ImGui::SliderFloat2("View Offset", settings.viewOffset, 0.0f, 1.0f);
-      ImGui::SliderFloat("Point Size", &settings.pointSize, 1.0f, 128.0f);
 
-      ImGui::Separator();
-      ImGui::TextColored(ImVec4(0.5f, 1.0f, 1.0f, 1.0f), "Visualization Mode");
-      static int viewMode = 0;
-      g_viewMode = viewMode; // Sync to global
-      ImGui::RadioButton("Terrain", &viewMode, 0);
-      ImGui::SameLine();
-      ImGui::RadioButton("Chaos", &viewMode, 1);
-      ImGui::SameLine();
-      ImGui::RadioButton("Economy", &viewMode, 2);
-
-      ImGui::EndTabItem();
-    }
-
-    // TAB 4: RULES & DESIGN
-    if (ImGui::BeginTabItem("Rules")) {
-      // --- RESOURCE EDITOR ---
-      ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "Resource Registry");
-
-      static int selectedRes = 0;
-      if (AssetManager::resourceRegistry.size() > 0) {
-        // Dropdown to select resource
-        if (ImGui::BeginCombo(
-                "Select Resource",
-                AssetManager::resourceRegistry[selectedRes].name.c_str())) {
-          for (size_t n = 0; n < AssetManager::resourceRegistry.size(); n++) {
-            bool is_selected = (selectedRes == (int)n);
-            if (ImGui::Selectable(
-                    AssetManager::resourceRegistry[n].name.c_str(),
-                    is_selected))
-              selectedRes = (int)n;
-            if (is_selected)
-              ImGui::SetItemDefaultFocus();
-          }
-          ImGui::EndCombo();
-        }
-
-        // Edit Properties
-        ResourceDef &r = AssetManager::resourceRegistry[selectedRes];
-
-        // Name (read-only display)
-        ImGui::Text("Name: %s", r.name.c_str());
-        ImGui::SliderFloat("Value", &r.value, 0.1f, 20.0f);
-        ImGui::SliderFloat("Scarcity", &r.scarcity, 0.0f, 1.0f);
-        ImGui::Checkbox("Renewable", &r.isRenewable);
-
-        ImGui::Text("Spawn Biomes:");
-        ImGui::Checkbox("Forest", &r.spawnsInForest);
-        ImGui::SameLine();
-        ImGui::Checkbox("Mountain", &r.spawnsInMountain);
-        ImGui::SameLine();
-        ImGui::Checkbox("Desert", &r.spawnsInDesert);
-        ImGui::SameLine();
-        ImGui::Checkbox("Ocean", &r.spawnsInOcean);
-      }
-
-      ImGui::Separator();
-
-      // --- CHAOS RULE EDITOR ---
-      ImGui::TextColored(ImVec4(1.0f, 0.0f, 1.0f, 1.0f), "Chaos Laws");
-      for (auto &rule : AssetManager::chaosRules) {
-        ImGui::PushID(rule.name.c_str());
-        ImGui::Text("%s", rule.name.c_str());
-        ImGui::SliderFloat("Chance", &rule.probability, 0.0f, 0.1f, "%.4f");
-        ImGui::SliderFloat("Threshold", &rule.minChaosLevel, 0.0f, 1.0f);
-        ImGui::SliderFloat("Severity", &rule.severity, 0.0f, 1.0f);
-        ImGui::PopID();
-        ImGui::Separator();
-      }
-
-      // SAVE BUTTON
-      if (ImGui::Button("SAVE ALL RULES TO JSON", ImVec2(-1, 40))) {
-        AssetManager::SaveAll();
-      }
-
+      const char *modes[] = {"Terrain (Biomes)", "Chaos (Mana)",
+                             "Economy (Wealth)"};
+      ImGui::Combo("View Mode", &g_viewMode, modes, 3);
       ImGui::EndTabItem();
     }
 
     ImGui::EndTabBar();
   }
 
+  // --- AUTOMATION: TAB TRANSITIONS ---
+  if (prevTab == 0 && g_activeTab == 1) { // Left Architect -> Entering Sim
+    AssetManager::SaveSimulationState("saves/sim_start.bin", buffers, settings);
+    std::cout << "[WORKFLOW] Autosaved sim_start.bin. Simulation Ready.\n";
+  }
+  if (prevTab == 1 && g_activeTab != 1) { // Left Sim -> Pausing
+    g_isPaused = true;
+    AssetManager::SaveSimulationState("saves/sim_end.bin", buffers, settings);
+    std::cout << "[WORKFLOW] Autosaved sim_end.bin. Simulation Paused.\n";
+  }
+
   // --- CELL INSPECTOR ---
   ImGui::Separator();
   ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "CELL INSPECTOR");
-
   if (g_hoveredIndex != -1 && g_hoveredIndex < (int)buffers.count) {
-    ImGui::Text("ID: %d", g_hoveredIndex);
-    ImGui::Text("Height: %.3f", buffers.height[g_hoveredIndex]);
-    if (buffers.temperature)
-      ImGui::Text("Temp:   %.3f", buffers.temperature[g_hoveredIndex]);
-    if (buffers.moisture)
-      ImGui::Text("Rain:   %.3f", buffers.moisture[g_hoveredIndex]);
+    ImGui::Text("ID: %d | H: %.3f | T: %.3f | R: %.3f", g_hoveredIndex,
+                buffers.height[g_hoveredIndex],
+                buffers.temperature[g_hoveredIndex],
+                buffers.moisture[g_hoveredIndex]);
     if (buffers.population)
-      ImGui::Text("Pop:    %u", buffers.population[g_hoveredIndex]);
-    if (buffers.wealth)
-      ImGui::Text("Gold:   %.2f", buffers.wealth[g_hoveredIndex]);
-    if (buffers.chaos)
-      ImGui::Text("Chaos:  %.2f", buffers.chaos[g_hoveredIndex]);
-    if (buffers.infrastructure)
-      ImGui::Text("Infra:  %.2f", buffers.infrastructure[g_hoveredIndex]);
-    if (buffers.factionID)
-      ImGui::Text("Faction:%d", buffers.factionID[g_hoveredIndex]);
+      ImGui::Text("Pop: %u | Faction: %d", buffers.population[g_hoveredIndex],
+                  buffers.factionID[g_hoveredIndex]);
   } else {
     ImGui::TextDisabled("(Hover over map to inspect)");
   }
@@ -597,7 +325,6 @@ int main() {
 
   glfwMakeContextCurrent(window);
   glewInit();
-  std::cout << "[LOG] GLEW Initialized.\n";
   glEnable(GL_PROGRAM_POINT_SIZE);
 
   // 2. Initialize Core Systems
@@ -619,8 +346,7 @@ int main() {
 
   GLuint shaderProgram = LoadShaders();
 
-  // Generate Initial World
-  terrain.GenerateProceduralTerrain(buffers, settings);
+  MasterRegenerate(buffers, settings, terrain, finder, graph);
 
   // Initialize Subsystems
   AgentSystem::Initialize();
@@ -647,73 +373,76 @@ int main() {
     int fbW, fbH;
     glfwGetFramebufferSize(window, &fbW, &fbH);
 
-    // --- MOUSE TO CELL FOR INSPECTOR ---
+    // Mouse to Inspector & Painting
     double mx, my;
     glfwGetCursorPos(window, &mx, &my);
-
-    // Calculate map area (right 2/3 of window)
     float uiWidth = (float)winW / 3.0f;
     float mapStartX = uiWidth;
     float mapWidth = (float)winW - uiWidth;
 
-    // Convert mouse to grid coords (1000x1000 grid for 1M cells)
-    int gridW = 1000;
     if (mx > mapStartX && mx < winW && my > 0 && my < winH) {
       float normX = (float)(mx - mapStartX) / mapWidth;
-      float normY = 1.0f - (float)(my / (float)winH); // Flip Y
-
-      int mapX = (int)(normX * gridW);
-      int mapY = (int)(normY * gridW);
-
-      if (mapX >= 0 && mapX < gridW && mapY >= 0 && mapY < gridW) {
-        g_hoveredIndex = mapY * gridW + mapX;
-      } else {
+      float normY = 1.0f - (float)(my / (float)winH);
+      int mapX = (int)(normX * 1000);
+      int mapY = (int)(normY * 1000);
+      if (mapX >= 0 && mapX < 1000 && mapY >= 0 && mapY < 1000)
+        g_hoveredIndex = mapY * 1000 + mapX;
+      else
         g_hoveredIndex = -1;
+
+      // PAINTING LOGIC
+      if (g_activeTab == 0 &&
+          glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS &&
+          !ImGui::GetIO().WantCaptureMouse) {
+        if (g_hoveredIndex != -1) {
+          if (g_paintMode == 0)
+            terrain.RaiseTerrain(buffers, g_hoveredIndex, g_brushSize,
+                                 g_brushSpeed);
+          else if (g_paintMode == 1)
+            terrain.LowerTerrain(buffers, g_hoveredIndex, g_brushSize,
+                                 g_brushSpeed);
+          else if (g_paintMode == 2)
+            terrain.SmoothTerrain(buffers, g_hoveredIndex, g_brushSize,
+                                  g_brushSpeed);
+        }
       }
-    } else {
+    } else
       g_hoveredIndex = -1;
+
+    // SIMULATION TICK
+    if (g_activeTab == 1 && !g_isPaused && graph.neighborData) {
+      for (int tick = 0; tick < settings.timeScale; ++tick) {
+        ClimateSim::Update(buffers, settings);
+        HydrologySim::Update(buffers, graph);
+        AgentSystem::UpdateBiology(buffers, settings);
+        if (settings.enableFactions)
+          AgentSystem::UpdateCivilization(buffers, graph);
+        if (settings.enableConflict)
+          ConflictSystem::Update(buffers, graph, settings);
+        UnitSystem::Update(buffers, 100);
+        CivilizationSim::Update(buffers, graph, settings);
+      }
     }
 
-    // Calculate DPI Scale
-    float dpiScaleX = (winW > 0) ? ((float)fbW / (float)winW) : 1.0f;
-    float dpiScaleY = (winH > 0) ? ((float)fbH / (float)winH) : 1.0f;
-
-    // UI (Uses Logical Window Coordinates)
+    // RENDER
+    float dpiX = (float)fbW / (float)winW;
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
-
-    // Pass Logical Size (winW, winH) to ImGui
-    DrawGodModeUI(settings, buffers, terrain, graph, finder, winW, winH);
-
-    // Draw Database Editor if open
-    if (g_showDBEditor) {
+    DrawGodModeUI(settings, buffers, terrain, finder, graph, winW, winH);
+    if (g_showDBEditor)
       DrawDatabaseEditor(&g_showDBEditor);
-    }
 
-    int renderMapX = (int)((winW / 3.0f) * dpiScaleX);
-    int renderMapW = fbW - renderMapX;
-
-    glViewport(renderMapX, 0, renderMapW, fbH);
-
-    // Clear Screen
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glViewport((int)(uiWidth * dpiX), 0, (int)((winW - uiWidth) * dpiX), fbH);
+    glClearColor(0, 0, 0, 1);
     glClear(GL_COLOR_BUFFER_BIT);
-
-    // Activate Shaders and Render
     glUseProgram(shaderProgram);
-
-    // Update Uniforms
     glUniform1f(glGetUniformLocation(shaderProgram, "u_zoom"),
                 (float)pow(4.0, settings.zoomLevel));
-
-    // We might need to adjust aspect ratio or offset logic since viewport
-    // changed
     glUniform2f(glGetUniformLocation(shaderProgram, "u_offset"),
                 settings.viewOffset[0], settings.viewOffset[1]);
     glUniform1f(glGetUniformLocation(shaderProgram, "u_pointSize"),
                 settings.pointSize);
-
     renderer.UpdateVisuals(buffers, settings, g_viewMode);
     renderer.Render(settings);
 
