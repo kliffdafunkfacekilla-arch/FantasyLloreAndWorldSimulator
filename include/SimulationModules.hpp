@@ -121,6 +121,14 @@ void ConstructBuildings(WorldBuffers &b);
 void ProduceResources(WorldBuffers &b);
 } // namespace CivilizationSim
 
+// UnitSystem namespace
+namespace UnitSystem {
+void Update(WorldBuffers &b, int mapWidth);
+void MoveUnits(WorldBuffers &b, int mapWidth);
+void DeliverCargo(WorldBuffers &b, int mapWidth);
+void ResolveCombat(WorldBuffers &b, int mapWidth);
+} // namespace UnitSystem
+
 // LogisticsSystem (Free function - legacy)
 void ProcessLogistics(WorldBuffers &b, uint32_t count);
 
