@@ -277,8 +277,9 @@ void TerrainController::LowerTerrain(WorldBuffers &buffers, int centerIdx,
   }
 }
 
-void TerrainController::SmoothTerrain(WorldBuffers &buffers, int centerIdx,
-                                      float radius, float speed) {
+void TerrainController::SmoothTerrainRegion(WorldBuffers &buffers,
+                                            int centerIdx, float radius,
+                                            float speed) {
   if (!buffers.height || centerIdx < 0 || centerIdx >= (int)buffers.count)
     return;
   int side = (int)std::sqrt(buffers.count);
@@ -289,14 +290,19 @@ void TerrainController::SmoothTerrain(WorldBuffers &buffers, int centerIdx,
   for (int y = cy - r; y <= cy + r; ++y) {
     for (int x = cx - r; x <= cx + r; ++x) {
       if (x >= 0 && x < side && y >= 0 && y < side) {
+        // ... (Logic remains same, just simplified or kept) ...
+        // Re-using the logic from the snippet
         int idx = y * side + x;
         float dx = (float)(x - cx);
         float dy = (float)(y - cy);
         float dist = std::sqrt(dx * dx + dy * dy);
         if (dist <= radius) {
           float falloff = 1.0f - (dist / radius);
+          // Simple blurring logic for region
+          // (omitted for brevity in replacement, but I must provide full
+          // content if replacing) functionality was: average with neighbors and
+          // blend. I'll rewrite the body to be safe.
 
-          // Average with neighbors
           float avg = 0.0f;
           int count = 0;
           for (int ny = y - 1; ny <= y + 1; ny++) {
@@ -315,6 +321,132 @@ void TerrainController::SmoothTerrain(WorldBuffers &buffers, int centerIdx,
           }
         }
       }
+    }
+  }
+}
+
+void TerrainController::SmoothTerrain(WorldBuffers &buffers, int width) {
+  if (!buffers.height)
+    return;
+  std::vector<float> temp(buffers.count);
+  for (uint32_t i = 0; i < buffers.count; ++i) {
+    float sum = 0;
+    int count = 0;
+    int x = i % width;
+    int y = i / width;
+    for (int dy = -1; dy <= 1; ++dy) {
+      for (int dx = -1; dx <= 1; ++dx) {
+        int nx = x + dx;
+        int ny = y + dy;
+        if (nx >= 0 && nx < width && ny >= 0 && ny < width) {
+          sum += buffers.height[ny * width + nx];
+          count++;
+        }
+      }
+    }
+    temp[i] = sum / count;
+  }
+  for (uint32_t i = 0; i < buffers.count; ++i)
+    buffers.height[i] = temp[i];
+}
+
+// --- NEW TERRAIN TOOLS ---
+
+void TerrainController::EnforceOceanEdges(WorldBuffers &b, int width,
+                                          float fadeDist) {
+  if (!b.height)
+    return;
+  // Simple distance from center logic or edge logic
+  // "fadeDist" is norm distance
+  // But user passes "1000" as width.
+
+  for (int y = 0; y < width; ++y) {
+    for (int x = 0; x < width; ++x) {
+      // Distance from nearest edge
+      float dx = (float)std::min(x, width - 1 - x);
+      float dy = (float)std::min(y, width - 1 - y);
+      float dist = std::min(dx, dy);
+
+      if (dist < fadeDist) {
+        float factor = dist / fadeDist;
+        // Fade towards deep ocean (-1.0) or sea level?
+        // Let's fade towards -0.5f
+        int idx = y * width + x;
+        // b.height[idx] = b.height[idx] * factor - 0.5f * (1.0f - factor);
+        b.height[idx] = b.height[idx] * factor + (-1.0f) * (1.0f - factor);
+      }
+    }
+  }
+}
+
+void TerrainController::RoughenCoastlines(WorldBuffers &b, int width,
+                                          float seaLevel) {
+  if (!b.height)
+    return;
+  for (size_t i = 0; i < b.count; ++i) {
+    if (std::abs(b.height[i] - seaLevel) < 0.05f) { // Narrow band
+      float noise = ((rand() % 100) / 100.0f - 0.5f) * 0.1f;
+      b.height[i] += noise;
+    }
+  }
+}
+
+void TerrainController::ApplyBrush(WorldBuffers &b, int width, int cx, int cy,
+                                   float radius, float strength, int mode) {
+  if (!b.height)
+    return;
+  int r = (int)radius;
+  int r2 = r * r;
+
+  // Target height for Flatten mode (center of brush)
+  float targetHeight = 0.0f;
+  if (mode == 2) {
+    int centerIdx = cy * width + cx;
+    if (centerIdx >= 0 && centerIdx < (int)b.count)
+      targetHeight = b.height[centerIdx];
+  }
+
+  for (int y = cy - r; y <= cy + r; ++y) {
+    for (int x = cx - r; x <= cx + r; ++x) {
+      // Bounds check
+      if (x < 0 || x >= width || y < 0 || y >= width)
+        continue;
+
+      // Circle check
+      int dx = x - cx;
+      int dy = y - cy;
+      if (dx * dx + dy * dy > r2)
+        continue;
+
+      // Falloff (Stronger in center)
+      float dist = std::sqrt((float)(dx * dx + dy * dy));
+      float falloff = 1.0f - (dist / radius);
+      if (falloff < 0)
+        falloff = 0;
+
+      int i = y * width + x;
+      float change = strength * falloff * 0.05f; // Scale down for control
+
+      switch (mode) {
+      case 0: // RAISE
+        b.height[i] += change;
+        break;
+      case 1: // LOWER
+        b.height[i] -= change;
+        break;
+      case 2: // FLATTEN
+        b.height[i] = b.height[i] +
+                      (targetHeight - b.height[i]) * 0.1f * strength * falloff;
+        break;
+      case 3: // NOISE/ROUGHEN
+        b.height[i] += ((rand() % 100) / 1000.0f - 0.05f) * strength * falloff;
+        break;
+      }
+      // Clamp
+      if (b.height[i] > 1.0f)
+        b.height[i] = 1.0f;
+      if (b.height[i] < -1.0f)
+        b.height[i] = -1.0f;
     }
   }
 }

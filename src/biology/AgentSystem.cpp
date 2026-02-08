@@ -150,7 +150,8 @@ void SpawnCivilization(WorldBuffers &b, int factionId) {
     // 4. Has Fresh Water (Flux > 0.5) OR is Coastal
     // 5. Empty
 
-    if (h > 0.22f && h < 0.8f && m > 0.3f && f > 1.0f && currentPop == 0) {
+    if (h > 0.22f && h < 0.8f && m > 0.3f && f > 1.0f &&
+        b.factionID[idx] == 0) {
       b.population[idx] = 100; // Village Start
       b.factionID[idx] = factionId;
       b.infrastructure[idx] = 1.0f; // Basic settlement

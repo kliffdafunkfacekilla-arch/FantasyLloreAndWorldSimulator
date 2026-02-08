@@ -13,14 +13,19 @@
 #include <string>
 #include <vector>
 
-// 1. Include Your Headers
-#include "AssetManager.hpp"
-#include "PlatformUtils.hpp"
-#include "SimulationModules.hpp"
-#include "WorldEngine.hpp"
+// Modular Headers
+#include "../include/AssetManager.hpp"
+#include "../include/Biology.hpp"
+#include "../include/Environment.hpp"
+#include "../include/Lore.hpp"
+#include "../include/PlatformUtils.hpp"
+#include "../include/Simulation.hpp"
+#include "../include/Terrain.hpp"
+#include "../include/WorldEngine.hpp"
 
-// Include your Visuals
-#include "visuals/MapRenderer.cpp"
+// Visuals
+#include "frontend/GuiController.hpp"
+#include "frontend/MapRenderer.hpp"
 
 // --- Helper: Shader Loader ---
 std::string ReadFile(const char *path) {
@@ -118,278 +123,6 @@ void MasterRegenerate(WorldBuffers &buffers, WorldSettings &settings,
   }
 }
 
-// --- GLOBALS ---
-static int g_viewMode = 0;
-static int g_hoveredIndex = -1;
-static bool g_showDBEditor = false;
-static int g_activeTab = 0;
-static bool g_isPaused = true;
-
-// Paint Tool Settings
-static int g_paintMode = 0; // 0=Raise, 1=Lower, 2=Smooth
-static float g_brushSize = 25.0f;
-static float g_brushSpeed = 0.01f;
-
-// Forward declaration for EditorUI
-void DrawDatabaseEditor(bool *p_open);
-
-// --- The God Mode Dashboard (Tabbed Layout) ---
-void DrawGodModeUI(WorldSettings &settings, WorldBuffers &buffers,
-                   TerrainController &terrain, NeighborFinder &finder,
-                   NeighborGraph &graph, int screenW, int screenH) {
-
-  ImGui::SetNextWindowPos(ImVec2(0, 0));
-  ImGui::SetNextWindowSize(ImVec2((float)screenW / 3.0f, (float)screenH));
-
-  ImGuiWindowFlags flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-                           ImGuiWindowFlags_NoTitleBar;
-  ImGui::Begin("Omnis Control", nullptr, flags);
-
-  ImGui::Text("OMNIS ENGINE | %d Cells", buffers.count);
-  ImGui::Separator();
-
-  // --- TABBED WORKFLOW ---
-  int prevTab = g_activeTab;
-  if (ImGui::BeginTabBar("ControlTabs")) {
-
-    // TAB 1: ARCHITECT (Painting & Terrain)
-    if (ImGui::BeginTabItem("Architect")) {
-      g_activeTab = 0;
-
-      ImGui::TextColored(ImVec4(0.5f, 1.0f, 1.0f, 1.0f), "Global Parameters");
-      ImGui::InputInt("Seed", &settings.seed);
-      if (ImGui::Button("Randomize Seed"))
-        settings.seed = rand();
-
-      ImGui::Separator();
-      ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.5f, 1.0f), "Shape & Form");
-      ImGui::SliderFloat("Land Mass", &settings.continentFreq, 0.001f, 0.02f,
-                         "Size: %.4f");
-      ImGui::SliderFloat("Sea Level", &settings.seaLevel, 0.0f, 1.0f);
-      ImGui::Checkbox("Island Mode", &settings.islandMode);
-      if (settings.islandMode) {
-        ImGui::SliderFloat("Edge Falloff", &settings.edgeFalloff, 0.05f, 0.5f);
-        ImGui::SliderFloat("Edge Margin", &settings.islandMargin, 0.0f, 200.0f);
-      }
-
-      ImGui::Separator();
-      ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "Sculpting Tools");
-      ImGui::RadioButton("Raise", &g_paintMode, 0);
-      ImGui::SameLine();
-      ImGui::RadioButton("Lower", &g_paintMode, 1);
-      ImGui::SameLine();
-      ImGui::RadioButton("Smooth", &g_paintMode, 2);
-      ImGui::SliderFloat("Brush Size", &g_brushSize, 1.0f, 100.0f);
-      ImGui::SliderFloat("Brush Speed", &g_brushSpeed, 0.001f, 0.1f);
-
-      if (ImGui::Button("REGENERATE WORLD", ImVec2(-1, 40))) {
-        MasterRegenerate(buffers, settings, terrain, finder, graph);
-      }
-
-      ImGui::Separator();
-      ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.0f, 1.0f), "Persistence");
-      if (ImGui::Button("QUICK SAVE", ImVec2(120, 30)))
-        AssetManager::SaveSimulationState("saves/quicksave.bin", buffers,
-                                          settings);
-      ImGui::SameLine();
-      if (ImGui::Button("QUICK LOAD", ImVec2(120, 30)))
-        AssetManager::LoadSimulationState("saves/quicksave.bin", buffers,
-                                          settings);
-
-      ImGui::EndTabItem();
-    }
-
-    // TAB 2: SIM & SETUP (The God View)
-    if (ImGui::BeginTabItem("Sim & Setup")) {
-      g_activeTab = 1;
-
-      // 1. CHRONOS (Time Control)
-      ImGui::TextColored(ImVec4(0.5f, 1.0f, 0.5f, 1.0f), "Chronos Controls");
-      if (ImGui::Button(g_isPaused ? "RESUME TIME" : "PAUSE TIME",
-                        ImVec2(-1, 35)))
-        g_isPaused = !g_isPaused;
-      ImGui::SliderInt("Time Scale", &settings.timeScale, 1, 15, "%dx Speed");
-      ImGui::Separator();
-
-      // 2. CLIMATE (3-Zone System)
-      if (ImGui::CollapsingHeader("3-Zone Climate Config",
-                                  ImGuiTreeNodeFlags_DefaultOpen)) {
-        if (ImGui::TreeNode("North Pole Zone")) {
-          ImGui::SliderFloat("Wind Dir", &settings.windDirNorth, 0.0f, 6.28f);
-          ImGui::SliderFloat("Wind Force", &settings.windStrengthNorth, 0.0f,
-                             1.0f);
-          ImGui::SliderFloat("Temp Offset", &settings.tempOffsetNorth, -0.5f,
-                             0.5f);
-          ImGui::TreePop();
-        }
-        if (ImGui::TreeNode("Equatorial Zone")) {
-          ImGui::SliderFloat("Wind Dir", &settings.windDirEquator, 0.0f, 6.28f);
-          ImGui::SliderFloat("Wind Force", &settings.windStrengthEquator, 0.0f,
-                             1.0f);
-          ImGui::TreePop();
-        }
-        if (ImGui::TreeNode("South Pole Zone")) {
-          ImGui::SliderFloat("Wind Dir", &settings.windDirSouth, 0.0f, 6.28f);
-          ImGui::SliderFloat("Wind Force", &settings.windStrengthSouth, 0.0f,
-                             1.0f);
-          ImGui::SliderFloat("Temp Offset", &settings.tempOffsetSouth, -0.5f,
-                             0.5f);
-          ImGui::TreePop();
-        }
-        ImGui::SliderFloat("Global Temp Mod", &settings.globalTempModifier,
-                           0.5f, 1.5f);
-        ImGui::SliderFloat("Global Rain Mod", &settings.rainfallModifier, 0.5f,
-                           1.5f);
-      }
-
-      // 3. CIVILIZATION & BIOLOGY
-      if (ImGui::CollapsingHeader("Life & Politics")) {
-        ImGui::Checkbox("Simulate Vegetation", &settings.enableBiology);
-        ImGui::Checkbox("Enable Factions", &settings.enableFactions);
-        ImGui::Checkbox("Enable War", &settings.enableConflict);
-
-        if (ImGui::Button("Spawn 5 Kingdoms", ImVec2(-1, 30))) {
-          for (int k = 0; k < 5; ++k)
-            AgentSystem::SpawnCivilization(buffers, k + 1);
-          LoreScribeNS::LogEvent(0, "GENESIS", 0,
-                                 "5 Civilizations have appeared.");
-        }
-
-        static float speciesAggro = 0.5f;
-        if (ImGui::SliderFloat("World Aggression", &speciesAggro, 0.0f, 1.0f)) {
-          if (!AgentSystem::speciesRegistry.empty())
-            AgentSystem::speciesRegistry[0].aggression = speciesAggro;
-        }
-      }
-
-      // 4. THE CHAOS ENGINE
-      if (ImGui::CollapsingHeader("The Chaos Engine")) {
-        ImGui::TextColored(ImVec4(0.8f, 0.4f, 1.0f, 1.0f),
-                           "Reality Distortion");
-        if (ImGui::Button("Open Rift (Center)")) {
-          int centerIdx = (int)(buffers.count / 2);
-          ChaosField::SpawnRift(buffers, centerIdx, 1.0f);
-          LoreScribeNS::LogEvent(0, "MAGIC", centerIdx,
-                                 "A Chaos Rift has opened!");
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Clear All Chaos")) {
-          if (buffers.chaos)
-            std::fill_n(buffers.chaos, buffers.count, 0.0f);
-          ChaosField::ClearRifts();
-        }
-        ImGui::Checkbox("Realtime Erosion", &settings.enableRealtimeErosion);
-      }
-
-      // 5. ECONOMY & LOGISTICS
-      if (ImGui::CollapsingHeader("Economy & Logistics")) {
-        if (ImGui::Button("Update Economy (10 ticks)", ImVec2(-1, 30))) {
-          for (int i = 0; i < 10; ++i)
-            LogisticsSystem::Update(buffers, graph);
-        }
-      }
-
-      ImGui::EndTabItem();
-    }
-
-    // TAB 3: VISUALS
-    if (ImGui::BeginTabItem("Visuals")) {
-      g_activeTab = 2;
-      const char *zoomLevels[] = {"Global", "Regional", "Local", "Cell"};
-      ImGui::Combo("Zoom Level", &settings.zoomLevel, zoomLevels, 4);
-      ImGui::SliderFloat2("View Offset", settings.viewOffset, 0.0f, 1.0f);
-
-      const char *modes[] = {"Terrain (Biomes)", "Chaos (Mana)",
-                             "Economy (Wealth)"};
-      ImGui::Combo("View Mode", &g_viewMode, modes, 3);
-      ImGui::EndTabItem();
-    }
-
-    // TAB 4: RULES (Data & Design)
-    if (ImGui::BeginTabItem("Rules")) {
-      g_activeTab = 3;
-
-      ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "Resource Registry");
-      static int selectedRes = 0;
-      if (!AssetManager::resourceRegistry.empty()) {
-        if (ImGui::BeginCombo(
-                "Select Resource",
-                AssetManager::resourceRegistry[selectedRes].name.c_str())) {
-          for (size_t n = 0; n < AssetManager::resourceRegistry.size(); n++) {
-            bool is_selected = (selectedRes == (int)n);
-            if (ImGui::Selectable(
-                    AssetManager::resourceRegistry[n].name.c_str(),
-                    is_selected))
-              selectedRes = (int)n;
-            if (is_selected)
-              ImGui::SetItemDefaultFocus();
-          }
-          ImGui::EndCombo();
-        }
-
-        ResourceDef &r = AssetManager::resourceRegistry[selectedRes];
-        ImGui::SliderFloat("Value", &r.value, 0.1f, 20.0f);
-        ImGui::SliderFloat("Scarcity", &r.scarcity, 0.0f, 1.0f);
-        ImGui::Checkbox("Renewable", &r.isRenewable);
-        ImGui::Text("Spawn Biomes:");
-        ImGui::Checkbox("Forest", &r.spawnsInForest);
-        ImGui::SameLine();
-        ImGui::Checkbox("Mountain", &r.spawnsInMountain);
-        ImGui::Checkbox("Desert", &r.spawnsInDesert);
-        ImGui::SameLine();
-        ImGui::Checkbox("Ocean", &r.spawnsInOcean);
-      }
-
-      ImGui::Separator();
-      ImGui::TextColored(ImVec4(1.0f, 0.0f, 1.0f, 1.0f), "Chaos Laws");
-      for (auto &rule : AssetManager::chaosRules) {
-        ImGui::PushID(rule.name.c_str());
-        ImGui::Text("%s", rule.name.c_str());
-        ImGui::SliderFloat("Chance", &rule.probability, 0.0001f, 0.1f, "%.4f");
-        ImGui::SliderFloat("Severity", &rule.severity, 0.0f, 1.0f);
-        ImGui::PopID();
-      }
-
-      if (ImGui::Button("SAVE RULES TO JSON", ImVec2(-1, 40)))
-        AssetManager::SaveAll();
-      if (ImGui::Button("EDIT AGENTS / JSON", ImVec2(-1, 30)))
-        g_showDBEditor = !g_showDBEditor;
-
-      ImGui::EndTabItem();
-    }
-
-    ImGui::EndTabBar();
-  }
-
-  // --- AUTOMATION: TAB TRANSITIONS ---
-  if (prevTab == 0 && g_activeTab == 1) { // Left Architect -> Entering Sim
-    AssetManager::SaveSimulationState("saves/sim_start.bin", buffers, settings);
-    std::cout << "[WORKFLOW] Autosaved sim_start.bin. Simulation Ready.\n";
-  }
-  if (prevTab == 1 && g_activeTab != 1) { // Left Sim -> Pausing
-    g_isPaused = true;
-    AssetManager::SaveSimulationState("saves/sim_end.bin", buffers, settings);
-    std::cout << "[WORKFLOW] Autosaved sim_end.bin. Simulation Paused.\n";
-  }
-
-  // --- CELL INSPECTOR ---
-  ImGui::Separator();
-  ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "CELL INSPECTOR");
-  if (g_hoveredIndex != -1 && g_hoveredIndex < (int)buffers.count) {
-    ImGui::Text("ID: %d | H: %.3f | T: %.3f | R: %.3f", g_hoveredIndex,
-                buffers.height[g_hoveredIndex],
-                buffers.temperature[g_hoveredIndex],
-                buffers.moisture[g_hoveredIndex]);
-    if (buffers.population)
-      ImGui::Text("Pop: %u | Faction: %d", buffers.population[g_hoveredIndex],
-                  buffers.factionID[g_hoveredIndex]);
-  } else {
-    ImGui::TextDisabled("(Hover over map to inspect)");
-  }
-
-  ImGui::End();
-}
-
 int main() {
   std::cout << "[LOG] Starting Main...\n";
   if (!glfwInit()) {
@@ -447,6 +180,7 @@ int main() {
   AgentSystem::Initialize();
   LoreScribeNS::Initialize();
   AssetManager::Initialize();
+  GuiController::Initialize();
 
   // Setup ImGui
   IMGUI_CHECKVERSION();
@@ -454,7 +188,6 @@ int main() {
   ImGui_ImplGlfw_InitForOpenGL(window, true);
   ImGui_ImplOpenGL3_Init("#version 330");
 
-  // Style
   ImGui::StyleColorsDark();
 
   // 5. Main Loop
@@ -464,48 +197,45 @@ int main() {
 
     int winW, winH;
     glfwGetWindowSize(window, &winW, &winH);
-
     int fbW, fbH;
     glfwGetFramebufferSize(window, &fbW, &fbH);
 
-    // Mouse to Inspector & Painting
-    double mx, my;
-    glfwGetCursorPos(window, &mx, &my);
-    float uiWidth = (float)winW / 3.0f;
-    float mapStartX = uiWidth;
-    float mapWidth = (float)winW - uiWidth;
+    // --- GUI AND INPUT ---
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
 
-    if (mx > mapStartX && mx < winW && my > 0 && my < winH) {
-      float normX = (float)(mx - mapStartX) / mapWidth;
-      float normY = 1.0f - (float)(my / (float)winH);
-      int mapX = (int)(normX * 1000);
-      int mapY = (int)(normY * 1000);
-      if (mapX >= 0 && mapX < 1000 && mapY >= 0 && mapY < 1000)
-        g_hoveredIndex = mapY * 1000 + mapX;
-      else
-        g_hoveredIndex = -1;
+    ImGuiIO &io = ImGui::GetIO();
 
-      // PAINTING LOGIC
-      if (g_activeTab == 0 &&
-          glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS &&
-          !ImGui::GetIO().WantCaptureMouse) {
-        if (g_hoveredIndex != -1) {
-          if (g_paintMode == 0)
-            terrain.RaiseTerrain(buffers, g_hoveredIndex, g_brushSize,
-                                 g_brushSpeed);
-          else if (g_paintMode == 1)
-            terrain.LowerTerrain(buffers, g_hoveredIndex, g_brushSize,
-                                 g_brushSpeed);
-          else if (g_paintMode == 2)
-            terrain.SmoothTerrain(buffers, g_hoveredIndex, g_brushSize,
-                                  g_brushSpeed);
-        }
-      }
-    } else
-      g_hoveredIndex = -1;
+    // 1. ZOOM HANDLING (Scroll Wheel)
+    float wheel = io.MouseWheel;
+    static int currentZoomIdx = 1;
+    float zoomLevels[] = {0.2f, 1.0f, 2.5f,
+                          5.0f}; // Planet, Region, Local, Detail
 
-    // SIMULATION TICK
-    if (g_activeTab == 1 && !g_isPaused && graph.neighborData) {
+    if (wheel != 0.0f && !io.WantCaptureMouse) {
+      if (wheel > 0 && currentZoomIdx < 3)
+        currentZoomIdx++;
+      else if (wheel < 0 && currentZoomIdx > 0)
+        currentZoomIdx--;
+
+      settings.zoomLevel = zoomLevels[currentZoomIdx];
+    }
+
+    // 2. MOUSE BRUSH LOGIC
+    // If we are clicking on the map (not UI), set dirty flag because
+    // GuiController might have changed terrain
+    if (io.MouseDown[0] && !io.WantCaptureMouse) {
+      renderer.isDirty = true;
+    }
+
+    // Draw the new Command Center Layout
+    GuiState guiState = GuiController::DrawMainLayout(
+        buffers, settings, terrain, graph, winW, winH);
+
+    // --- SIMULATION TICK ---
+    // Runs only if Tab "Life & Civ" is active (id=1) and not paused
+    if (guiState.activeTab == 1 && !guiState.isPaused && graph.neighborData) {
       for (int tick = 0; tick < settings.timeScale; ++tick) {
         ClimateSim::Update(buffers, settings);
         HydrologySim::Update(buffers, graph);
@@ -519,18 +249,25 @@ int main() {
       }
     }
 
-    // RENDER
+    // --- RENDER ---
+    // Calculate Viewport based on GUI layout
+    // Convert GUI coords (Window Space) to Framebuffer Space (DPI aware)
     float dpiX = (float)fbW / (float)winW;
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
-    ImGui::NewFrame();
-    DrawGodModeUI(settings, buffers, terrain, finder, graph, winW, winH);
-    if (g_showDBEditor)
-      DrawDatabaseEditor(&g_showDBEditor);
+    float dpiY = (float)fbH / (float)winH;
 
-    glViewport((int)(uiWidth * dpiX), 0, (int)((winW - uiWidth) * dpiX), fbH);
-    glClearColor(0, 0, 0, 1);
+    // Viewport Y in OpenGL is from Bottom-Left.
+    // GUI Y is from Top-Left.
+    // guiState.viewY is distance from top.
+    // OpenGL Y = winH - (guiState.viewY + guiState.viewH)
+
+    int glViewY = winH - (guiState.viewY + guiState.viewH);
+
+    glViewport((int)(guiState.viewX * dpiX), (int)(glViewY * dpiY),
+               (int)(guiState.viewW * dpiX), (int)(guiState.viewH * dpiY));
+
+    glClearColor(0.1f, 0.1f, 0.1f, 1);
     glClear(GL_COLOR_BUFFER_BIT);
+
     glUseProgram(shaderProgram);
     glUniform1f(glGetUniformLocation(shaderProgram, "u_zoom"),
                 (float)pow(4.0, settings.zoomLevel));
@@ -538,7 +275,8 @@ int main() {
                 settings.viewOffset[0], settings.viewOffset[1]);
     glUniform1f(glGetUniformLocation(shaderProgram, "u_pointSize"),
                 settings.pointSize);
-    renderer.UpdateVisuals(buffers, settings, g_viewMode);
+
+    renderer.UpdateVisuals(buffers, settings, guiState.viewMode);
     renderer.Render(settings);
 
     ImGui::Render();

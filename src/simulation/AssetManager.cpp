@@ -174,6 +174,28 @@ void SaveAll(const std::string &path) {
   }
   o << "  ]\n";
 
+  // Agents (Species)
+  o << "  ,\"agents\": [\n";
+  for (size_t i = 0; i < agentRegistry.size(); ++i) {
+    const auto &a = agentRegistry[i];
+    o << "    {";
+    o << "\"id\":" << a.id << ",";
+    o << "\"name\":\"" << a.name << "\",";
+    o << "\"type\":" << (int)a.type << ",";
+    o << "\"idealTemp\":" << a.idealTemp << ",";
+    o << "\"resilience\":" << a.resilience << ",";
+    o << "\"minTemp\":" << a.deadlyTempLow << ",";
+    o << "\"maxTemp\":" << a.deadlyTempHigh << ",";
+    // Serialize color
+    o << "\"color\":[" << a.color[0] << "," << a.color[1] << "," << a.color[2]
+      << "]";
+    o << "}";
+    if (i < agentRegistry.size() - 1)
+      o << ",";
+    o << "\n";
+  }
+  o << "  ]\n";
+
   o << "}\n";
   o.close();
 

@@ -3,9 +3,9 @@
 #include <string>
 #include <vector>
 
-
 // Helper to wrap the ugly ImGui map editing logic
 void DrawRequirementMap(const char *label, std::map<int, float> &dataMap) {
+  ImGui::PushID(label); // <--- FIX: Scope IDs to this specific map
   ImGui::Text("%s", label);
 
   // 1. LIST EXISTING
@@ -63,6 +63,7 @@ void DrawRequirementMap(const char *label, std::map<int, float> &dataMap) {
       dataMap[realID] = 0.0f; // Default neutral
     }
   }
+  ImGui::PopID(); // <--- FIX: End scope
 }
 
 void DrawDatabaseEditor(bool *p_open) {
