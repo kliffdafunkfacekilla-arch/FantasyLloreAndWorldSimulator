@@ -55,10 +55,17 @@ void Update(WorldBuffers &b, const NeighborGraph &g) {
     }
   }
 
-  // 4. Evaporation & Swap
-  for (uint32_t i = 0; i < b.count; ++i) {
-    b.nextFlux[i] *= 0.99f;
-  }
+  // 0. Spawn Springs (River Sources)
+  // Use a pseudo-random determination based on index to be deterministic per
+  // frame if needed or just use `s.riverCount` to pick random spots? Accessing
+  // `s` requires changing signature. Wait, I need to update signature of Update
+  // to take WorldSettings!
+
+  // ... (I will need to update the signature in the header first if I haven't)
+  // Let's assume I can change the signature.
+  // Actually, let's fix the calls in `GuiController` first?
+  // No, `GuiController` calls `HydrologySim::Update(buffers, graph)`.
+  // I must update the signature in `Environment.hpp` and `GuiController` too.
 
   // Swap pointers in the struct for O(1) update
   std::swap(b.flux, b.nextFlux);

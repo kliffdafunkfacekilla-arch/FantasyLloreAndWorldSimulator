@@ -14,6 +14,7 @@ std::vector<ChaosRule> chaosRules;
 std::vector<City> cityRegistry;
 std::vector<FactionData> factionRegistry;
 std::vector<AgentDefinition> agentRegistry;
+std::vector<BiomeDef> biomeRegistry;
 
 void Initialize() {
   LoadAll();
@@ -37,6 +38,163 @@ void Initialize() {
         {"Reality Tear", ChaosEffect::SPAWN_RIFT, 0.001f, 1.0f, 0.8f});
     chaosRules.push_back(
         {"Resource Decay", ChaosEffect::DESTROY_RESOURCE, 0.05f, 0.3f, 0.5f});
+  }
+
+  // Default Biomes
+  if (biomeRegistry.empty()) {
+    // ID, Name, Color[3], MinT, MaxT, MinM, MaxM, MinH, MaxH, Scarcity
+    biomeRegistry.push_back({0,
+                             "Deep Ocean",
+                             {0.0f, 0.0f, 0.4f},
+                             -1.0f,
+                             2.0f,
+                             -1.0f,
+                             2.0f,
+                             -1.0f,
+                             0.3f,
+                             0.0f});
+    biomeRegistry.push_back(
+        {1,
+         "Ocean",
+         {0.0f, 0.2f, 0.6f},
+         -1.0f,
+         2.0f,
+         -1.0f,
+         2.0f,
+         0.3f,
+         0.5f,
+         0.0f}); // Sea Level is usually ~0.5 in shader logic? need to check.
+    // Actually SeaLevel in settings is usually 0.0?
+    // Lets check MapRenderer logic. "if (h < s.seaLevel)".
+    // Default seaLevel is usually around 0.0.
+    // So Deep Ocean: -1.0 to -0.5
+    // Ocean: -0.5 to 0.0
+
+    // Land Biomes
+    biomeRegistry.push_back({2,
+                             "Beach",
+                             {0.8f, 0.7f, 0.5f},
+                             -1.0f,
+                             2.0f,
+                             -1.0f,
+                             2.0f,
+                             0.0f,
+                             0.05f,
+                             0.0f});
+
+    biomeRegistry.push_back({3,
+                             "Scorched",
+                             {0.3f, 0.1f, 0.1f},
+                             0.8f,
+                             1.0f,
+                             0.0f,
+                             0.2f,
+                             0.05f,
+                             1.0f,
+                             0.0f});
+    biomeRegistry.push_back({4,
+                             "Desert",
+                             {0.9f, 0.8f, 0.5f},
+                             0.6f,
+                             1.0f,
+                             0.0f,
+                             0.3f,
+                             0.05f,
+                             1.0f,
+                             0.0f});
+    biomeRegistry.push_back({5,
+                             "Savanna",
+                             {0.7f, 0.8f, 0.3f},
+                             0.6f,
+                             1.0f,
+                             0.3f,
+                             0.5f,
+                             0.05f,
+                             1.0f,
+                             0.0f});
+    biomeRegistry.push_back({6,
+                             "Tropical Rainforest",
+                             {0.0f, 0.4f, 0.1f},
+                             0.5f,
+                             1.0f,
+                             0.6f,
+                             1.0f,
+                             0.05f,
+                             0.8f,
+                             0.0f});
+
+    biomeRegistry.push_back({7,
+                             "Grassland",
+                             {0.3f, 0.7f, 0.2f},
+                             0.3f,
+                             0.6f,
+                             0.3f,
+                             0.6f,
+                             0.05f,
+                             0.7f,
+                             0.0f});
+    biomeRegistry.push_back({8,
+                             "Forest",
+                             {0.1f, 0.6f, 0.1f},
+                             0.2f,
+                             0.6f,
+                             0.5f,
+                             0.9f,
+                             0.05f,
+                             0.7f,
+                             0.0f});
+    biomeRegistry.push_back({9,
+                             "Temperate Rainforest",
+                             {0.1f, 0.5f, 0.3f},
+                             0.2f,
+                             0.5f,
+                             0.8f,
+                             1.0f,
+                             0.05f,
+                             0.8f,
+                             0.0f});
+
+    biomeRegistry.push_back({10,
+                             "Taiga",
+                             {0.2f, 0.4f, 0.4f},
+                             0.05f,
+                             0.3f,
+                             0.4f,
+                             0.9f,
+                             0.05f,
+                             0.8f,
+                             0.0f});
+    biomeRegistry.push_back({11,
+                             "Tundra",
+                             {0.6f, 0.6f, 0.6f},
+                             -0.2f,
+                             0.05f,
+                             0.0f,
+                             1.0f,
+                             0.05f,
+                             0.8f,
+                             0.0f});
+    biomeRegistry.push_back({12,
+                             "Snow",
+                             {0.9f, 0.9f, 1.0f},
+                             -1.0f,
+                             -0.2f,
+                             0.0f,
+                             1.0f,
+                             0.05f,
+                             1.0f,
+                             0.0f});
+
+    biomeRegistry.push_back({13,
+                             "Mountain",
+                             {0.4f, 0.4f, 0.4f},
+                             -1.0f,
+                             1.0f,
+                             -1.0f,
+                             1.0f,
+                             0.7f,
+                             1.0f,
+                             0.2f}); // High elevation overrides others usually
   }
 
   // Default species
@@ -172,10 +330,10 @@ void SaveAll(const std::string &path) {
       o << ",";
     o << "\n";
   }
-  o << "  ]\n";
+  o << "  ],\n";
 
   // Agents (Species)
-  o << "  ,\"agents\": [\n";
+  o << "  \"agents\": [\n";
   for (size_t i = 0; i < agentRegistry.size(); ++i) {
     const auto &a = agentRegistry[i];
     o << "    {";
@@ -186,11 +344,33 @@ void SaveAll(const std::string &path) {
     o << "\"resilience\":" << a.resilience << ",";
     o << "\"minTemp\":" << a.deadlyTempLow << ",";
     o << "\"maxTemp\":" << a.deadlyTempHigh << ",";
-    // Serialize color
     o << "\"color\":[" << a.color[0] << "," << a.color[1] << "," << a.color[2]
       << "]";
     o << "}";
     if (i < agentRegistry.size() - 1)
+      o << ",";
+    o << "\n";
+  }
+  o << "  ],\n";
+
+  // Biomes
+  o << "  \"biomes\": [\n";
+  for (size_t i = 0; i < biomeRegistry.size(); ++i) {
+    const auto &b = biomeRegistry[i];
+    o << "    {";
+    o << "\"id\":" << b.id << ",";
+    o << "\"name\":\"" << b.name << "\",";
+    o << "\"color\":[" << b.color[0] << "," << b.color[1] << "," << b.color[2]
+      << "],";
+    o << "\"minTemp\":" << b.minTemp << ",";
+    o << "\"maxTemp\":" << b.maxTemp << ",";
+    o << "\"minMoisture\":" << b.minMoisture << ",";
+    o << "\"maxMoisture\":" << b.maxMoisture << ",";
+    o << "\"minHeight\":" << b.minHeight << ",";
+    o << "\"maxHeight\":" << b.maxHeight << ",";
+    o << "\"scarcity\":" << b.scarcity;
+    o << "}";
+    if (i < biomeRegistry.size() - 1)
       o << ",";
     o << "\n";
   }

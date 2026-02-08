@@ -85,6 +85,20 @@ struct Unit {
   bool isAlive;
 };
 
+// --- 6. BIOME DEFINITION ---
+struct BiomeDef {
+  int id;
+  std::string name;
+  float color[3]; // RGB 0.0-1.0
+
+  // Environmental Conditions (Min/Max)
+  float minTemp, maxTemp;
+  float minMoisture, maxMoisture;
+  float minHeight, maxHeight;
+
+  float scarcity; // 0.0 = Common, 1.0 = Rare (Checked first)
+};
+
 namespace AssetManager {
 // Registries
 extern std::vector<PointOfInterest> poiList;
@@ -93,6 +107,9 @@ extern std::vector<ResourceDef> resourceRegistry;
 extern std::vector<ChaosRule> chaosRules;
 extern std::vector<City> cityRegistry;
 extern std::vector<FactionData> factionRegistry;
+
+// NEW: Biomes
+extern std::vector<BiomeDef> biomeRegistry;
 
 // NEW: Agent Definitions (for EditorUI)
 extern std::vector<AgentDefinition> agentRegistry;

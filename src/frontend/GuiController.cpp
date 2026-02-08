@@ -3,7 +3,9 @@
 #include "Biology.hpp"
 #include "Environment.hpp"
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
+#include <cstring>
 
 // State for the GUI (moved from globals to static inside DrawMainLayout or
 // passed refs)
@@ -42,12 +44,15 @@ GuiState GuiController::DrawMainLayout(WorldBuffers &buffers,
   state.viewW = screenW - state.leftPanelWidth - state.rightPanelWidth;
   state.viewH = screenH - state.topBarHeight - state.bottomPanelHeight;
 
+  state.requiresRedraw = false;
+
   // 1. Toolbar (Top)
   DrawToolbar(state, settings, s_isPaused, s_viewMode);
 
   // 2. Architect Panel (Left)
   DrawArchitectPanel(state, buffers, settings, terrain, graph, s_activeTab,
-                     s_paintMode, s_brushSize, s_brushSpeed);
+                     s_paintMode, s_brushSize, s_brushSpeed,
+                     state.requiresRedraw);
 
   // Mouse Logic for Hovered Index & Painting
   static int s_hoveredIndex = -1;
@@ -59,8 +64,20 @@ GuiState GuiController::DrawMainLayout(WorldBuffers &buffers,
     float normX = (mousePos.x - state.viewX) / (float)state.viewW;
     float normY = 1.0f - (relativeY / (float)state.viewH);
 
-    int mapX = (int)(normX * 1000);
-    int mapY = (int)(normY * 1000);
+    // Inverse Transform (Screen -> World)
+    // Shader: Pos = (World - Offset) * Zoom
+    // Inverse: World = (Pos / Zoom) + Offset
+    float zoom = pow(4.0f, settings.zoomLevel);
+
+    // normX/Y are 0..1 relative to viewport
+    // But they represent "Screen Pos" in the shader's Normalized Device
+    // Coordinates context (mapped 0..1)
+
+    float worldX = (normX / zoom) + settings.viewOffset[0];
+    float worldY = (normY / zoom) + settings.viewOffset[1];
+
+    int mapX = (int)(worldX * 1000);
+    int mapY = (int)(worldY * 1000);
 
     if (mapX >= 0 && mapX < 1000 && mapY >= 0 && mapY < 1000) {
       s_hoveredIndex = mapY * 1000 + mapX;
@@ -123,18 +140,11 @@ void GuiController::DrawToolbar(const GuiState &dim, WorldSettings &settings,
   ImGui::Text("Speed: %dx", settings.timeScale);
 
   ImGui::SameLine(300);
-  // View Modes
-  if (ImGui::RadioButton("Satellite", viewMode == 0))
-    viewMode = 0;
-  ImGui::SameLine();
-  if (ImGui::RadioButton("Political", viewMode == 1))
-    viewMode = 1;
-  ImGui::SameLine();
-  if (ImGui::RadioButton("Economic", viewMode == 2))
-    viewMode = 2;
-  ImGui::SameLine();
-  if (ImGui::RadioButton("Magic", viewMode == 3))
-    viewMode = 3;
+  // View Modes - Updated to Combo for space
+  const char *viewItems[] = {"Satellite (Biomes)", "Political (Chaos)",
+                             "Economic (Wealth)",  "Heightmap (Gray)",
+                             "Heightmap (Heat)",   "Topographical"};
+  ImGui::Combo("View Mode", &viewMode, viewItems, 6);
 
   ImGui::SameLine(dim.screenWidth - 250);
   if (ImGui::Button("EDIT RULES / JSON"))
@@ -146,11 +156,15 @@ void GuiController::DrawToolbar(const GuiState &dim, WorldSettings &settings,
 void GuiController::DrawArchitectPanel(
     const GuiState &dim, WorldBuffers &buffers, WorldSettings &settings,
     TerrainController &terrain, NeighborGraph &graph, int &activeTab,
-    int &paintMode, float &brushSize, float &brushSpeed) {
+    int &paintMode, float &brushSize, float &brushSpeed, bool &requiresRedraw) {
 
   // UI State Variables (static for now as requested)
   static bool forceEdges = false;
   static float edgeFadeDist = 50.0f;
+
+  int side = (int)std::sqrt(buffers.count);
+  if (side == 0)
+    side = 1000;
 
   ImGui::SetNextWindowPos(ImVec2(0, (float)dim.topBarHeight));
   ImGui::SetNextWindowSize(ImVec2(
@@ -172,30 +186,50 @@ void GuiController::DrawArchitectPanel(
           terrain.ApplyThermalErosion(buffers, settings.erosionIterations);
         // Re-run checking logic immediately after gen
         if (forceEdges)
-          terrain.EnforceOceanEdges(buffers, 1000, edgeFadeDist);
+          terrain.EnforceOceanEdges(buffers, side, edgeFadeDist);
 
-        for (int i = 0; i < 100; ++i)
-          HydrologySim::Update(buffers, graph);
+        for (int i = 0; i < 100; ++i) {
+          HydrologySim::Update(buffers, graph, settings);
+          DisasterSystem::Update(buffers, settings);
+        }
+
+        requiresRedraw = true; // Full regen always needs redraw
       }
 
       ImGui::SeparatorText("Global Modifiers");
-      ImGui::SliderFloat("Sea Level", &settings.seaLevel, -1.0f, 1.0f);
+      if (ImGui::SliderFloat("Sea Level", &settings.seaLevel, -1.0f, 1.0f)) {
+        requiresRedraw = true;
+      }
 
       if (ImGui::Checkbox("Ocean Borders", &forceEdges)) {
-        if (forceEdges)
-          terrain.EnforceOceanEdges(buffers, 1000, edgeFadeDist);
+        if (forceEdges) {
+          terrain.EnforceOceanEdges(buffers, side, edgeFadeDist);
+          requiresRedraw = true;
+        }
       }
       if (forceEdges) {
         ImGui::Indent();
-        ImGui::SliderFloat("Fade Dist", &edgeFadeDist, 10.0f, 200.0f);
+        if (ImGui::SliderFloat("Fade Dist", &edgeFadeDist, 10.0f, 200.0f)) {
+          // Re-apply if dragging slider? Might be expensive.
+          // Let's apply on Release or just apply always if it's fast enough.
+          terrain.EnforceOceanEdges(buffers, side, edgeFadeDist);
+          requiresRedraw = true;
+        }
         ImGui::Unindent();
       }
 
-      if (ImGui::Button("Smooth Map"))
-        terrain.SmoothTerrain(buffers, 1000);
+      if (ImGui::Button("Smooth Map")) {
+        // Three passes for stronger effect
+        terrain.SmoothTerrain(buffers, side);
+        terrain.SmoothTerrain(buffers, side);
+        terrain.SmoothTerrain(buffers, side);
+        requiresRedraw = true;
+      }
       ImGui::SameLine();
-      if (ImGui::Button("Roughen Coast"))
-        terrain.RoughenCoastlines(buffers, 1000, settings.seaLevel);
+      if (ImGui::Button("Roughen Coast")) {
+        terrain.RoughenCoastlines(buffers, side, settings.seaLevel);
+        requiresRedraw = true;
+      }
 
       ImGui::SeparatorText("Erosion");
       if (ImGui::Button("Erode (1 Step)"))
@@ -215,7 +249,78 @@ void GuiController::DrawArchitectPanel(
       ImGui::EndTabItem();
     }
 
-    // TAB B: Life & Civ
+    // TAB B: Climate & Environment (New)
+    if (ImGui::BeginTabItem("Climate")) {
+      ImGui::SeparatorText("Zones & Temperature");
+      ImGui::SliderFloat("Polar Temp", &settings.tempZonePolar, 0.0f, 1.0f);
+      ImGui::SliderFloat("Temperate Temp", &settings.tempZoneTemperate, 0.0f,
+                         1.0f);
+      ImGui::SliderFloat("Tropical Temp", &settings.tempZoneTropical, 0.0f,
+                         1.0f);
+      ImGui::SliderFloat("Global Temp Mod", &settings.globalTempModifier, 0.0f,
+                         2.0f);
+
+      ImGui::SeparatorText("Wind Zones (N -> S)");
+      for (int i = 0; i < 5; ++i) {
+        char label[32];
+        sprintf(label, "Zone %d Dir", i);
+        ImGui::SliderFloat(label, &settings.windZonesDir[i], -3.14f, 3.14f);
+        sprintf(label, "Zone %d Str", i);
+        ImGui::SliderFloat(label, &settings.windZonesStr[i], 0.0f, 2.0f);
+      }
+      ImGui::SliderFloat("Global Wind", &settings.globalWindStrength, 0.0f,
+                         2.0f);
+
+      ImGui::SeparatorText("Rainfall");
+      ImGui::SliderFloat("Global Rainfall", &settings.rainfallModifier, 0.0f,
+                         3.0f);
+
+      ImGui::EndTabItem();
+    }
+
+    // TAB C: Rivers & Disasters (New)
+    if (ImGui::BeginTabItem("Disasters")) {
+      ImGui::SeparatorText("Hydrology");
+      ImGui::InputInt("River Count", &settings.riverCount);
+      ImGui::Checkbox("Flow to Ocean", &settings.riverFlowToOcean);
+      ImGui::SliderFloat("Max River Size", &settings.riverMaxSize, 1.0f, 50.0f);
+      ImGui::Checkbox("Show Ice", &settings.showIce);
+
+      ImGui::SeparatorText("Disasters");
+
+      auto DrawDisasterControl =
+          [&](const char *name, WorldSettings::DisasterSetting &ds, int type) {
+            ImGui::PushID(type);
+            ImGui::Text("%s", name);
+            ImGui::SameLine();
+            ImGui::Checkbox("##On", &ds.enabled);
+            if (ds.enabled) {
+              ImGui::SliderFloat("freq", &ds.frequency, 0.0001f, 0.01f, "%.4f");
+              ImGui::SameLine();
+              ImGui::SetNextItemWidth(60);
+              ImGui::SliderFloat("str", &ds.strength, 0.1f, 2.0f);
+              ImGui::SameLine();
+              if (ImGui::Button("Spawn")) {
+                int idx = rand() % buffers.count;
+                DisasterSystem::Trigger(buffers, type, idx, ds.strength);
+                requiresRedraw = true;
+              }
+            }
+            ImGui::PopID();
+          };
+
+      DrawDisasterControl("Earthquake", settings.quakeSettings, 0);
+      DrawDisasterControl("Tsunami", settings.tsunamiSettings, 1);
+      DrawDisasterControl("Tornado", settings.tornadoSettings, 2);
+      DrawDisasterControl("Hurricane", settings.hurricaneSettings, 3);
+      DrawDisasterControl("Wildfire", settings.wildfireSettings, 4);
+      DrawDisasterControl("Flood", settings.floodSettings, 5);
+      DrawDisasterControl("Drought", settings.droughtSettings, 6);
+
+      ImGui::EndTabItem();
+    }
+
+    // TAB D: Life & Civ
     if (ImGui::BeginTabItem("Life & Civ")) {
       activeTab = 1; // Simulation Active
 
@@ -318,6 +423,70 @@ void GuiController::DrawDatabaseEditor(bool *p_open) {
         for (auto &r : AssetManager::resourceRegistry) {
           ImGui::Text("%s ($%.2f)", r.name.c_str(), r.value);
         }
+        ImGui::EndTabItem();
+      }
+
+      if (ImGui::BeginTabItem("Biomes")) {
+        static int selectedBiome = -1;
+
+        // List of Biomes (Left Side)
+        ImGui::BeginChild("BiomeList", ImVec2(150, 0), true);
+        for (int i = 0; i < (int)AssetManager::biomeRegistry.size(); ++i) {
+          if (ImGui::Selectable(AssetManager::biomeRegistry[i].name.c_str(),
+                                selectedBiome == i)) {
+            selectedBiome = i;
+          }
+        }
+        if (ImGui::Button("Add New")) {
+          BiomeDef b;
+          b.id = (int)AssetManager::biomeRegistry.size();
+          b.name = "New Biome";
+          b.color[0] = 1.0f;
+          b.color[1] = 0.0f;
+          b.color[2] = 1.0f; // Pink default
+          b.minTemp = 0;
+          b.maxTemp = 1;
+          b.minMoisture = 0;
+          b.maxMoisture = 1;
+          b.minHeight = 0;
+          b.maxHeight = 1;
+          b.scarcity = 0.0f;
+          AssetManager::biomeRegistry.push_back(b);
+          selectedBiome = (int)AssetManager::biomeRegistry.size() - 1;
+        }
+        ImGui::EndChild();
+
+        ImGui::SameLine();
+
+        // Editor (Right Side)
+        if (selectedBiome >= 0 &&
+            selectedBiome < (int)AssetManager::biomeRegistry.size()) {
+          BiomeDef &b = AssetManager::biomeRegistry[selectedBiome];
+          ImGui::BeginGroup();
+          char nameBuf[64];
+          std::strncpy(nameBuf, b.name.c_str(), sizeof(nameBuf));
+          if (ImGui::InputText("Name", nameBuf, sizeof(nameBuf))) {
+            b.name = std::string(nameBuf);
+          }
+          ImGui::ColorEdit3("Color", b.color);
+
+          ImGui::SeparatorText("Conditions");
+          ImGui::DragFloatRange2("Height", &b.minHeight, &b.maxHeight, 0.01f,
+                                 -1.0f, 1.0f);
+          ImGui::DragFloatRange2("Temp", &b.minTemp, &b.maxTemp, 0.01f, -1.0f,
+                                 2.0f);
+          ImGui::DragFloatRange2("Moisture", &b.minMoisture, &b.maxMoisture,
+                                 0.01f, 0.0f, 2.0f);
+          ImGui::SliderFloat("Scarcity", &b.scarcity, 0.0f, 1.0f);
+
+          if (ImGui::Button("Delete Biome")) {
+            AssetManager::biomeRegistry.erase(
+                AssetManager::biomeRegistry.begin() + selectedBiome);
+            selectedBiome = -1;
+          }
+          ImGui::EndGroup();
+        }
+
         ImGui::EndTabItem();
       }
       ImGui::EndTabBar();

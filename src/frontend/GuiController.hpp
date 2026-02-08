@@ -18,6 +18,9 @@ struct GuiState {
   bool isPaused;
   int activeTab; // 0=Geo, 1=Life
   int viewMode;  // 0=Sat, 1=Pol, 2=Eco, 3=Magic
+
+  // Dirty Flags
+  bool requiresRedraw;
 };
 
 class GuiController {
@@ -36,7 +39,7 @@ private:
                                  TerrainController &terrain,
                                  NeighborGraph &graph, int &activeTab,
                                  int &paintMode, float &brushSize,
-                                 float &brushSpeed);
+                                 float &brushSpeed, bool &requiresRedraw);
   static void DrawInspector(const GuiState &dim, WorldBuffers &buffers,
                             int hoveredIndex);
   static void DrawChronicle(const GuiState &dim);

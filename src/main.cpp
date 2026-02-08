@@ -118,7 +118,7 @@ void MasterRegenerate(WorldBuffers &buffers, WorldSettings &settings,
 
   if (graph.neighborData) {
     for (int i = 0; i < 200; ++i) {
-      HydrologySim::Update(buffers, graph);
+      HydrologySim::Update(buffers, graph, settings);
     }
   }
 }
@@ -222,6 +222,42 @@ int main() {
       settings.zoomLevel = zoomLevels[currentZoomIdx];
     }
 
+    // 1.5 PAN HANDLING (Middle Mouse Drag)
+    if (ImGui::IsMouseDragging(ImGuiMouseButton_Middle)) {
+      ImVec2 delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Middle);
+      // Reset delta so we get incremental updates
+      ImGui::ResetMouseDragDelta(ImGuiMouseButton_Middle);
+
+      // Convert screen delta to world delta
+      // WorldDelta = -ScreenDelta / (ViewportSize * Zoom)
+      // We need 'guiState' for ViewportSize, but we haven't calculated it yet
+      // this frame. We can approximate or perform this Logic AFTER
+      // DrawMainLayout? Or just use WinW * 0.7f (approx viewport width) Let's
+      // defer Panning update to AFTER DrawMainLayout or use current 'fbW'
+      // assuming full width for now. Better: Use calculated guiState from
+      // previous frame? Actually, just using a sensitive constant is often
+      // enough for "feeling".
+
+      float zoom = pow(4.0f, settings.zoomLevel);
+      float panSpeed = 1.0f / (1000.0f * zoom); // 1000 approx pixels
+
+      // Invert X/Y because dragging mouse Right should move View Left (Offset
+      // decreases) Wait, Offset is "Camera Position" essentially. If I move
+      // Camera Right (Increase Offset), the World moves Left. If I drag Mouse
+      // Right, I want World to move Right. So I need to DECREASE Offset.
+
+      settings.viewOffset[0] -= delta.x * panSpeed * 2.0f; // *2.0 for speed
+      settings.viewOffset[1] +=
+          delta.y * panSpeed * 2.0f; // Dragging Up moves map Up (Decrease Y
+                                     // offset? No, Render Y is flipped)
+
+      // Clamp
+      // settings.viewOffset[0] = std::max(0.0f, std::min(1.0f,
+      // settings.viewOffset[0])); settings.viewOffset[1] = std::max(0.0f,
+      // std::min(1.0f, settings.viewOffset[1])); Actually, let's not clamp
+      // tightly yet, to allow overscroll.
+    }
+
     // 2. MOUSE BRUSH LOGIC
     // If we are clicking on the map (not UI), set dirty flag because
     // GuiController might have changed terrain
@@ -233,12 +269,17 @@ int main() {
     GuiState guiState = GuiController::DrawMainLayout(
         buffers, settings, terrain, graph, winW, winH);
 
+    // 2.5 HANDLE REDRAW REQUESTS
+    if (guiState.requiresRedraw) {
+      renderer.isDirty = true;
+    }
+
     // --- SIMULATION TICK ---
     // Runs only if Tab "Life & Civ" is active (id=1) and not paused
     if (guiState.activeTab == 1 && !guiState.isPaused && graph.neighborData) {
       for (int tick = 0; tick < settings.timeScale; ++tick) {
         ClimateSim::Update(buffers, settings);
-        HydrologySim::Update(buffers, graph);
+        HydrologySim::Update(buffers, graph, settings);
         AgentSystem::UpdateBiology(buffers, settings);
         if (settings.enableFactions)
           AgentSystem::UpdateCivilization(buffers, graph);

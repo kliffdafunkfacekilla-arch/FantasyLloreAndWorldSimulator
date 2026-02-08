@@ -137,33 +137,59 @@ struct WorldSettings {
       1.0f; // Exponent for slope steepness (NOT used for warp)
   float featureClustering = 2.0f; // Lacunarity // Noise frequency
 
-  // Climate & Wind (3-Zone System)
-  float windDirNorth = 0.0f;
-  float windStrengthNorth = 0.5f;
-  float windDirEquator = 3.14f;
-  float windStrengthEquator = 0.8f;
-  float windDirSouth = 0.0f;
-  float windStrengthSouth = 0.5f;
+  // --- CLIMATE CONTROLS (User Request) ---
+  // Temperature Zones: 0=Polar, 1=Temperate, 2=Tropical
+  float tempZonePolar = 0.0f;     // Temp at poles
+  float tempZoneTemperate = 0.5f; // Temp at mid-latitudes
+  float tempZoneTropical = 1.0f;  // Temp at equator
 
-  float tempOffsetNorth = 0.0f;
-  float tempOffsetSouth = 0.0f;
+  // Wind Zones (5 Directions: N, NE, E, SE, S) - Simplified representation
+  // actually user asked for "5 wind direction zones".
+  // Let's model this as 5 latitude bands with distinct wind vectors.
+  // Band 0 (North Pole), 1 (North Temp), 2 (Equator), 3 (South Temp), 4 (South
+  // Pole)
+  float windZonesDir[5] = {3.14f / 2.0f, 3.14f / 4.0f, 0.0f, -3.14f / 4.0f,
+                           -3.14f / 2.0f}; // Rads
+  float windZonesStr[5] = {0.5f, 0.5f, 1.0f, 0.5f, 0.5f};
 
+  float globalRainfall = 1.0f;   // User requested "1 over all rainfall"
+  float rainfallModifier = 1.0f; // Kept for compatibility/slider
   float globalTempModifier = 1.0f;
-  float rainfallModifier = 1.0f;
   float globalWindStrength = 1.0f;
+
+  // River Controls
+  int riverCount = 50;
+  float riverMaxSize = 5.0f;    // Max width/volume
+  bool riverFlowToOcean = true; // Force routing
+  bool showIce = true;
 
   // Island Mode
   bool islandMode = false;
   float edgeFalloff = 0.15f;
-  float islandMargin = 50.0f; // Minimum cells from edge
+  float islandMargin = 50.0f;
 
   // Erosion
   int erosionIterations = 10;
 
-  // View & Scale (Zoom System)
-  int zoomLevel = 0;                  // 0=Global, 3=Local
-  float pointSize = 1.0f;             // GPU point size
-  float viewOffset[2] = {0.0f, 0.0f}; // Camera X,Y (Start at origin)
+  // View & Scale
+  int zoomLevel = 0;
+  float pointSize = 1.0f;
+  float viewOffset[2] = {0.0f, 0.0f};
+
+  // --- DISASTER CONTROLS ---
+  struct DisasterSetting {
+    bool enabled = true;
+    float frequency = 0.001f; // Probability per tick
+    float strength = 0.5f;
+  };
+
+  DisasterSetting quakeSettings;
+  DisasterSetting tsunamiSettings;
+  DisasterSetting tornadoSettings;
+  DisasterSetting hurricaneSettings;
+  DisasterSetting wildfireSettings;
+  DisasterSetting floodSettings;
+  DisasterSetting droughtSettings;
 
   // Factions & Biology
   bool enableFactions = true;

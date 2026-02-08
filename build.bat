@@ -35,10 +35,10 @@ clang++ -std=c++20 ^
     -L C:/msys64/mingw64/lib ^
     -lglfw3 -lglew32 -lopengl32 -lgdi32 -luser32 -lkernel32 -lshell32 -lcomdlg32 ^
     -static-libgcc -static-libstdc++ ^
-    -o bin/OmnisWorldEngine.exe
+    -o bin/OmnisWorldEngine_v2.exe
 
 if %ERRORLEVEL% EQU 0 (
-    echo [SUCCESS] Build complete! Run bin\OmnisWorldEngine.exe
+    echo [SUCCESS] Build complete! Run bin\OmnisWorldEngine_v2.exe
     exit /b 0
 ) else (
     echo [ERROR] Build failed.

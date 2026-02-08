@@ -1,8 +1,10 @@
 #include "MapRenderer.hpp"
+#include "../../include/AssetManager.hpp"
 #include <algorithm> // for std::min, std::max
 #include <cmath>
 #include <iostream>
 #include <vector>
+
 
 // 1. Initialization
 void MapRenderer::Setup(const WorldBuffers &buffers) {
@@ -36,19 +38,60 @@ void MapRenderer::Setup(const WorldBuffers &buffers) {
 // viewMode: 0=Terrain, 1=Chaos, 2=Economy
 void MapRenderer::UpdateVisuals(const WorldBuffers &buffers,
                                 const WorldSettings &s, int viewMode) {
+  // viewMode:
+  // 0=Terrain(Standard/Biome), 1=Chaos, 2=Economy
+  // 3=Heightmap(Gray), 4=Heightmap(Color), 5=Topographical
+
   static int lastViewMode = -1;
-  if (!isDirty && viewMode == lastViewMode)
+  static float lastSeaLevel = -1.0f;
+
+  // Check if anything significant changed
+  if (!isDirty && viewMode == lastViewMode && s.seaLevel == lastSeaLevel)
     return;
 
   lastViewMode = viewMode;
+  lastSeaLevel = s.seaLevel;
+
   colorBuffer.resize(buffers.count * 3);
 
   for (size_t i = 0; i < buffers.count; ++i) {
     float h = buffers.height[i];
     float r = 0, g = 0, b = 0;
 
-    // --- SPECIAL VIEW MODES ---
-    if (viewMode == 1 && buffers.chaos) {
+    // --- VIEW MODES ---
+    if (viewMode == 3) {
+      // Heightmap (Grayscale)
+      float val = (h + 1.0f) * 0.5f; // Map -1..1 to 0..1
+      r = g = b = std::max(0.0f, std::min(1.0f, val));
+    } else if (viewMode == 4) {
+      // Heightmap (Heatmap: Blue->Green->Red)
+      float val = (h + 1.0f) * 0.5f;
+      if (val < 0.5f) {
+        // Blue to Green
+        r = 0.0f;
+        g = val * 2.0f;
+        b = 1.0f - (val * 2.0f);
+      } else {
+        // Green to Red
+        r = (val - 0.5f) * 2.0f;
+        g = 1.0f - ((val - 0.5f) * 2.0f);
+        b = 0.0f;
+      }
+    } else if (viewMode == 5) {
+      // Topographical (Banded)
+      float val = (h + 1.0f) * 0.5f;
+      float band = floor(val * 20.0f) / 20.0f; // 20 bands
+      // Color based on elevation type
+      if (val < 0.5f) { // Water
+        r = 0.0f;
+        g = 0.2f + band * 0.3f;
+        b = 0.5f + band * 0.5f;
+      } else { // Land
+        r = 0.2f + band * 0.8f;
+        g = 0.5f + band * 0.3f;
+        b = 0.2f;
+      }
+    } else if (viewMode == 1 && buffers.chaos) {
       // CHAOS VIEW (Purple magic)
       float c = buffers.chaos[i];
       r = c;
@@ -57,66 +100,84 @@ void MapRenderer::UpdateVisuals(const WorldBuffers &buffers,
       if (c > 0.01f) {
         r += 0.2f;
         b += 0.4f;
-      } // Glow effect
+      }
       r = std::min(r, 1.0f);
       b = std::min(b, 1.0f);
     } else if (viewMode == 2 && buffers.wealth) {
-      // ECONOMY VIEW (Gold/Red for cities)
+      // ECONOMY VIEW
       float w = buffers.wealth ? buffers.wealth[i] : 0.0f;
       float infra = buffers.infrastructure ? buffers.infrastructure[i] : 0.0f;
-
       r = std::min(1.0f, (w / 100.0f) + infra);
       g = std::min(1.0f, (w / 100.0f));
       b = 0.0f;
-    } else if (h < s.seaLevel) {
-      // Ocean
-      float depth = h / s.seaLevel;
-      r = 0.0f;
-      g = 0.2f * depth;
-      b = 0.4f + (0.4f * depth);
     } else {
-      // Land
-      // Whittaker-like Biome Logic
+      // STANDARD TERRAIN (Biomes)
+      if (h < s.seaLevel) {
+        // Ocean
+        float depth = h / (s.seaLevel + 1.0f); // approx depth
+        // Let's keep it simple: Deep Ocean vs Ocean vs Coast
+        // We can try to use Biomes for ocean too if we want, but usually ocean
+        // is handled by seaLevel check foremost. But user wants custom biomes.
+        // Let's check Ocean biomes in the loop? Actually, easiest to keep
+        // hardcoded water base, OR look up biome.
+
+        // Let's try dynamic lookup for everything!
+        // But optimization: only check if we don't return early.
+      }
+
+      // DYNAMIC BIOME LOOKUP
+      // Iterate through registry. First match wins (or we can add scoring).
+      bool matched = false;
       float t = buffers.temperature[i];
       float m = buffers.moisture[i];
 
-      // Default (Rock/High Altitude)
-      r = 0.5f;
-      g = 0.5f;
-      b = 0.5f;
+      // Default color if no biome matches (Error Pink)
+      r = 1.0f;
+      g = 0.0f;
+      b = 1.0f;
 
-      if (t < 0.2f) {
-        // Snow/Ice (White)
-        r = 0.95f;
-        g = 0.95f;
-        b = 1.0f;
-      } else if (buffers.civTier && buffers.civTier[i] >= 3) {
-        // City/Town (Red/Faction Color) - Only show T3+
-        r = 1.0f;
-        g = 0.0f;
-        b = 0.0f;
-      } else if (buffers.flux && buffers.flux[i] > 1.0f) {
-        // River (Blue) - Color based on flow volume
-        float intensity = std::min(buffers.flux[i] * 0.1f, 1.0f);
-        r = 0.0f;
-        g = 0.2f + intensity * 0.5f;
-        b = 0.8f + intensity * 0.2f;
-      } else if (m < 0.2f) {
-        // Desert (Yellow/Sand)
-        r = 0.9f;
-        g = 0.8f;
-        b = 0.5f;
-      } else if (m > 0.6f && t > 0.6f) {
-        // Rainforest (Dark Green)
-        r = 0.0f;
-        g = 0.35f;
-        b = 0.1f;
-      } else {
-        // Plains/Forest (Green)
-        // Variation based on height for visual depth
-        r = 0.2f;
-        g = 0.6f - (h * 0.2f);
-        b = 0.1f;
+      for (const auto &biome : AssetManager::biomeRegistry) {
+        // Check Height
+        // If biome.minHeight == -1.0, it ignores lower bound? No, usually -1.0
+        // is lowest. Special case: Ocean vs Land. If the biome is meant to be
+        // underwater, its maxHeight should be < seaLevel. If the biome is land,
+        // its minHeight should be > seaLevel.
+
+        // Actually, let's just stick to raw values.
+        // If h is between minH and maxH
+        if (h >= biome.minHeight && h <= biome.maxHeight) {
+          if (t >= biome.minTemp && t <= biome.maxTemp) {
+            if (m >= biome.minMoisture && m <= biome.maxMoisture) {
+              // MATCH!
+              r = biome.color[0];
+              g = biome.color[1];
+              b = biome.color[2];
+
+              // Visual noise/texture based on height variation
+              float noise = (rand() % 10) / 100.0f;
+              r += noise;
+              g += noise;
+              b += noise;
+
+              matched = true;
+              break;
+            }
+          }
+        }
+      }
+
+      if (!matched) {
+        // Fallback if no biome found (e.g. gaps in definition)
+        if (h < s.seaLevel) {
+          r = 0;
+          g = 0.2f;
+          b = 0.6f;
+        } // Generic Water
+        else {
+          r = 0.5f;
+          g = 0.5f;
+          b = 0.5f;
+        } // Generic Land
       }
     }
 
@@ -125,6 +186,7 @@ void MapRenderer::UpdateVisuals(const WorldBuffers &buffers,
     colorBuffer[i * 3 + 2] = b;
   }
 
+  // Update Buffers... (Existing code below)
   glBindVertexArray(vao);
 
   // Update Position Buffer
