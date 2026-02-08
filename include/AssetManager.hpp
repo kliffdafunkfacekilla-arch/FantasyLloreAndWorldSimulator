@@ -147,6 +147,9 @@ void SetRelation(int factionA, int factionB, float value);
 void SpawnUnit(UnitType type, int faction, int startIdx, int targetIdx,
                int mapWidth = 1000);
 
+// Resource Editor
+void CreateNewResource();
+
 // Agent Editor
 void CreateNewAgent();
 } // namespace AssetManager

@@ -113,8 +113,8 @@ GuiState GuiController::DrawMainLayout(WorldBuffers &buffers,
   state.activeTab = s_activeTab;
   state.viewMode = s_viewMode;
 
-  if (s_showDBEditor)
-    DrawDatabaseEditor(&s_showDBEditor);
+  // No longer checking s_showDBEditor here, DrawDatabaseEditor handles it
+  DrawDatabaseEditor(&s_showDBEditor);
 
   return state;
 }
@@ -424,13 +424,65 @@ void GuiController::DrawDatabaseEditor(bool *p_open) {
     s_dbEditorNeedsOpening = false;
   }
 
-  if (ImGui::BeginPopupModal("Database Editor", p_open,
-                             ImGuiWindowFlags_AlwaysAutoResize)) {
+  ImGui::SetNextWindowSize(ImVec2(800, 600), ImGuiCond_FirstUseEver);
+  if (ImGui::BeginPopupModal("Database Editor", p_open)) {
     if (ImGui::BeginTabBar("DBTabs")) {
       if (ImGui::BeginTabItem("Resources")) {
-        for (auto &r : AssetManager::resourceRegistry) {
-          ImGui::Text("%s ($%.2f)", r.name.c_str(), r.value);
+        static int selectedRes = -1;
+
+        // List of Resources (Left Side)
+        ImGui::BeginChild("ResList", ImVec2(200, 0), true);
+        for (int i = 0; i < (int)AssetManager::resourceRegistry.size(); ++i) {
+          ImGui::PushID(i);
+          const char *label = AssetManager::resourceRegistry[i].name.c_str();
+          if (label[0] == '\0')
+            label = "(Unnamed Resource)";
+          if (ImGui::Selectable(label, selectedRes == i)) {
+            selectedRes = i;
+          }
+          ImGui::PopID();
         }
+        if (ImGui::Button("Add New Resource", ImVec2(-FLT_MIN, 0))) {
+          AssetManager::CreateNewResource();
+          selectedRes = (int)AssetManager::resourceRegistry.size() - 1;
+        }
+        ImGui::EndChild();
+
+        ImGui::SameLine();
+
+        // Editor (Right Side)
+        if (selectedRes >= 0 &&
+            selectedRes < (int)AssetManager::resourceRegistry.size()) {
+          ResourceDef &r = AssetManager::resourceRegistry[selectedRes];
+          ImGui::BeginGroup();
+          char nameBuf[64];
+          std::memset(nameBuf, 0, 64);
+          std::strncpy(nameBuf, r.name.c_str(), 63);
+          if (ImGui::InputText("Name", nameBuf, 64)) {
+            r.name = std::string(nameBuf);
+          }
+
+          ImGui::SliderFloat("Value", &r.value, 0.1f, 100.0f, "$%.2f");
+          ImGui::Checkbox("Renewable", &r.isRenewable);
+          if (r.isRenewable) {
+            ImGui::SliderFloat("Regen Rate", &r.regenerationRate, 0.01f, 1.0f);
+          }
+          ImGui::SliderFloat("Scarcity", &r.scarcity, 0.0f, 1.0f);
+
+          ImGui::SeparatorText("Automatic Spawning (Natural)");
+          ImGui::Checkbox("Forests", &r.spawnsInForest);
+          ImGui::Checkbox("Mountains", &r.spawnsInMountain);
+          ImGui::Checkbox("Deserts", &r.spawnsInDesert);
+          ImGui::Checkbox("Oceans", &r.spawnsInOcean);
+
+          if (ImGui::Button("Delete Resource")) {
+            AssetManager::resourceRegistry.erase(
+                AssetManager::resourceRegistry.begin() + selectedRes);
+            selectedRes = -1;
+          }
+          ImGui::EndGroup();
+        }
+
         ImGui::EndTabItem();
       }
 
@@ -440,10 +492,14 @@ void GuiController::DrawDatabaseEditor(bool *p_open) {
         // List of Biomes (Left Side)
         ImGui::BeginChild("BiomeList", ImVec2(150, 0), true);
         for (int i = 0; i < (int)AssetManager::biomeRegistry.size(); ++i) {
-          if (ImGui::Selectable(AssetManager::biomeRegistry[i].name.c_str(),
-                                selectedBiome == i)) {
+          ImGui::PushID(i);
+          const char *label = AssetManager::biomeRegistry[i].name.c_str();
+          if (label[0] == '\0')
+            label = "(Unnamed Biome)";
+          if (ImGui::Selectable(label, selectedBiome == i)) {
             selectedBiome = i;
           }
+          ImGui::PopID();
         }
         if (ImGui::Button("Add New")) {
           BiomeDef b;
@@ -501,10 +557,14 @@ void GuiController::DrawDatabaseEditor(bool *p_open) {
         static int selectedAgent = -1;
         ImGui::BeginChild("AgentList", ImVec2(150, 0), true);
         for (int i = 0; i < (int)AssetManager::agentRegistry.size(); ++i) {
-          if (ImGui::Selectable(AssetManager::agentRegistry[i].name.c_str(),
-                                selectedAgent == i)) {
+          ImGui::PushID(i);
+          const char *label = AssetManager::agentRegistry[i].name.c_str();
+          if (label[0] == '\0')
+            label = "(Unnamed Agent)";
+          if (ImGui::Selectable(label, selectedAgent == i)) {
             selectedAgent = i;
           }
+          ImGui::PopID();
         }
         if (ImGui::Button("Add New Agent")) {
           AssetManager::CreateNewAgent();
@@ -529,12 +589,118 @@ void GuiController::DrawDatabaseEditor(bool *p_open) {
             a.type = (AgentType)tIdx;
           ImGui::ColorEdit3("Color", a.color);
 
-          ImGui::SeparatorText("Simulation");
-          ImGui::SliderFloat("Ideal Temp", &a.idealTemp, 0, 1);
-          ImGui::SliderFloat("Ideal Moist", &a.idealMoisture, 0, 1);
-          ImGui::SliderFloat("Resilience", &a.resilience, 0, 1);
-          ImGui::SliderFloat("Expansion", &a.expansionRate, 0, 1);
-          ImGui::SliderFloat("Aggression", &a.aggression, 0, 1);
+          if (ImGui::BeginTabBar("AgentConfigTabs")) {
+            // PAGE 1: BIOLOGY
+            if (ImGui::BeginTabItem("Biology")) {
+              ImGui::SeparatorText("Tolerances");
+              ImGui::SliderFloat("Ideal Temp", &a.idealTemp, 0, 1);
+              ImGui::SliderFloat("Ideal Moist", &a.idealMoisture, 0, 1);
+              ImGui::DragFloatRange2("Temp Low/High", &a.deadlyTempLow,
+                                     &a.deadlyTempHigh, 0.01f, -1.0f, 2.0f);
+              ImGui::DragFloatRange2("Moist Low/High", &a.deadlyMoistureLow,
+                                     &a.deadlyMoistureHigh, 0.01f, 0.0f, 2.0f);
+
+              ImGui::SeparatorText("Growth & Combat");
+              ImGui::SliderFloat("Resilience", &a.resilience, 0, 1);
+              ImGui::SliderFloat("Expansion", &a.expansionRate, 0, 1);
+              ImGui::SliderFloat("Aggression", &a.aggression, 0, 1);
+              ImGui::EndTabItem();
+            }
+
+            // PAGE 2: DIET & AFFINITY
+            if (ImGui::BeginTabItem("Diet & Affinity")) {
+              ImGui::TextDisabled(
+                  "Affinity determines where agents seek to live.");
+              ImGui::TextDisabled(
+                  "Diet determines what they consume to survive.");
+
+              static int dietResID = 0;
+              static float dietVal = 0.5f;
+              ImGui::Combo(
+                  "Resource", &dietResID,
+                  [](void *data, int idx, const char **out_text) {
+                    if (idx < 0 ||
+                        idx >= (int)AssetManager::resourceRegistry.size())
+                      return false;
+                    *out_text =
+                        AssetManager::resourceRegistry[idx].name.c_str();
+                    if (*out_text == nullptr || (*out_text)[0] == '\0')
+                      *out_text = "(Unnamed Resource)";
+                    return true;
+                  },
+                  nullptr, (int)AssetManager::resourceRegistry.size());
+
+              ImGui::SliderFloat("Value (-1 to 1)", &dietVal, -1.0f, 1.0f);
+              if (ImGui::Button("Update Affinity/Diet")) {
+                a.diet[dietResID] = dietVal;
+              }
+
+              ImGui::SeparatorText("Current Rules");
+              for (auto it = a.diet.begin(); it != a.diet.end();) {
+                const char *resName = "Unknown";
+                if (it->first < (int)AssetManager::resourceRegistry.size())
+                  resName =
+                      AssetManager::resourceRegistry[it->first].name.c_str();
+                if (resName == nullptr || resName[0] == '\0')
+                  resName = "(Unnamed Resource)";
+
+                ImGui::Text("%s: %.2f", resName, it->second);
+                ImGui::SameLine(ImGui::GetWindowWidth() - 40);
+                ImGui::PushID(it->first);
+                if (ImGui::SmallButton("X"))
+                  it = a.diet.erase(it);
+                else
+                  ++it;
+                ImGui::PopID();
+              }
+              ImGui::EndTabItem();
+            }
+
+            // PAGE 3: PRODUCTION / OUTPUT
+            if (ImGui::BeginTabItem("Output")) {
+              ImGui::TextDisabled("What this agent produces per tick.");
+              static int outResID = 0;
+              static float outVal = 0.1f;
+              ImGui::Combo(
+                  "Resource##Out", &outResID,
+                  [](void *data, int idx, const char **out_text) {
+                    if (idx < 0 ||
+                        idx >= (int)AssetManager::resourceRegistry.size())
+                      return false;
+                    *out_text =
+                        AssetManager::resourceRegistry[idx].name.c_str();
+                    if (*out_text == nullptr || (*out_text)[0] == '\0')
+                      *out_text = "(Unnamed Resource)";
+                    return true;
+                  },
+                  nullptr, (int)AssetManager::resourceRegistry.size());
+
+              ImGui::SliderFloat("Rate", &outVal, 0.0f, 2.0f);
+              if (ImGui::Button("Add Output")) {
+                a.output[outResID] = outVal;
+              }
+
+              ImGui::SeparatorText("Current Outputs");
+              for (auto it = a.output.begin(); it != a.output.end();) {
+                const char *resName = "Unknown";
+                if (it->first < (int)AssetManager::resourceRegistry.size())
+                  resName =
+                      AssetManager::resourceRegistry[it->first].name.c_str();
+
+                ImGui::Text("%s: %.2f", resName, it->second);
+                ImGui::SameLine(ImGui::GetWindowWidth() - 40);
+                ImGui::PushID(it->first + 1000);
+                if (ImGui::SmallButton("X"))
+                  it = a.output.erase(it);
+                else
+                  ++it;
+                ImGui::PopID();
+              }
+              ImGui::EndTabItem();
+            }
+
+            ImGui::EndTabBar();
+          }
 
           ImGui::EndChild();
         }

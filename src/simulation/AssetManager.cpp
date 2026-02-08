@@ -463,6 +463,26 @@ void SpawnUnit(UnitType type, int faction, int startIdx, int targetIdx,
   activeUnits.push_back(u);
 }
 
+void CreateNewResource() {
+  if (resourceRegistry.size() >= WorldBuffers::MAX_RESOURCES) {
+    std::cout << "[ASSETS] WARNING: Maximum resource limit ("
+              << WorldBuffers::MAX_RESOURCES << ") reached. Cannot add more.\n";
+    return;
+  }
+  ResourceDef r;
+  r.id = (int)resourceRegistry.size();
+  r.name = "New Resource";
+  r.value = 1.0f;
+  r.isRenewable = true;
+  r.regenerationRate = 0.1f;
+  r.scarcity = 0.5f;
+  r.spawnsInForest = true;
+  r.spawnsInMountain = false;
+  r.spawnsInDesert = false;
+  r.spawnsInOcean = false;
+  resourceRegistry.push_back(r);
+}
+
 void CreateNewAgent() {
   AgentDefinition a;
   a.id = (int)agentRegistry.size();
@@ -534,7 +554,8 @@ void SaveSimulationState(const std::string &path, const WorldBuffers &buffers,
   saveArrInt(buffers.buildingID, count * sizeof(int));
 
   if (buffers.resourceInventory) {
-    out.write((char *)buffers.resourceInventory, count * 8 * sizeof(float));
+    out.write((char *)buffers.resourceInventory,
+              count * WorldBuffers::MAX_RESOURCES * sizeof(float));
   }
 
   std::cout << "[ASSETS] World State Saved: " << path << std::endl;
@@ -591,7 +612,8 @@ void LoadSimulationState(const std::string &path, WorldBuffers &buffers,
   loadArrInt(buffers.buildingID, count * sizeof(int));
 
   if (buffers.resourceInventory) {
-    in.read((char *)buffers.resourceInventory, count * 8 * sizeof(float));
+    in.read((char *)buffers.resourceInventory,
+            count * WorldBuffers::MAX_RESOURCES * sizeof(float));
   }
 
   std::cout << "[ASSETS] World State Loaded: " << path << std::endl;

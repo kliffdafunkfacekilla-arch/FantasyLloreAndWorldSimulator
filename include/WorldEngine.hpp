@@ -237,7 +237,7 @@ struct WorldBuffers {
   int *civTier = nullptr;
   int *buildingID = nullptr;          // Which building type is here
   float *resourceInventory = nullptr; // Flattened [cellIdx * 8 + resID]
-  static const int MAX_RESOURCES = 8;
+  static const int MAX_RESOURCES = 16;
 
   // Metadata
   uint32_t count = 0;

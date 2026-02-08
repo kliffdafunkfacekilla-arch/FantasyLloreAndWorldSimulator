@@ -7,19 +7,7 @@
 #include <vector>
 
 namespace AgentSystem {
-
-// --- HELPER: RESOURCE MANAGEMENT ---
-float GetRes(const WorldBuffers &b, int cellIdx, int resID) {
-  if (!b.resourceInventory || resID < 0)
-    return 0.0f;
-  return b.resourceInventory[cellIdx * 8 + resID];
-}
-
-void AddRes(WorldBuffers &b, int cellIdx, int resID, float amount) {
-  if (!b.resourceInventory || resID < 0)
-    return;
-  b.resourceInventory[cellIdx * 8 + resID] += amount;
-}
+std::vector<AgentTemplate> speciesRegistry;
 
 // --- INITIALIZATION ---
 void Initialize() {
@@ -40,7 +28,7 @@ float CalculateDesire(int cellIdx, const AgentDefinition &dna,
   float foodScore = 0.0f;
   if (dna.type == AgentType::FAUNA) {
     for (auto const &[resID, required] : dna.diet) {
-      float available = GetRes(b, cellIdx, resID);
+      float available = b.GetResource(cellIdx, resID);
       if (available > required)
         foodScore += 1.0f;
     }
@@ -90,19 +78,19 @@ void Update(WorldBuffers &b, const NeighborGraph &g) {
     bool isStarving = false;
     for (auto const &[resID, amount] : dna.diet) {
       float needed = amount * (myPop / 100.0f);
-      float available = GetRes(b, i, resID);
+      float available = b.GetResource(i, resID);
       if (available >= needed) {
-        AddRes(b, i, resID, -needed);
+        b.AddResource(i, resID, -needed);
       } else {
         isStarving = true;
-        AddRes(b, i, resID, -available);
+        b.AddResource(i, resID, -available);
       }
     }
 
     if (!isStarving) {
       for (auto const &[resID, amount] : dna.output) {
         float production = amount * (myPop / 100.0f);
-        AddRes(b, i, resID, production);
+        b.AddResource(i, resID, production);
       }
 
       // Growth (Plants/Animals)
