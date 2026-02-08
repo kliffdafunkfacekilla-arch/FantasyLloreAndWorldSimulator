@@ -197,56 +197,58 @@ void Initialize() {
                              0.2f}); // High elevation overrides others usually
   }
 
-  // Default species
-  if (speciesRegistry.empty()) {
-    AgentTemplate human = {};
+  // Default Agents (Synced with AgentSystem)
+  if (agentRegistry.empty()) {
+    AgentDefinition human;
     human.id = 0;
-    std::strncpy(human.name, "Human", 31);
-    human.isStatic = false;
-    human.canBuild = true;
-    human.canWar = true;
+    human.name = "Human";
+    human.type = AgentType::CIVILIZED;
+    human.color[0] = 0.8f;
+    human.color[1] = 0.6f;
+    human.color[2] = 0.6f;
     human.idealTemp = 0.5f;
-    human.tempTolerance = 0.3f;
-    human.reproductionRate = 0.05f;
-    human.movementSpeed = 0.2f;
+    human.resilience = 0.3f;
+    human.expansionRate = 0.05f;
     human.aggression = 0.5f;
-    human.strength = 1.0f;
-    human.spawnsInForest = true;
-    human.spawnsInMountain = false;
-    speciesRegistry.push_back(human);
+    human.diet[0] = 1.0f;   // Eat Food
+    human.output[1] = 0.1f; // Produce Wood (Logging)
+    agentRegistry.push_back(human);
 
-    AgentTemplate elf = {};
-    elf.id = 1;
-    std::strncpy(elf.name, "Elf", 31);
-    elf.isStatic = false;
-    elf.canBuild = true;
-    elf.canWar = true;
-    elf.idealTemp = 0.4f;
-    elf.tempTolerance = 0.2f;
-    elf.reproductionRate = 0.02f;
-    elf.movementSpeed = 0.3f;
-    elf.aggression = 0.2f;
-    elf.strength = 0.8f;
-    elf.spawnsInForest = true;
-    speciesRegistry.push_back(elf);
+    AgentDefinition elk;
+    elk.id = 1;
+    elk.name = "Elk";
+    elk.type = AgentType::FAUNA;
+    elk.color[0] = 0.6f;
+    elk.color[1] = 0.4f;
+    elk.color[2] = 0.2f;
+    elk.idealTemp = 0.4f;
+    elk.resilience = 0.2f;
+    elk.expansionRate = 0.1f;
+    elk.aggression = 0.0f;
+    elk.diet[3] = 1.0f; // Eat Grass (Resource 3?) Need to check Resource IDs
+    // Default Resources: 0=Food, 1=Wood, 2=Iron, 3=Gold.
+    // Wait, let's make Grass/Foliage a resource if needed, or just Food (0).
+    elk.diet[0] = 0.5f;
+    elk.output[0] = 0.5f; // Meat?
+    agentRegistry.push_back(elk);
 
-    AgentTemplate tree = {};
-    tree.id = 2;
-    std::strncpy(tree.name, "Oak Tree", 31);
-    tree.isStatic = true;
-    tree.canBuild = false;
-    tree.idealTemp = 0.5f;
-    tree.tempTolerance = 0.3f;
-    tree.reproductionRate = 0.1f;
-    tree.resourceProduction[0] = 0.5f; // Food (fruits)
-    tree.resourceProduction[1] = 2.0f; // Wood
-    tree.spawnsInForest = true;
-    speciesRegistry.push_back(tree);
+    AgentDefinition grass;
+    grass.id = 2;
+    grass.name = "Grass";
+    grass.type = AgentType::FLORA;
+    grass.color[0] = 0.2f;
+    grass.color[1] = 0.8f;
+    grass.color[2] = 0.2f;
+    grass.idealTemp = 0.5f;
+    grass.resilience = 0.4f;
+    grass.expansionRate = 0.2f;
+    grass.output[0] = 1.0f; // Produce Food
+    agentRegistry.push_back(grass);
   }
 
   std::cout << "[ASSETS] Initialized with " << resourceRegistry.size()
             << " resources, " << chaosRules.size() << " chaos rules, "
-            << speciesRegistry.size() << " species.\n";
+            << agentRegistry.size() << " agents.\n";
 }
 
 void RegisterCity(int location, int faction, int year) {

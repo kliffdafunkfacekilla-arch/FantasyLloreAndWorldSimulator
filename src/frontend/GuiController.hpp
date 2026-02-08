@@ -1,9 +1,10 @@
 #pragma once
-#include "Lore.hpp"
-#include "Simulation.hpp"
-#include "Terrain.hpp"
-#include "WorldEngine.hpp"
-#include "imgui.h"
+#include "../../deps/imgui/imgui.h"
+#include "../../include/Lore.hpp"
+#include "../../include/Simulation.hpp"
+#include "../../include/Terrain.hpp"
+#include "../../include/WorldEngine.hpp"
+
 
 // Output structure to drive Main Loop
 struct GuiState {

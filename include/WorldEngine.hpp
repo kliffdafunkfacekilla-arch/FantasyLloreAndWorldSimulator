@@ -266,7 +266,7 @@ struct WorldBuffers {
 
     // Zero out memory
     std::fill_n(factionID, count, 0);
-    std::fill_n(cultureID, count, 0);
+    std::fill_n(cultureID, count, -1);
     std::fill_n(population, count, 0);
     std::fill_n(chaos, count, 0.0f);
     std::fill_n(infrastructure, count, 0.0f);

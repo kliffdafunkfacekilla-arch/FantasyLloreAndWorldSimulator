@@ -1,7 +1,7 @@
 #include "GuiController.hpp"
-#include "AssetManager.hpp"
-#include "Biology.hpp"
-#include "Environment.hpp"
+#include "../../include/AssetManager.hpp"
+#include "../../include/Biology.hpp"
+#include "../../include/Environment.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -16,6 +16,7 @@ static float s_brushSize = 25.0f;
 static float s_brushSpeed = 0.01f;
 static bool s_isPaused = true;
 static int s_viewMode = 0;
+static bool s_dbEditorNeedsOpening = false;
 
 static ImGuiWindowFlags GetPanelFlags() {
   return ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
@@ -107,14 +108,13 @@ GuiState GuiController::DrawMainLayout(WorldBuffers &buffers,
   // 4. Chronicle (Bottom)
   DrawChronicle(state);
 
-  // 5. DB Editor (Popup)
-  if (s_showDBEditor)
-    DrawDatabaseEditor(&s_showDBEditor);
-
   // Fill Output State
   state.isPaused = s_isPaused;
   state.activeTab = s_activeTab;
   state.viewMode = s_viewMode;
+
+  if (s_showDBEditor)
+    DrawDatabaseEditor(&s_showDBEditor);
 
   return state;
 }
@@ -147,8 +147,12 @@ void GuiController::DrawToolbar(const GuiState &dim, WorldSettings &settings,
   ImGui::Combo("View Mode", &viewMode, viewItems, 6);
 
   ImGui::SameLine(dim.screenWidth - 250);
-  if (ImGui::Button("EDIT RULES / JSON"))
+  if (ImGui::Button("EDIT RULES / JSON")) {
     s_showDBEditor = !s_showDBEditor;
+    if (s_showDBEditor) {
+      s_dbEditorNeedsOpening = true;
+    }
+  }
 
   ImGui::End();
 }
@@ -415,7 +419,11 @@ void GuiController::DrawChronicle(const GuiState &dim) {
 }
 
 void GuiController::DrawDatabaseEditor(bool *p_open) {
-  ImGui::OpenPopup("Database Editor");
+  if (s_dbEditorNeedsOpening) {
+    ImGui::OpenPopup("Database Editor");
+    s_dbEditorNeedsOpening = false;
+  }
+
   if (ImGui::BeginPopupModal("Database Editor", p_open,
                              ImGuiWindowFlags_AlwaysAutoResize)) {
     if (ImGui::BeginTabBar("DBTabs")) {
@@ -443,7 +451,7 @@ void GuiController::DrawDatabaseEditor(bool *p_open) {
           b.name = "New Biome";
           b.color[0] = 1.0f;
           b.color[1] = 0.0f;
-          b.color[2] = 1.0f; // Pink default
+          b.color[2] = 1.0f;
           b.minTemp = 0;
           b.maxTemp = 1;
           b.minMoisture = 0;
@@ -469,7 +477,6 @@ void GuiController::DrawDatabaseEditor(bool *p_open) {
             b.name = std::string(nameBuf);
           }
           ImGui::ColorEdit3("Color", b.color);
-
           ImGui::SeparatorText("Conditions");
           ImGui::DragFloatRange2("Height", &b.minHeight, &b.maxHeight, 0.01f,
                                  -1.0f, 1.0f);
@@ -486,12 +493,57 @@ void GuiController::DrawDatabaseEditor(bool *p_open) {
           }
           ImGui::EndGroup();
         }
+        ImGui::EndTabItem();
+      }
 
+      // TAB: AGENTS
+      if (ImGui::BeginTabItem("Agents")) {
+        static int selectedAgent = -1;
+        ImGui::BeginChild("AgentList", ImVec2(150, 0), true);
+        for (int i = 0; i < (int)AssetManager::agentRegistry.size(); ++i) {
+          if (ImGui::Selectable(AssetManager::agentRegistry[i].name.c_str(),
+                                selectedAgent == i)) {
+            selectedAgent = i;
+          }
+        }
+        if (ImGui::Button("Add New Agent")) {
+          AssetManager::CreateNewAgent();
+          selectedAgent = (int)AssetManager::agentRegistry.size() - 1;
+        }
+        ImGui::EndChild();
+        ImGui::SameLine();
+
+        if (selectedAgent >= 0 &&
+            selectedAgent < (int)AssetManager::agentRegistry.size()) {
+          AgentDefinition &a = AssetManager::agentRegistry[selectedAgent];
+          ImGui::BeginChild("AgentSettings", ImVec2(0, 0), false);
+          char aName[64];
+          std::memset(aName, 0, 64);
+          std::strncpy(aName, a.name.c_str(), 63);
+          if (ImGui::InputText("Name", aName, 64))
+            a.name = aName;
+
+          const char *types[] = {"Flora", "Fauna", "Civilized"};
+          int tIdx = (int)a.type;
+          if (ImGui::Combo("Type", &tIdx, types, 3))
+            a.type = (AgentType)tIdx;
+          ImGui::ColorEdit3("Color", a.color);
+
+          ImGui::SeparatorText("Simulation");
+          ImGui::SliderFloat("Ideal Temp", &a.idealTemp, 0, 1);
+          ImGui::SliderFloat("Ideal Moist", &a.idealMoisture, 0, 1);
+          ImGui::SliderFloat("Resilience", &a.resilience, 0, 1);
+          ImGui::SliderFloat("Expansion", &a.expansionRate, 0, 1);
+          ImGui::SliderFloat("Aggression", &a.aggression, 0, 1);
+
+          ImGui::EndChild();
+        }
         ImGui::EndTabItem();
       }
       ImGui::EndTabBar();
     }
-    if (ImGui::Button("Close"))
+    ImGui::Separator();
+    if (ImGui::Button("Close", ImVec2(120, 0)))
       *p_open = false;
     ImGui::EndPopup();
   }

@@ -1,74 +1,48 @@
-#include "../../include/SimulationModules.hpp"
-#include <algorithm>
+#include "../../include/Environment.hpp"
 #include <cmath>
-#include <cstring>
+#include <algorithm>
 
 namespace HydrologySim {
 
-void Update(WorldBuffers &b, const NeighborGraph &g) {
-  if (!b.flux || !b.nextFlux || !b.height || !g.neighborData)
-    return;
+    // ADD 'const WorldSettings& s' here to match the header and main.cpp
+    void Update(WorldBuffers& b, const NeighborGraph& g, const WorldSettings& s) {
+        if (!b.height || !b.moisture) return;
 
-  // Clear write buffer for this tick
-  std::fill_n(b.nextFlux, b.count, 0.0f);
+        // Use settings for logic
+        float seaLevel = s.seaLevel; 
 
-  for (uint32_t i = 0; i < b.count; ++i) {
-    float h = b.height[i];
-    float water = b.flux[i];
+        for (int i = 0; i < b.count; ++i) {
+            // Skip Ocean logic for hydrology flow
+            if (b.height[i] < seaLevel) continue;
 
-    // 1. Add Rainfall
-    float rain = b.moisture[i] * 0.005f; // Moisture-based rain
-    if (h < 0.2f)
-      rain = 0.0f;
-    float currentWater = water + rain;
+            // 1. Simple Moisture Runoff
+            // Look for lower neighbor
+            int lowestN = -1;
+            float minH = b.height[i];
+            
+            int offset = g.offsetTable[i];
+            int count = g.countTable[i];
 
-    if (currentWater < 0.0001f)
-      continue;
-    if (h < 0.2f) {
-      b.nextFlux[i] = 0.0f; // Ocean consumption
-      continue;
+            for (int k = 0; k < count; ++k) {
+                int nIdx = g.neighborData[offset + k];
+                if (b.height[nIdx] < minH) {
+                    minH = b.height[nIdx];
+                    lowestN = nIdx;
+                }
+            }
+
+            // Move water downhill
+            if (lowestN != -1) {
+                float flow = b.moisture[i] * 0.1f; // 10% flow per tick
+                b.moisture[i] -= flow;
+                b.moisture[lowestN] += flow;
+                
+                // Erosion effect (water carving rivers)
+                if (flow > 0.05f) {
+                    b.height[i] -= 0.001f;
+                    b.height[lowestN] += 0.001f; // Deposit sediment
+                }
+            }
+        }
     }
-
-    // 2. Find Lowest Neighbor
-    int offset = g.offsetTable[i];
-    int count = g.countTable[i];
-    int lowestIdx = -1;
-    float lowestH = h;
-
-    for (int k = 0; k < count; ++k) {
-      int nIdx = g.neighborData[offset + k];
-      float nH = b.height[nIdx];
-      if (nH < lowestH) {
-        lowestH = nH;
-        lowestIdx = nIdx;
-      }
-    }
-
-    // 3. Move Water
-    if (lowestIdx != -1) {
-      float diff = h - lowestH;
-      float transfer = currentWater * std::min(0.8f, diff * 5.0f);
-      b.nextFlux[i] += (currentWater - transfer);
-      b.nextFlux[lowestIdx] += transfer;
-    } else {
-      b.nextFlux[i] += currentWater; // Trapped (Puddle)
-    }
-  }
-
-  // 0. Spawn Springs (River Sources)
-  // Use a pseudo-random determination based on index to be deterministic per
-  // frame if needed or just use `s.riverCount` to pick random spots? Accessing
-  // `s` requires changing signature. Wait, I need to update signature of Update
-  // to take WorldSettings!
-
-  // ... (I will need to update the signature in the header first if I haven't)
-  // Let's assume I can change the signature.
-  // Actually, let's fix the calls in `GuiController` first?
-  // No, `GuiController` calls `HydrologySim::Update(buffers, graph)`.
-  // I must update the signature in `Environment.hpp` and `GuiController` too.
-
-  // Swap pointers in the struct for O(1) update
-  std::swap(b.flux, b.nextFlux);
 }
-
-} // namespace HydrologySim
