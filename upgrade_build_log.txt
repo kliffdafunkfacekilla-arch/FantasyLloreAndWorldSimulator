@@ -1,0 +1,403 @@
+[SETUP] Setting up environment...
+[BUILD] S.A.G.A. Architect...
+In file included from src/apps/App_Architect.cpp:1:
+In file included from src/apps/../../include/Environment.hpp:2:
+src/apps/../../include/WorldEngine.hpp:222:26: error: no member named 'sqrt' in namespace 'std'; did you mean 'sort'?
+  222 |     int side = (int)std::sqrt(count);
+      |                          ^~~~
+      |                          sort
+C:/msys64/mingw64/include/c++/15.2.0/bits/stl_algo.h:4831:5: note: 'sort' declared here
+ 4831 |     sort(_RandomAccessIterator __first, _RandomAccessIterator __last)
+      |     ^
+In file included from src/apps/App_Architect.cpp:1:
+In file included from src/apps/../../include/Environment.hpp:2:
+src/apps/../../include/WorldEngine.hpp:222:21: error: no matching function for call to 'sort'
+  222 |     int side = (int)std::sqrt(count);
+      |                     ^~~~~~~~~
+C:/msys64/mingw64/include/c++/15.2.0/bits/stl_algo.h:4831:5: note: candidate function template not viable: requires 2 arguments, but 1 was provided
+ 4831 |     sort(_RandomAccessIterator __first, _RandomAccessIterator __last)
+      |     ^    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/apps/App_Architect.cpp:261:12: error: no type named 'DockSpaceOverViewport' in namespace 'ImGui'
+  261 |     ImGui::DockSpaceOverViewport(ImGui::GetMainViewport());
+      |     ~~~~~~~^
+src/apps/App_Architect.cpp:261:41: error: definition or redeclaration of 'GetMainViewport' not allowed inside a function
+  261 |     ImGui::DockSpaceOverViewport(ImGui::GetMainViewport());
+      |                                  ~~~~~~~^
+4 errors generated.
+In file included from src/core/NeighborFinder.cpp:1:
+In file included from src/core/../../include/SimulationModules.hpp:4:
+In file included from src/core/../../include/Biology.hpp:2:
+src/core/../../include/WorldEngine.hpp:222:26: error: no member named 'sqrt' in namespace 'std'; did you mean 'sort'?
+  222 |     int side = (int)std::sqrt(count);
+      |                          ^~~~
+      |                          sort
+C:/msys64/mingw64/include/c++/15.2.0/bits/stl_algo.h:4831:5: note: 'sort' declared here
+ 4831 |     sort(_RandomAccessIterator __first, _RandomAccessIterator __last)
+      |     ^
+In file included from src/core/NeighborFinder.cpp:1:
+In file included from src/core/../../include/SimulationModules.hpp:4:
+In file included from src/core/../../include/Biology.hpp:2:
+src/core/../../include/WorldEngine.hpp:222:21: error: no matching function for call to 'sort'
+  222 |     int side = (int)std::sqrt(count);
+      |                     ^~~~~~~~~
+C:/msys64/mingw64/include/c++/15.2.0/bits/stl_algo.h:4831:5: note: candidate function template not viable: requires 2 arguments, but 1 was provided
+ 4831 |     sort(_RandomAccessIterator __first, _RandomAccessIterator __last)
+      |     ^    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2 errors generated.
+In file included from src/visuals/MapRenderer.cpp:1:
+In file included from src/visuals/../../include/MapRenderer.hpp:2:
+src/visuals/../../include/WorldEngine.hpp:222:26: error: no member named 'sqrt' in namespace 'std'; did you mean 'sort'?
+  222 |     int side = (int)std::sqrt(count);
+      |                          ^~~~
+      |                          sort
+C:/msys64/mingw64/include/c++/15.2.0/bits/stl_algo.h:4831:5: note: 'sort' declared here
+ 4831 |     sort(_RandomAccessIterator __first, _RandomAccessIterator __last)
+      |     ^
+In file included from src/visuals/MapRenderer.cpp:1:
+In file included from src/visuals/../../include/MapRenderer.hpp:2:
+src/visuals/../../include/WorldEngine.hpp:222:21: error: no matching function for call to 'sort'
+  222 |     int side = (int)std::sqrt(count);
+      |                     ^~~~~~~~~
+C:/msys64/mingw64/include/c++/15.2.0/bits/stl_algo.h:4831:5: note: candidate function template not viable: requires 2 arguments, but 1 was provided
+ 4831 |     sort(_RandomAccessIterator __first, _RandomAccessIterator __last)
+      |     ^    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2 errors generated.
+In file included from src/frontend/GuiController.cpp:1:
+In file included from src/frontend/../../include/GuiController.hpp:3:
+In file included from deps/imgui/../../include/Lore.hpp:2:
+deps/imgui/../../include/WorldEngine.hpp:222:26: error: no member named 'sqrt' in namespace 'std'; did you mean 'sort'?
+  222 |     int side = (int)std::sqrt(count);
+      |                          ^~~~
+      |                          sort
+C:/msys64/mingw64/include/c++/15.2.0/bits/stl_algo.h:4831:5: note: 'sort' declared here
+ 4831 |     sort(_RandomAccessIterator __first, _RandomAccessIterator __last)
+      |     ^
+In file included from src/frontend/GuiController.cpp:1:
+In file included from src/frontend/../../include/GuiController.hpp:3:
+In file included from deps/imgui/../../include/Lore.hpp:2:
+deps/imgui/../../include/WorldEngine.hpp:222:21: error: no matching function for call to 'sort'
+  222 |     int side = (int)std::sqrt(count);
+      |                     ^~~~~~~~~
+C:/msys64/mingw64/include/c++/15.2.0/bits/stl_algo.h:4831:5: note: candidate function template not viable: requires 2 arguments, but 1 was provided
+ 4831 |     sort(_RandomAccessIterator __first, _RandomAccessIterator __last)
+      |     ^    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/frontend/GuiController.cpp:189:22: error: no member named 'erosionIterations' in 'WorldSettings'
+  189 |         if (settings.erosionIterations > 0)
+      |             ~~~~~~~~ ^
+src/frontend/GuiController.cpp:190:57: error: no member named 'erosionIterations' in 'WorldSettings'
+  190 |           terrain.ApplyThermalErosion(buffers, settings.erosionIterations);
+      |                                                ~~~~~~~~ ^
+src/frontend/GuiController.cpp:259:50: error: no member named 'tempZonePolar' in 'WorldSettings'
+  259 |       ImGui::SliderFloat("Polar Temp", &settings.tempZonePolar, 0.0f, 1.0f);
+      |                                         ~~~~~~~~ ^
+src/frontend/GuiController.cpp:260:54: error: no member named 'tempZoneTemperate' in 'WorldSettings'
+  260 |       ImGui::SliderFloat("Temperate Temp", &settings.tempZoneTemperate, 0.0f,
+      |                                             ~~~~~~~~ ^
+src/frontend/GuiController.cpp:262:53: error: no member named 'tempZoneTropical' in 'WorldSettings'
+  262 |       ImGui::SliderFloat("Tropical Temp", &settings.tempZoneTropical, 0.0f,
+      |                                            ~~~~~~~~ ^
+src/frontend/GuiController.cpp:264:55: error: no member named 'globalTempModifier' in 'WorldSettings'
+  264 |       ImGui::SliderFloat("Global Temp Mod", &settings.globalTempModifier, 0.0f,
+      |                                              ~~~~~~~~ ^
+src/frontend/GuiController.cpp:271:45: error: no member named 'windZonesDir' in 'WorldSettings'
+  271 |         ImGui::SliderFloat(label, &settings.windZonesDir[i], -3.14f, 3.14f);
+      |                                    ~~~~~~~~ ^
+src/frontend/GuiController.cpp:273:45: error: no member named 'windZonesStr' in 'WorldSettings'
+  273 |         ImGui::SliderFloat(label, &settings.windZonesStr[i], 0.0f, 2.0f);
+      |                                    ~~~~~~~~ ^
+src/frontend/GuiController.cpp:279:55: error: no member named 'rainfallModifier' in 'WorldSettings'
+  279 |       ImGui::SliderFloat("Global Rainfall", &settings.rainfallModifier, 0.0f,
+      |                                              ~~~~~~~~ ^
+src/frontend/GuiController.cpp:289:50: error: no member named 'riverFlowToOcean' in 'WorldSettings'
+  289 |       ImGui::Checkbox("Flow to Ocean", &settings.riverFlowToOcean);
+      |                                         ~~~~~~~~ ^
+src/frontend/GuiController.cpp:291:45: error: no member named 'showIce' in 'WorldSettings'
+  291 |       ImGui::Checkbox("Show Ice", &settings.showIce);
+      |                                    ~~~~~~~~ ^
+src/frontend/GuiController.cpp:296:48: error: no type named 'DisasterSetting' in 'WorldSettings'
+  296 |           [&](const char *name, WorldSettings::DisasterSetting &ds, int type) {
+      |                                 ~~~~~~~~~~~~~~~^
+src/frontend/GuiController.cpp:316:50: error: no member named 'quakeSettings' in 'WorldSettings'
+  316 |       DrawDisasterControl("Earthquake", settings.quakeSettings, 0);
+      |                                         ~~~~~~~~ ^
+src/frontend/GuiController.cpp:317:47: error: no member named 'tsunamiSettings' in 'WorldSettings'
+  317 |       DrawDisasterControl("Tsunami", settings.tsunamiSettings, 1);
+      |                                      ~~~~~~~~ ^
+src/frontend/GuiController.cpp:318:47: error: no member named 'tornadoSettings' in 'WorldSettings'
+  318 |       DrawDisasterControl("Tornado", settings.tornadoSettings, 2);
+      |                                      ~~~~~~~~ ^
+src/frontend/GuiController.cpp:319:49: error: no member named 'hurricaneSettings' in 'WorldSettings'
+  319 |       DrawDisasterControl("Hurricane", settings.hurricaneSettings, 3);
+      |                                        ~~~~~~~~ ^
+src/frontend/GuiController.cpp:320:48: error: no member named 'wildfireSettings' in 'WorldSettings'
+  320 |       DrawDisasterControl("Wildfire", settings.wildfireSettings, 4);
+      |                                       ~~~~~~~~ ^
+fatal error: too many errors emitted, stopping now [-ferror-limit=]
+20 errors generated.
+In file included from src/environment/ClimateSim.cpp:1:
+In file included from src/environment/../../include/Environment.hpp:2:
+src/environment/../../include/WorldEngine.hpp:222:26: error: no member named 'sqrt' in namespace 'std'; did you mean 'sort'?
+  222 |     int side = (int)std::sqrt(count);
+      |                          ^~~~
+      |                          sort
+C:/msys64/mingw64/include/c++/15.2.0/bits/stl_algo.h:4831:5: note: 'sort' declared here
+ 4831 |     sort(_RandomAccessIterator __first, _RandomAccessIterator __last)
+      |     ^
+In file included from src/environment/ClimateSim.cpp:1:
+In file included from src/environment/../../include/Environment.hpp:2:
+src/environment/../../include/WorldEngine.hpp:222:21: error: no matching function for call to 'sort'
+  222 |     int side = (int)std::sqrt(count);
+      |                     ^~~~~~~~~
+C:/msys64/mingw64/include/c++/15.2.0/bits/stl_algo.h:4831:5: note: candidate function template not viable: requires 2 arguments, but 1 was provided
+ 4831 |     sort(_RandomAccessIterator __first, _RandomAccessIterator __last)
+      |     ^    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2 errors generated.
+In file included from src/environment/HydrologySim.cpp:1:
+In file included from src/environment/../../include/Environment.hpp:2:
+src/environment/../../include/WorldEngine.hpp:222:26: error: no member named 'sqrt' in namespace 'std'; did you mean 'sort'?
+  222 |     int side = (int)std::sqrt(count);
+      |                          ^~~~
+      |                          sort
+C:/msys64/mingw64/include/c++/15.2.0/bits/stl_algo.h:4831:5: note: 'sort' declared here
+ 4831 |     sort(_RandomAccessIterator __first, _RandomAccessIterator __last)
+      |     ^
+In file included from src/environment/HydrologySim.cpp:1:
+In file included from src/environment/../../include/Environment.hpp:2:
+src/environment/../../include/WorldEngine.hpp:222:21: error: no matching function for call to 'sort'
+  222 |     int side = (int)std::sqrt(count);
+      |                     ^~~~~~~~~
+C:/msys64/mingw64/include/c++/15.2.0/bits/stl_algo.h:4831:5: note: candidate function template not viable: requires 2 arguments, but 1 was provided
+ 4831 |     sort(_RandomAccessIterator __first, _RandomAccessIterator __last)
+      |     ^    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2 errors generated.
+In file included from src/io/HeightmapLoader.cpp:1:
+src/io/../../include/WorldEngine.hpp:222:26: error: no member named 'sqrt' in namespace 'std'; did you mean 'sort'?
+  222 |     int side = (int)std::sqrt(count);
+      |                          ^~~~
+      |                          sort
+C:/msys64/mingw64/include/c++/15.2.0/bits/stl_algo.h:4831:5: note: 'sort' declared here
+ 4831 |     sort(_RandomAccessIterator __first, _RandomAccessIterator __last)
+      |     ^
+In file included from src/io/HeightmapLoader.cpp:1:
+src/io/../../include/WorldEngine.hpp:222:21: error: no matching function for call to 'sort'
+  222 |     int side = (int)std::sqrt(count);
+      |                     ^~~~~~~~~
+C:/msys64/mingw64/include/c++/15.2.0/bits/stl_algo.h:4831:5: note: candidate function template not viable: requires 2 arguments, but 1 was provided
+ 4831 |     sort(_RandomAccessIterator __first, _RandomAccessIterator __last)
+      |     ^    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2 errors generated.
+In file included from src/lore/LoreScribe.cpp:1:
+In file included from src/lore/../../include/SimulationModules.hpp:4:
+In file included from src/lore/../../include/Biology.hpp:2:
+src/lore/../../include/WorldEngine.hpp:222:26: error: no member named 'sqrt' in namespace 'std'; did you mean 'sort'?
+  222 |     int side = (int)std::sqrt(count);
+      |                          ^~~~
+      |                          sort
+C:/msys64/mingw64/include/c++/15.2.0/bits/stl_algo.h:4831:5: note: 'sort' declared here
+ 4831 |     sort(_RandomAccessIterator __first, _RandomAccessIterator __last)
+      |     ^
+In file included from src/lore/LoreScribe.cpp:1:
+In file included from src/lore/../../include/SimulationModules.hpp:4:
+In file included from src/lore/../../include/Biology.hpp:2:
+src/lore/../../include/WorldEngine.hpp:222:21: error: no matching function for call to 'sort'
+  222 |     int side = (int)std::sqrt(count);
+      |                     ^~~~~~~~~
+C:/msys64/mingw64/include/c++/15.2.0/bits/stl_algo.h:4831:5: note: candidate function template not viable: requires 2 arguments, but 1 was provided
+ 4831 |     sort(_RandomAccessIterator __first, _RandomAccessIterator __last)
+      |     ^    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2 errors generated.
+In file included from src/biology/AgentSystem.cpp:1:
+In file included from src/biology/../../include/AssetManager.hpp:2:
+src/biology/../../include/WorldEngine.hpp:222:26: error: no member named 'sqrt' in namespace 'std'; did you mean 'sort'?
+  222 |     int side = (int)std::sqrt(count);
+      |                          ^~~~
+      |                          sort
+C:/msys64/mingw64/include/c++/15.2.0/bits/stl_algo.h:4831:5: note: 'sort' declared here
+ 4831 |     sort(_RandomAccessIterator __first, _RandomAccessIterator __last)
+      |     ^
+In file included from src/biology/AgentSystem.cpp:1:
+In file included from src/biology/../../include/AssetManager.hpp:2:
+src/biology/../../include/WorldEngine.hpp:222:21: error: no matching function for call to 'sort'
+  222 |     int side = (int)std::sqrt(count);
+      |                     ^~~~~~~~~
+C:/msys64/mingw64/include/c++/15.2.0/bits/stl_algo.h:4831:5: note: candidate function template not viable: requires 2 arguments, but 1 was provided
+ 4831 |     sort(_RandomAccessIterator __first, _RandomAccessIterator __last)
+      |     ^    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/biology/AgentSystem.cpp:31:27: error: no member named 'GetResource' in 'WorldBuffers'
+   31 |       float available = b.GetResource(cellIdx, resID);
+      |                         ~ ^
+src/biology/AgentSystem.cpp:81:27: error: no member named 'GetResource' in 'WorldBuffers'
+   81 |       float available = b.GetResource(i, resID);
+      |                         ~ ^
+src/biology/AgentSystem.cpp:83:11: error: no member named 'AddResource' in 'WorldBuffers'
+   83 |         b.AddResource(i, resID, -needed);
+      |         ~ ^
+src/biology/AgentSystem.cpp:86:11: error: no member named 'AddResource' in 'WorldBuffers'
+   86 |         b.AddResource(i, resID, -available);
+      |         ~ ^
+src/biology/AgentSystem.cpp:93:11: error: no member named 'AddResource' in 'WorldBuffers'
+   93 |         b.AddResource(i, resID, production);
+      |         ~ ^
+src/biology/AgentSystem.cpp:198:9: error: no member named 'civTier' in 'WorldBuffers'
+  198 |       b.civTier[idx] = 1; // Tribe
+      |       ~ ^
+8 errors generated.
+In file included from src/environment/DisasterSystem.cpp:1:
+In file included from include/Environment.hpp:2:
+include/WorldEngine.hpp:222:26: error: no member named 'sqrt' in namespace 'std'; did you mean 'sort'?
+  222 |     int side = (int)std::sqrt(count);
+      |                          ^~~~
+      |                          sort
+C:/msys64/mingw64/include/c++/15.2.0/bits/stl_algo.h:4831:5: note: 'sort' declared here
+ 4831 |     sort(_RandomAccessIterator __first, _RandomAccessIterator __last)
+      |     ^
+In file included from src/environment/DisasterSystem.cpp:1:
+In file included from include/Environment.hpp:2:
+include/WorldEngine.hpp:222:21: error: no matching function for call to 'sort'
+  222 |     int side = (int)std::sqrt(count);
+      |                     ^~~~~~~~~
+C:/msys64/mingw64/include/c++/15.2.0/bits/stl_algo.h:4831:5: note: candidate function template not viable: requires 2 arguments, but 1 was provided
+ 4831 |     sort(_RandomAccessIterator __first, _RandomAccessIterator __last)
+      |     ^    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/environment/DisasterSystem.cpp:50:15: error: no member named 'flux' in 'WorldBuffers'
+   50 |         if (b.flux)
+      |             ~ ^
+src/environment/DisasterSystem.cpp:51:13: error: no member named 'flux' in 'WorldBuffers'
+   51 |           b.flux[i] += strength * 100.0f * falloff;
+      |           ~ ^
+src/environment/DisasterSystem.cpp:64:15: error: no member named 'flux' in 'WorldBuffers'
+   64 |         if (b.flux)
+      |             ~ ^
+src/environment/DisasterSystem.cpp:65:13: error: no member named 'flux' in 'WorldBuffers'
+   65 |           b.flux[i] += strength * 50.0f * falloff;
+      |           ~ ^
+src/environment/DisasterSystem.cpp:78:15: error: no member named 'flux' in 'WorldBuffers'
+   78 |         if (b.flux)
+      |             ~ ^
+src/environment/DisasterSystem.cpp:79:13: error: no member named 'flux' in 'WorldBuffers'
+   79 |           b.flux[i] += strength * 50.0f * falloff;
+      |           ~ ^
+src/environment/DisasterSystem.cpp:85:15: error: no member named 'flux' in 'WorldBuffers'
+   85 |         if (b.flux)
+      |             ~ ^
+src/environment/DisasterSystem.cpp:86:13: error: no member named 'flux' in 'WorldBuffers'
+   86 |           b.flux[i] *= (1.0f - strength * falloff);
+      |           ~ ^
+src/environment/DisasterSystem.cpp:98:49: error: no type named 'DisasterSetting' in 'WorldSettings'
+   98 |   auto CheckAndSpawn = [&](const WorldSettings::DisasterSetting &ds, int type) {
+      |                                  ~~~~~~~~~~~~~~~^
+src/environment/DisasterSystem.cpp:107:19: error: no member named 'quakeSettings' in 'WorldSettings'
+  107 |   CheckAndSpawn(s.quakeSettings, 0);
+      |                 ~ ^
+src/environment/DisasterSystem.cpp:108:19: error: no member named 'tsunamiSettings' in 'WorldSettings'
+  108 |   CheckAndSpawn(s.tsunamiSettings, 1);
+      |                 ~ ^
+src/environment/DisasterSystem.cpp:109:19: error: no member named 'tornadoSettings' in 'WorldSettings'
+  109 |   CheckAndSpawn(s.tornadoSettings, 2);
+      |                 ~ ^
+src/environment/DisasterSystem.cpp:110:19: error: no member named 'hurricaneSettings' in 'WorldSettings'
+  110 |   CheckAndSpawn(s.hurricaneSettings, 3);
+      |                 ~ ^
+src/environment/DisasterSystem.cpp:111:19: error: no member named 'wildfireSettings' in 'WorldSettings'
+  111 |   CheckAndSpawn(s.wildfireSettings, 4);
+      |                 ~ ^
+src/environment/DisasterSystem.cpp:112:19: error: no member named 'floodSettings' in 'WorldSettings'
+  112 |   CheckAndSpawn(s.floodSettings, 5);
+      |                 ~ ^
+src/environment/DisasterSystem.cpp:113:19: error: no member named 'droughtSettings' in 'WorldSettings'
+  113 |   CheckAndSpawn(s.droughtSettings, 6);
+      |                 ~ ^
+18 errors generated.
+In file included from src/lore/NameGenerator.cpp:1:
+In file included from src/lore/../../include/SimulationModules.hpp:4:
+In file included from src/lore/../../include/Biology.hpp:2:
+src/lore/../../include/WorldEngine.hpp:222:26: error: no member named 'sqrt' in namespace 'std'; did you mean 'sort'?
+  222 |     int side = (int)std::sqrt(count);
+      |                          ^~~~
+      |                          sort
+C:/msys64/mingw64/include/c++/15.2.0/bits/stl_algo.h:4831:5: note: 'sort' declared here
+ 4831 |     sort(_RandomAccessIterator __first, _RandomAccessIterator __last)
+      |     ^
+In file included from src/lore/NameGenerator.cpp:1:
+In file included from src/lore/../../include/SimulationModules.hpp:4:
+In file included from src/lore/../../include/Biology.hpp:2:
+src/lore/../../include/WorldEngine.hpp:222:21: error: no matching function for call to 'sort'
+  222 |     int side = (int)std::sqrt(count);
+      |                     ^~~~~~~~~
+C:/msys64/mingw64/include/c++/15.2.0/bits/stl_algo.h:4831:5: note: candidate function template not viable: requires 2 arguments, but 1 was provided
+ 4831 |     sort(_RandomAccessIterator __first, _RandomAccessIterator __last)
+      |     ^    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2 errors generated.
+In file included from src/io/BinaryExporter.cpp:1:
+In file included from src/io/../../include/BinaryExporter.hpp:2:
+src/io/../../include/WorldEngine.hpp:222:26: error: no member named 'sqrt' in namespace 'std'; did you mean 'sort'?
+  222 |     int side = (int)std::sqrt(count);
+      |                          ^~~~
+      |                          sort
+C:/msys64/mingw64/include/c++/15.2.0/bits/stl_algo.h:4831:5: note: 'sort' declared here
+ 4831 |     sort(_RandomAccessIterator __first, _RandomAccessIterator __last)
+      |     ^
+In file included from src/io/BinaryExporter.cpp:1:
+In file included from src/io/../../include/BinaryExporter.hpp:2:
+src/io/../../include/WorldEngine.hpp:222:21: error: no matching function for call to 'sort'
+  222 |     int side = (int)std::sqrt(count);
+      |                     ^~~~~~~~~
+C:/msys64/mingw64/include/c++/15.2.0/bits/stl_algo.h:4831:5: note: candidate function template not viable: requires 2 arguments, but 1 was provided
+ 4831 |     sort(_RandomAccessIterator __first, _RandomAccessIterator __last)
+      |     ^    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2 errors generated.
+In file included from src/io/AssetManager.cpp:1:
+In file included from src/io/../../include/AssetManager.hpp:2:
+src/io/../../include/WorldEngine.hpp:222:26: error: no member named 'sqrt' in namespace 'std'; did you mean 'sort'?
+  222 |     int side = (int)std::sqrt(count);
+      |                          ^~~~
+      |                          sort
+C:/msys64/mingw64/include/c++/15.2.0/bits/stl_algo.h:4831:5: note: 'sort' declared here
+ 4831 |     sort(_RandomAccessIterator __first, _RandomAccessIterator __last)
+      |     ^
+In file included from src/io/AssetManager.cpp:1:
+In file included from src/io/../../include/AssetManager.hpp:2:
+src/io/../../include/WorldEngine.hpp:222:21: error: no matching function for call to 'sort'
+  222 |     int side = (int)std::sqrt(count);
+      |                     ^~~~~~~~~
+C:/msys64/mingw64/include/c++/15.2.0/bits/stl_algo.h:4831:5: note: candidate function template not viable: requires 2 arguments, but 1 was provided
+ 4831 |     sort(_RandomAccessIterator __first, _RandomAccessIterator __last)
+      |     ^    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/io/AssetManager.cpp:467:48: error: no member named 'MAX_RESOURCES' in 'WorldBuffers'
+  467 |   if (resourceRegistry.size() >= WorldBuffers::MAX_RESOURCES) {
+      |                                                ^~~~~~~~~~~~~
+src/io/AssetManager.cpp:469:32: error: no member named 'MAX_RESOURCES' in 'WorldBuffers'
+  469 |               << WorldBuffers::MAX_RESOURCES << ") reached. Cannot add more.\n";
+      |                                ^~~~~~~~~~~~~
+src/io/AssetManager.cpp:553:22: error: no member named 'civTier' in 'WorldBuffers'
+  553 |   saveArrInt(buffers.civTier, count * sizeof(int));
+      |              ~~~~~~~ ^
+src/io/AssetManager.cpp:554:22: error: no member named 'buildingID' in 'WorldBuffers'
+  554 |   saveArrInt(buffers.buildingID, count * sizeof(int));
+      |              ~~~~~~~ ^
+src/io/AssetManager.cpp:556:15: error: no member named 'resourceInventory' in 'WorldBuffers'
+  556 |   if (buffers.resourceInventory) {
+      |       ~~~~~~~ ^
+src/io/AssetManager.cpp:557:31: error: no member named 'resourceInventory' in 'WorldBuffers'
+  557 |     out.write((char *)buffers.resourceInventory,
+      |                       ~~~~~~~ ^
+src/io/AssetManager.cpp:558:37: error: no member named 'MAX_RESOURCES' in 'WorldBuffers'
+  558 |               count * WorldBuffers::MAX_RESOURCES * sizeof(float));
+      |                                     ^~~~~~~~~~~~~
+src/io/AssetManager.cpp:611:22: error: no member named 'civTier' in 'WorldBuffers'
+  611 |   loadArrInt(buffers.civTier, count * sizeof(int));
+      |              ~~~~~~~ ^
+src/io/AssetManager.cpp:612:22: error: no member named 'buildingID' in 'WorldBuffers'
+  612 |   loadArrInt(buffers.buildingID, count * sizeof(int));
+      |              ~~~~~~~ ^
+src/io/AssetManager.cpp:614:15: error: no member named 'resourceInventory' in 'WorldBuffers'
+  614 |   if (buffers.resourceInventory) {
+      |       ~~~~~~~ ^
+src/io/AssetManager.cpp:615:29: error: no member named 'resourceInventory' in 'WorldBuffers'
+  615 |     in.read((char *)buffers.resourceInventory,
+      |                     ~~~~~~~ ^
+src/io/AssetManager.cpp:616:35: error: no member named 'MAX_RESOURCES' in 'WorldBuffers'
+  616 |             count * WorldBuffers::MAX_RESOURCES * sizeof(float));
+      |                                   ^~~~~~~~~~~~~
+14 errors generated.
+[ERROR] SAGA Architect Build Failed.

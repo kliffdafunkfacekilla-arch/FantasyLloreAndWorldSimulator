@@ -1,10 +1,29 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>   // Added for sqrt
 #include <cstdint> // Added for uint32_t
 #include <map>
 #include <string>
 #include <vector>
+
+
+// --- BIOME ENUM (Whittaker-inspired) ---
+enum BiomeType {
+  OCEAN = 0,
+  SCORCHED,
+  BARE,
+  TUNDRA,
+  SNOW, // Extreme Heat/Cold
+  TEMPERATE_DESERT,
+  SHRUBLAND,
+  GRASSLAND, // Dry
+  TEMPERATE_DECIDUOUS_FOREST,
+  TEMPERATE_RAIN_FOREST, // Temperate Wet
+  SUBTROPICAL_DESERT,
+  TROPICAL_SEASONAL_FOREST,
+  TROPICAL_RAIN_FOREST // Hot Wet
+};
 
 // --- AGENT TYPE ENUM ---
 enum class AgentType {
@@ -118,7 +137,7 @@ struct WorldSettings {
   char heightmapPath[256] = ""; // Fixed size for ImGui InputText compatibility
   // --- Advanced Terrain Controls ---
   float heightMultiplier = 1.0f; // Overall Vertical Scale
-  float seaLevel = 0.2f;         // Defined Sea Level (0.0-1.0)
+  float seaLevel = 0.4f;         // Defined Sea Level (0.0-1.0)
   float heightMin = 0.0f;
   float heightMax = 1.0f;
 
@@ -137,17 +156,13 @@ struct WorldSettings {
       1.0f; // Exponent for slope steepness (NOT used for warp)
   float featureClustering = 2.0f; // Lacunarity // Noise frequency
 
-  // --- CLIMATE CONTROLS (User Request) ---
+  // --- CLIMATE CONTROLS ---
   // Temperature Zones: 0=Polar, 1=Temperate, 2=Tropical
   float tempZonePolar = 0.0f;     // Temp at poles
   float tempZoneTemperate = 0.5f; // Temp at mid-latitudes
   float tempZoneTropical = 1.0f;  // Temp at equator
 
-  // Wind Zones (5 Directions: N, NE, E, SE, S) - Simplified representation
-  // actually user asked for "5 wind direction zones".
-  // Let's model this as 5 latitude bands with distinct wind vectors.
-  // Band 0 (North Pole), 1 (North Temp), 2 (Equator), 3 (South Temp), 4 (South
-  // Pole)
+  // Wind Zones (5 Directions: N, NE, E, SE, S)
   float windZonesDir[5] = {3.14f / 2.0f, 3.14f / 4.0f, 0.0f, -3.14f / 4.0f,
                            -3.14f / 2.0f}; // Rads
   float windZonesStr[5] = {0.5f, 0.5f, 1.0f, 0.5f, 0.5f};
@@ -156,6 +171,11 @@ struct WorldSettings {
   float rainfallModifier = 1.0f; // Kept for compatibility/slider
   float globalTempModifier = 1.0f;
   float globalWindStrength = 1.0f;
+
+  // --- NEW CLIMATE ENGINE SETTINGS ---
+  float globalTemp = 0.0f;  // -1.0 (Ice Age) to +1.0 (Global Warming)
+  float windAngle = 0.785f; // Radians (approx 45 degrees / NE)
+  float raininess = 1.0f;   // Rainfall multiplier
 
   // River Controls
   int riverCount = 50;
@@ -172,7 +192,7 @@ struct WorldSettings {
   int erosionIterations = 10;
 
   // View & Scale
-  int zoomLevel = 0;
+  int zoomLevel = 1;
   float pointSize = 1.0f;
   float viewOffset[2] = {0.0f, 0.0f};
 
@@ -203,7 +223,6 @@ struct WorldSettings {
 };
 
 // 2. The Million-Cell Memory (SoA Layout)
-// using raw pointers for maximum CPU cache efficiency
 struct WorldBuffers {
   // Core Geometry (Always Allocated)
   float *posX = nullptr;
@@ -213,6 +232,7 @@ struct WorldBuffers {
   // Simulation Layers (Allocated on Demand)
   float *temperature = nullptr;
   float *moisture = nullptr;
+  int *biomeID = nullptr;    // NEW: Whittaker classification
   float *windDX = nullptr;   // Wind Vector X
   float *windDY = nullptr;   // Wind Vector Y
   float *flux = nullptr;     // River/Water accumulation volume (READ buffer)
@@ -228,12 +248,10 @@ struct WorldBuffers {
   float *wealth = nullptr;         // Accumulated resources (Food/Iron/Gold)
 
   // --- CONSTRUCTION LAYER ---
-  // 0:None, 1:Road, 2:Wall, 3:Farm, 4:Mine, 5:Tower
   uint8_t *structureType = nullptr;
   float *defense = nullptr; // Calculated defense (Walls + Terrain)
 
   // --- ECONOMY LAYER ---
-  // civTier: 0=Wild, 1=Tribe, 2=Village, 3=Town, 4=City
   int *civTier = nullptr;
   int *buildingID = nullptr;          // Which building type is here
   float *resourceInventory = nullptr; // Flattened [cellIdx * 8 + resID]
@@ -252,10 +270,9 @@ struct WorldBuffers {
     posY = new float[count];
     height = new float[count];
 
-    // Optional buffers can be initialized lazily,
-    // but for now we allocate all for stability
     temperature = new float[count];
     moisture = new float[count];
+    biomeID = new int[count];
     windDX = new float[count];
     windDY = new float[count];
     factionID = new int[count];
@@ -272,6 +289,7 @@ struct WorldBuffers {
     std::fill_n(infrastructure, count, 0.0f);
     std::fill_n(temperature, count, 0.0f);
     std::fill_n(moisture, count, 0.0f);
+    std::fill_n(biomeID, count, 0);
     std::fill_n(windDX, count, 0.0f);
     std::fill_n(windDY, count, 0.0f);
 
@@ -295,6 +313,15 @@ struct WorldBuffers {
     std::fill_n(buildingID, count, 0);
     resourceInventory = new float[count * MAX_RESOURCES];
     std::fill_n(resourceInventory, count * MAX_RESOURCES, 0.0f);
+
+    // Grid Initialization
+    int side = (int)std::sqrt(count);
+    if (side > 0) {
+      for (int i = 0; i < (int)count; ++i) {
+        posX[i] = (float)(i % side) / (float)side;
+        posY[i] = (float)(i / side) / (float)side;
+      }
+    }
   }
 
   void Cleanup() {
@@ -303,6 +330,7 @@ struct WorldBuffers {
     delete[] height;
     delete[] temperature;
     delete[] moisture;
+    delete[] biomeID;
     delete[] windDX;
     delete[] windDY;
     delete[] factionID;

@@ -1,118 +1,126 @@
-#include "../../include/SimulationModules.hpp"
+#include "../../include/Environment.hpp"
+#include "../../include/FastNoiseLite.h"
 #include <algorithm>
 #include <cmath>
+#include <iostream>
+
 
 namespace ClimateSim {
 
-// Helper to get neighbor in wind direction (Approximation)
-int GetUpwindNeighbor(int i, int width, int height, float angle) {
-  // Convert angle to grid offset (-1, 0, 1)
-  int dx = -static_cast<int>(std::round(std::cos(angle)));
-  int dy = -static_cast<int>(std::round(std::sin(angle)));
-
-  int x = i % width;
-  int y = i / width;
-
-  int nx = std::max(0, std::min(x + dx, width - 1));
-  int ny = std::max(0, std::min(y + dy, height - 1));
-
-  return ny * width + nx;
+// Helper: Whittaker Diagram Lookup
+int GetBiome(float temp, float moisture) {
+  if (temp < 0.1f)
+    return BiomeType::SNOW;
+  if (temp < 0.2f)
+    return BiomeType::TUNDRA;
+  if (temp < 0.4f) {
+    if (moisture < 0.3f)
+      return BiomeType::BARE;
+    if (moisture < 0.6f)
+      return BiomeType::SHRUBLAND;
+    return BiomeType::TEMPERATE_DECIDUOUS_FOREST; // ताएगा approximation
+  }
+  if (temp < 0.7f) {
+    if (moisture < 0.2f)
+      return BiomeType::TEMPERATE_DESERT;
+    if (moisture < 0.5f)
+      return BiomeType::GRASSLAND;
+    if (moisture < 0.8f)
+      return BiomeType::TEMPERATE_DECIDUOUS_FOREST;
+    return BiomeType::TEMPERATE_RAIN_FOREST;
+  }
+  // Hot
+  if (moisture < 0.2f)
+    return BiomeType::SCORCHED;
+  if (moisture < 0.4f)
+    return BiomeType::SUBTROPICAL_DESERT;
+  if (moisture < 0.7f)
+    return BiomeType::TROPICAL_SEASONAL_FOREST;
+  return BiomeType::TROPICAL_RAIN_FOREST;
 }
 
 void Update(WorldBuffers &b, const WorldSettings &s) {
-  if (!b.temperature || !b.moisture)
-    return;
-
-  int side = static_cast<int>(std::sqrt(b.count));
+  int side = std::sqrt(b.count);
   if (side == 0)
     return;
 
-  // 5 Wind Zones:
-  // 0: North Pole (0.0 - 0.1)
-  // 1: North Temp (0.1 - 0.3)
-  // 2: Equator    (0.3 - 0.7)
-  // 3: South Temp (0.7 - 0.9)
-  // 4: South Pole (0.9 - 1.0)
+  float windX = std::cos(s.windAngle);
+  float windY = std::sin(s.windAngle);
 
-  for (uint32_t i = 0; i < b.count; ++i) {
-    float yNorm = (float)(i / side) / (float)side; // 0.0 (Top) to 1.0 (Bottom)
+  // Noise generators for variation
+  FastNoiseLite tempNoise;
+  tempNoise.SetFrequency(0.003f);
+  FastNoiseLite rainNoise;
+  rainNoise.SetFrequency(0.005f);
 
-    // --- WIND ---
-    int zoneIdx = 0;
-    if (yNorm < 0.1f)
-      zoneIdx = 0;
-    else if (yNorm < 0.35f)
-      zoneIdx = 1; // North Temp
-    else if (yNorm < 0.65f)
-      zoneIdx = 2; // Equator
-    else if (yNorm < 0.9f)
-      zoneIdx = 3; // South Temp
-    else
-      zoneIdx = 4;
-
-    float angle = s.windZonesDir[zoneIdx];
-    float strength = s.windZonesStr[zoneIdx] * s.globalWindStrength;
-
-    // --- TEMPERATURE ---
-    // Interpolate between zones
-    // 0.0 (N) -> 0.5 (Eq) -> 1.0 (S)
-    float targetTemp = 0.0f;
-    if (yNorm < 0.5f) {
-      // North -> Equator
-      float t = yNorm * 2.0f; // 0..1
-      targetTemp = s.tempZonePolar * (1.0f - t) + s.tempZoneTropical * t;
-    } else {
-      // Equator -> South
-      float t = (yNorm - 0.5f) * 2.0f; // 0..1
-      targetTemp = s.tempZoneTropical * (1.0f - t) + s.tempZonePolar * t;
-      // Note: User asked for 3 zones, usually Polar is same both ends.
-      // But let's assume Polar applies to both ends if not specified separate.
-      // Actually, let's mix in Temperate if t is near 0.5 (Lat 45).
-      // Simple linear for robust "3 Zones":
-      // Polar (0) -> Temperate (0.25) -> Tropical (0.5) -> Temperate (0.75) ->
-      // Polar (1.0)
-    }
-
-    // Better Temp Interpolation
-    float distFromEq = std::abs(yNorm - 0.5f) * 2.0f; // 0.0(Eq) to 1.0(Pole)
-    if (distFromEq < 0.33f) {
-      // Tropical Band
-      targetTemp = s.tempZoneTropical;
-    } else if (distFromEq < 0.66f) {
-      // Temperate Band
-      targetTemp = s.tempZoneTemperate;
-    } else {
-      // Polar Band
-      targetTemp = s.tempZonePolar;
-    }
-
-    // Altitude Cooling
+  for (int i = 0; i < (int)b.count; ++i) {
+    int x = i % side;
+    int y = i / side;
     float h = b.height[i];
-    if (h > s.seaLevel) {
-      float altFactor = (h - s.seaLevel) / (1.0f - s.seaLevel);
-      targetTemp -= altFactor * 0.5f; // Mountains overlap zones
-    }
 
-    // Move Air (Advection) - Simplified
-    int upwindIdx = GetUpwindNeighbor(i, side, side, angle);
-    if (upwindIdx != (int)i) {
-      // Pull temp/moisture from upwind
-      float tempDiff = b.temperature[upwindIdx] - b.temperature[i];
-      b.temperature[i] += tempDiff * strength * 0.2f;
+    // --- 1. TEMPERATURE ---
+    // Base: Latitude (Pole to Equator)
+    float latitude = (float)y / side;
+    float baseTemp = 1.0f - std::abs(latitude - 0.5f) * 2.0f;
 
-      float moistDiff = b.moisture[upwindIdx] - b.moisture[i];
-      b.moisture[i] += moistDiff * strength * 0.2f;
-    }
+    // Modifier: Altitude (Higher is colder)
+    float altMod = std::max(0.0f, h - s.seaLevel) * 0.8f;
 
-    // Nudging towards Target Temp (Climate Stability)
-    b.temperature[i] = b.temperature[i] * 0.95f + targetTemp * 0.05f;
+    // Modifier: Noise & Global Setting
+    float nT = tempNoise.GetNoise((float)x, (float)y) * 0.1f;
 
-    // Global Modifiers
     b.temperature[i] =
-        std::max(0.0f, std::min(b.temperature[i] * s.globalTempModifier, 1.0f));
-    b.moisture[i] =
-        std::max(0.0f, std::min(b.moisture[i] * s.rainfallModifier, 1.0f));
+        std::clamp(baseTemp - altMod + nT + s.globalTemp, 0.0f, 1.0f);
+
+    // --- 2. MOISTURE & WIND ---
+    // "Look Upwind" to see if we are blocked by mountains
+    float moisture = 0.0f;
+
+    // Sample a point "upwind"
+    int uwX = x - (int)(windX * 15.0f); // 15 tiles away
+    int uwY = y - (int)(windY * 15.0f);
+
+    // Is the upwind spot Ocean or Land?
+    bool upwindIsOcean = true;
+    float blockage = 0.0f;
+
+    if (uwX >= 0 && uwX < side && uwY >= 0 && uwY < side) {
+      int uwIdx = uwY * side + uwX;
+      if (b.height[uwIdx] > s.seaLevel)
+        upwindIsOcean = false;
+
+      // Check for mountain obstruction (Rain Shadow) between here and there
+      int midX = (x + uwX) / 2;
+      int midY = (y + uwY) / 2;
+      int midIdx = midY * side + midX;
+      if (b.height[midIdx] > 0.7f)
+        blockage = 1.0f; // Blocked by peak
+    }
+
+    // Calculate Base Rainfall
+    if (h <= s.seaLevel) {
+      moisture = 1.0f; // Ocean is wet
+    } else {
+      // If wind comes from ocean and not blocked -> Wet
+      if (upwindIsOcean && blockage < 0.5f)
+        moisture += 0.6f;
+      // If blocked -> Dry (Shadow)
+      else
+        moisture -= 0.3f;
+
+      // Add Noise variation
+      moisture += rainNoise.GetNoise((float)x, (float)y) * 0.2f;
+    }
+
+    // Apply Global Rain Settings
+    b.moisture[i] = std::clamp(moisture * s.raininess, 0.0f, 1.0f);
+
+    // --- 3. BIOME CLASSIFICATION ---
+    if (h <= s.seaLevel) {
+      b.biomeID[i] = BiomeType::OCEAN;
+    } else {
+      b.biomeID[i] = GetBiome(b.temperature[i], b.moisture[i]);
+    }
   }
 }
-
 } // namespace ClimateSim
