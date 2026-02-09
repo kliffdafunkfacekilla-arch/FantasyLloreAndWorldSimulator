@@ -1,4 +1,3 @@
-#define GLEW_STATIC
 #define GLFW_INCLUDE_NONE
 #include "../../deps/imgui/backends/imgui_impl_glfw.h"
 #include "../../deps/imgui/backends/imgui_impl_opengl3.h"
@@ -6,7 +5,6 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
-
 
 // Modular Headers
 #include "../../include/AssetManager.hpp"
@@ -16,7 +14,7 @@
 void DrawDatabaseEditor(bool *p_open);
 
 int main() {
-  std::cout << "[LOG] Starting Omnis Lore Keeper...\n";
+  std::cout << "[LOG] Starting S.A.G.A. Database...\n";
   if (!glfwInit())
     return -1;
 
@@ -26,8 +24,8 @@ int main() {
 
   int windowW = 1200;
   int windowH = 800;
-  GLFWwindow *window =
-      glfwCreateWindow(windowW, windowH, "Omnis Lore Keeper", NULL, NULL);
+  GLFWwindow *window = glfwCreateWindow(
+      windowW, windowH, "S.A.G.A. Database - Lore & Rules", NULL, NULL);
   if (!window)
     return -1;
 
@@ -58,7 +56,7 @@ int main() {
     DrawDatabaseEditor(&showEditor);
 
     // Standard Frame End
-    glClearColor(0.1f, 0.1f, 0.1f, 1);
+    glClearColor(0.1f, 0.1f, 0.12f, 1);
     glClear(GL_COLOR_BUFFER_BIT);
 
     ImGui::Render();
@@ -76,6 +74,6 @@ int main() {
   glfwDestroyWindow(window);
   glfwTerminate();
 
-  std::cout << "[LOG] Lore Keeper Session Closed. Rules Saved.\n";
+  std::cout << "[LOG] S.A.G.A. Database Session Closed. Rules Saved.\n";
   return 0;
 }

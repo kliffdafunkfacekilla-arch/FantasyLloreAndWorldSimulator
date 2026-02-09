@@ -1,4 +1,4 @@
-#include "GuiController.hpp"
+#include "../../include/GuiController.hpp"
 #include "../../include/AssetManager.hpp"
 #include "../../include/Biology.hpp"
 #include "../../include/Environment.hpp"

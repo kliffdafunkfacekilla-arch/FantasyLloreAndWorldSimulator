@@ -2,7 +2,6 @@
 #include <iostream>
 #include <vector>
 
-
 // Modular Headers
 #include "../../include/AssetManager.hpp"
 #include "../../include/BinaryExporter.hpp"
@@ -13,10 +12,9 @@
 #include "../../include/Terrain.hpp"
 #include "../../include/WorldEngine.hpp"
 
-
 int main() {
   std::cout << "========================================\n";
-  std::cout << "   OMNIS WORLD ENGINE: SIMULATOR V2     \n";
+  std::cout << "   S.A.G.A. SIMULATION ENGINE v1.0      \n";
   std::cout << "========================================\n\n";
 
   // 1. Initialize Memory
@@ -27,36 +25,35 @@ int main() {
   NeighborFinder finder;
 
   // 2. Load Simulation State
-  std::cout << "[LOG] Loading Rules (rules.json)...\n";
+  std::cout << "[LOG] Loading S.A.G.A. Rules (data/rules.json)...\n";
   AssetManager::Initialize();
 
-  std::cout << "[LOG] Loading Map (data/world.map)...\n";
-  // Check if data dir exists, otherwise check bin/data/
-  if (!BinaryExporter::LoadWorld(buffers, "data/world.map")) {
-    if (!BinaryExporter::LoadWorld(buffers, "bin/data/world.map")) {
-      std::cout << "[ERROR] Could not find world.map! Please run "
-                   "OmnisArchitect first.\n";
+  std::cout << "[LOG] Loading S.A.G.A. Map (data/world.map)...\n";
+  if (!BinaryExporter::LoadWorld(buffers, "bin/data/world.map")) {
+    if (!BinaryExporter::LoadWorld(buffers, "data/world.map")) {
+      std::cout << "[ERROR] Could not find S.A.G.A. world data! Run Architect "
+                   "first.\n";
       return -1;
     }
   }
 
-  std::cout << "[LOG] Building Neighbor Graph...\n";
+  std::cout << "[LOG] Synchronizing World Graphs...\n";
   finder.BuildGraph(buffers, buffers.count, graph);
 
   LoreScribeNS::Initialize();
-  std::cout << "[LOG] Simulation Ready.\n\n";
+  std::cout << "[LOG] Engine Hot and Ready.\n\n";
 
   // 3. Simulation Loop
   int totalYears = 100;
   int ticksPerYear = 12;
 
-  std::cout << "[SIM] Running for " << totalYears << " years...\n";
+  std::cout << "[SIM] Starting simulation run (" << totalYears
+            << " years)...\n";
 
   clock_t start = clock();
 
   for (int year = 1; year <= totalYears; ++year) {
     for (int month = 1; month <= ticksPerYear; ++month) {
-      // Core Simulation Sequence
       ClimateSim::Update(buffers, settings);
       HydrologySim::Update(buffers, graph, settings);
 
@@ -71,17 +68,16 @@ int main() {
     }
 
     if (year % 10 == 0) {
-      std::cout << "[SIM] Year " << year << " / " << totalYears
-                << " complete.\n";
+      std::cout << "[SIM] Decade " << year / 10 << " complete.\n";
     }
   }
 
   clock_t end = clock();
   double elapsed = (double)(end - start) / CLOCKS_PER_SEC;
 
-  std::cout << "\n[SUCCESS] Simulation Finished in " << elapsed
-            << " seconds.\n";
-  std::cout << "[LOG] History saved to logs/history.txt\n";
+  std::cout << "\n[SUCCESS] S.A.G.A. Simulation Finished in " << elapsed
+            << "s.\n";
+  std::cout << "[LOG] History compiled to logs/history.txt\n";
 
   // Cleanup
   finder.Cleanup(graph);

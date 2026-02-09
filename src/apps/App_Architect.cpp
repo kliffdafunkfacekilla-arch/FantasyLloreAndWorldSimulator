@@ -1,239 +1,166 @@
-#define GLEW_STATIC
-#define GLFW_INCLUDE_NONE
 #include "../../deps/imgui/backends/imgui_impl_glfw.h"
 #include "../../deps/imgui/backends/imgui_impl_opengl3.h"
 #include "../../deps/imgui/imgui.h"
+#include "../../include/PlatformUtils.hpp"
+#include "../../include/Terrain.hpp"
+#include "../../include/WorldEngine.hpp"
+#include "../../include/stb_image.h"
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
+#include <algorithm>
 #include <cmath>
-#include <ctime>
-#include <fstream>
 #include <iostream>
-#include <sstream>
 #include <string>
 #include <vector>
 
+// --- GLOBALS ---
+WorldBuffers buffers;
+WorldSettings settings;
+float zoom = 1.0f;
+float camX = 0.5f, camY = 0.5f;
 
-// Modular Headers
-#include "../../include/AssetManager.hpp"
-#include "../../include/BinaryExporter.hpp"
-#include "../../include/Biology.hpp"
-#include "../../include/Environment.hpp"
-#include "../../include/Lore.hpp"
-#include "../../include/PlatformUtils.hpp"
-#include "../../include/Simulation.hpp"
-#include "../../include/Terrain.hpp"
-#include "../../include/WorldEngine.hpp"
+// --- UI STATE ---
+int brushMode = 0; // 0:Raise, 1:Lower, 2:Smooth
+float brushSize = 5.0f;
+float brushStrength = 0.05f;
 
-
-// Visuals
-#include "../frontend/GuiController.hpp"
-#include "../frontend/MapRenderer.hpp"
-
-// --- Helper: Shader Loader ---
-std::string ReadFile(const char *path) {
-  std::ifstream file(path);
-  std::stringstream buffer;
-  buffer << file.rdbuf();
-  return buffer.str();
+void Setup() {
+  buffers.Initialize(1000 * 1000); // 1 Million Cells
+  TerrainController::GenerateHeightmap(buffers, settings);
+  TerrainController::GenerateClimate(buffers, settings);
 }
 
-void checkShader(GLuint shader, const std::string &type) {
-  GLint success;
-  GLchar infoLog[1024];
-  glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-  if (!success) {
-    glGetShaderInfoLog(shader, 1024, NULL, infoLog);
-    std::cout << "[ERROR] " << type << " Compilation Error:\n"
-              << infoLog << "\n";
-  }
-}
+void DrawViewport() {
+  ImGui::Begin("S.A.G.A. Viewport", nullptr,
+               ImGuiWindowFlags_NoScrollbar |
+                   ImGuiWindowFlags_NoScrollWithMouse);
 
-void checkProgram(GLuint program) {
-  GLint success;
-  GLchar infoLog[1024];
-  glGetProgramiv(program, GL_LINK_STATUS, &success);
-  if (!success) {
-    glGetProgramInfoLog(program, 1024, NULL, infoLog);
-    std::cout << "[ERROR] Shader Program Link Error:\n" << infoLog << "\n";
-  }
-}
-
-GLuint LoadShaders() {
-  std::cout << "[LOG] LoadShaders called.\n";
-  // The Architect EXE is in bin/ , so we look for shaders in bin/shaders/ or
-  // shaders/
-  std::string vertCode = ReadFile("bin/shaders/world.vert");
-  if (vertCode.empty())
-    vertCode = ReadFile("shaders/world.vert");
-
-  std::string fragCode = ReadFile("bin/shaders/world.frag");
-  if (fragCode.empty())
-    fragCode = ReadFile("shaders/world.frag");
-
-  if (vertCode.empty() || fragCode.empty()) {
-    printf("[ERROR] Shaders not found!\n");
-    return 0;
-  }
-
-  const char *vShaderCode = vertCode.c_str();
-  const char *fShaderCode = fragCode.c_str();
-
-  GLuint vertex = glCreateShader(GL_VERTEX_SHADER);
-  glShaderSource(vertex, 1, &vShaderCode, NULL);
-  glCompileShader(vertex);
-  checkShader(vertex, "VERTEX");
-
-  GLuint fragment = glCreateShader(GL_FRAGMENT_SHADER);
-  glShaderSource(fragment, 1, &fShaderCode, NULL);
-  glCompileShader(fragment);
-  checkShader(fragment, "FRAGMENT");
-
-  GLuint program = glCreateProgram();
-  glAttachShader(program, vertex);
-  glAttachShader(program, fragment);
-  glLinkProgram(program);
-  checkProgram(program);
-
-  glDeleteShader(vertex);
-  glDeleteShader(fragment);
-  return program;
-}
-
-void MasterRegenerate(WorldBuffers &buffers, WorldSettings &settings,
-                      TerrainController &terrain, NeighborFinder &finder,
-                      NeighborGraph &graph) {
-  if (buffers.flux)
-    std::fill_n(buffers.flux, buffers.count, 0.0f);
-  if (buffers.nextFlux)
-    std::fill_n(buffers.nextFlux, buffers.count, 0.0f);
-
-  terrain.GenerateProceduralTerrain(buffers, settings);
-  finder.BuildGraph(buffers, buffers.count, graph);
-
-  if (settings.erosionIterations > 0) {
-    terrain.ApplyThermalErosion(buffers, settings.erosionIterations);
-  }
-
-  if (graph.neighborData) {
-    for (int i = 0; i < 50; ++i) {
-      HydrologySim::Update(buffers, graph, settings);
+  if (ImGui::IsWindowHovered()) {
+    ImGuiIO &io = ImGui::GetIO();
+    if (ImGui::IsMouseDown(0) && !io.WantCaptureMouse) {
+      // Transform screen to world logic would go here
+      // TerrainController::ApplyBrush(buffers, 1000, cx, cy, brushSize,
+      // brushStrength, brushMode);
     }
+    zoom += io.MouseWheel * 0.1f;
+    if (zoom < 0.1f)
+      zoom = 0.1f;
   }
+
+  ImGui::Text("Map Scope: 1000x1000 | Render Scale: %.2f", zoom);
+  ImGui::Separator();
+  ImGui::Text("Middle Click to Pan | Scroll to Zoom | Left Click to Sculpt");
+
+  ImGui::End();
 }
 
-int main() {
-  std::cout << "[LOG] Starting Omnis Architect...\n";
+void DrawTools() {
+  ImGui::Begin("Architect Command Center");
+
+  if (ImGui::BeginTabBar("ArchitectTabs")) {
+
+    if (ImGui::BeginTabItem("Generation")) {
+      ImGui::TextColored(ImVec4(0, 1, 1, 1), "Planetary Seeds");
+      static int seed = 12345;
+      ImGui::InputInt("Global Seed", &seed);
+      if (ImGui::Button("Reset Landmass")) {
+        settings.seed = seed;
+        TerrainController::GenerateHeightmap(buffers, settings);
+      }
+
+      ImGui::Separator();
+      ImGui::Text("Hydrology & Climate");
+      ImGui::SliderFloat("Global Sea Level", &settings.seaLevel, 0.0f, 1.0f);
+      if (ImGui::Button("Run Hydrology Cycle")) {
+        TerrainController::GenerateClimate(buffers, settings);
+        TerrainController::SimulateHydrology(buffers, settings);
+      }
+      ImGui::EndTabItem();
+    }
+
+    if (ImGui::BeginTabItem("Sculpt")) {
+      ImGui::Text("Brush Configuration");
+      const char *modes[] = {"Raise Land", "Lower Land", "Smooth",
+                             "Paint Biome"};
+      ImGui::Combo("Tool Type", &brushMode, modes, 4);
+      ImGui::SliderFloat("Brush Radius", &brushSize, 1.0f, 100.0f);
+      ImGui::SliderFloat("Intensity", &brushStrength, 0.001f, 0.2f);
+      ImGui::EndTabItem();
+    }
+
+    if (ImGui::BeginTabItem("File System")) {
+      ImGui::Text("Import/Export Operations");
+      static char path[128] = "heightmap.png";
+      ImGui::InputText("Source PNG", path, 128);
+      if (ImGui::Button("Load External Heightmap")) {
+        TerrainController::LoadHeightmapFromImage(buffers, std::string(path));
+      }
+      ImGui::Separator();
+      if (ImGui::Button("Export S.A.G.A. World (.map)")) {
+        // BinaryExporter::SaveWorld(buffers, "bin/data/world.map");
+      }
+      ImGui::EndTabItem();
+    }
+
+    ImGui::EndTabBar();
+  }
+  ImGui::End();
+}
+
+int main(int, char **) {
   if (!glfwInit())
-    return -1;
+    return 1;
 
   glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
   glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-  int windowW = 1600;
-  int windowH = 900;
-  GLFWwindow *window =
-      glfwCreateWindow(windowW, windowH, "Omnis Architect v2", NULL, NULL);
+  GLFWwindow *window = glfwCreateWindow(
+      1600, 900, "S.A.G.A. Architect - World Builder", NULL, NULL);
   if (!window)
-    return -1;
+    return 1;
 
   glfwMakeContextCurrent(window);
   glewInit();
-  glEnable(GL_PROGRAM_POINT_SIZE);
-
-  WorldBuffers buffers;
-  buffers.Initialize(1000000);
-  WorldSettings settings;
-  srand((unsigned int)time(NULL));
-  settings.seed = rand();
-
-  NeighborGraph graph;
-  NeighborFinder finder;
-  TerrainController terrain;
-  MapRenderer renderer;
-  renderer.Setup(buffers);
-
-  GLuint shaderProgram = LoadShaders();
-  MasterRegenerate(buffers, settings, terrain, finder, graph);
-
-  AssetManager::Initialize();
-  GuiController::Initialize();
 
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
+  ImGuiIO &io = ImGui::GetIO();
+  // io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+
   ImGui_ImplGlfw_InitForOpenGL(window, true);
   ImGui_ImplOpenGL3_Init("#version 330");
-  ImGui::StyleColorsDark();
+
+  Setup();
 
   while (!glfwWindowShouldClose(window)) {
     glfwPollEvents();
-    int winW, winH, fbW, fbH;
-    glfwGetWindowSize(window, &winW, &winH);
-    glfwGetFramebufferSize(window, &fbW, &fbH);
 
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 
-    ImGuiIO &io = ImGui::GetIO();
+    // ImGui::DockSpaceOverViewport(ImGui::GetMainViewport());
 
-    // Zoom/Pan logic
-    if (io.MouseWheel != 0.0f && !io.WantCaptureMouse) {
-      settings.zoomLevel += io.MouseWheel * 0.1f;
-      if (settings.zoomLevel < 0.0f)
-        settings.zoomLevel = 0.0f;
-    }
-
-    if (ImGui::IsMouseDragging(ImGuiMouseButton_Middle)) {
-      ImVec2 delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Middle);
-      ImGui::ResetMouseDragDelta(ImGuiMouseButton_Middle);
-      float zoom = pow(4.0f, settings.zoomLevel);
-      float panSpeed = 1.0f / (1000.0f * zoom);
-      settings.viewOffset[0] -= delta.x * panSpeed * 2.0f;
-      settings.viewOffset[1] += delta.y * panSpeed * 2.0f;
-    }
-
-    if (io.MouseDown[0] && !io.WantCaptureMouse) {
-      renderer.isDirty = true;
-    }
-
-    GuiState guiState = GuiController::DrawMainLayout(
-        buffers, settings, terrain, graph, winW, winH);
-    if (guiState.requiresRedraw)
-      renderer.isDirty = true;
-
-    // RENDER
-    float dpiX = (float)fbW / (float)winW;
-    float dpiY = (float)fbH / (float)winH;
-    int glViewY = winH - (guiState.viewY + guiState.viewH);
-    glViewport((int)(guiState.viewX * dpiX), (int)(glViewY * dpiY),
-               (int)(guiState.viewW * dpiX), (int)(guiState.viewH * dpiY));
-
-    glClearColor(0.1f, 0.1f, 0.15f, 1);
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    glUseProgram(shaderProgram);
-    glUniform1f(glGetUniformLocation(shaderProgram, "u_zoom"),
-                (float)pow(4.0, settings.zoomLevel));
-    glUniform2f(glGetUniformLocation(shaderProgram, "u_offset"),
-                settings.viewOffset[0], settings.viewOffset[1]);
-    glUniform1f(glGetUniformLocation(shaderProgram, "u_pointSize"),
-                settings.pointSize);
-
-    renderer.UpdateVisuals(buffers, settings, guiState.viewMode);
-    renderer.Render(settings);
+    DrawViewport();
+    DrawTools();
 
     ImGui::Render();
+    int display_w, display_h;
+    glfwGetFramebufferSize(window, &display_w, &display_h);
+    glViewport(0, 0, display_w, display_h);
+    glClearColor(0.05f, 0.05f, 0.08f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
     glfwSwapBuffers(window);
   }
 
-  finder.Cleanup(graph);
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();
   ImGui::DestroyContext();
   glfwDestroyWindow(window);
   glfwTerminate();
+
   return 0;
 }

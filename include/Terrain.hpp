@@ -1,41 +1,32 @@
 #pragma once
 #include "WorldEngine.hpp"
+#include <string>
 
-// Terrain & Structure (src/terrain/TerrainController.cpp)
 class TerrainController {
 public:
-  void LoadFromImage(const char *path, WorldBuffers &buffers);
-  void ApplyThermalErosion(WorldBuffers &buffers, int iterations);
-  void InvertHeights(WorldBuffers &buffers);
-  // Helpers
-  void GenerateProceduralTerrain(WorldBuffers &buffers,
-                                 const WorldSettings &settings);
+  // Generation
+  static void GenerateHeightmap(WorldBuffers &b, const WorldSettings &s);
+  static void GenerateClimate(WorldBuffers &b,
+                              const WorldSettings &s); // Temp/Moisture maps
+  static void SimulateHydrology(WorldBuffers &b,
+                                const WorldSettings &s); // Rivers
 
-  // Modifiers
-  void EnforceOceanEdges(WorldBuffers &b, int width, float fadeDist);
-  void RoughenCoastlines(WorldBuffers &b, int width, float seaLevel);
-  void SmoothTerrain(WorldBuffers &b, int width);
+  // Tools
+  static void ApplyBrush(WorldBuffers &b, int width, int cx, int cy, float r,
+                         float str, int mode);
+  static void LoadHeightmapFromImage(WorldBuffers &b,
+                                     const std::string &filepath);
 
-  // Interaction (Brush)
-  // Mode: 0=Raise, 1=Lower, 2=Flatten, 3=Noise
-  void ApplyBrush(WorldBuffers &b, int width, int cx, int cy, float radius,
-                  float strength, int mode);
+  // Analysis
+  static void RecalculateBiomes(WorldBuffers &b); // Fill the biome buffer
 
-  // Legacy Paint Tools (Keep for compatibility or refactor to use ApplyBrush)
-  void RaiseTerrain(WorldBuffers &buffers, int centerIdx, float radius,
-                    float speed);
-  void LowerTerrain(WorldBuffers &buffers, int centerIdx, float radius,
-                    float speed);
-  void SmoothTerrainExperimental(
-      WorldBuffers &buffers, int centerIdx, float radius,
-      float speed); // Renamed to avoid conflict if signature matches, or just
-                    // remove if unused.
-  // Actually, previous SmoothTerrain had signature (buffers, int idx, float r,
-  // float s). The new one is (buffers, int width). I'll keep the old one as
-  // `SmoothTerrainRegion` to avoid conflict.
-  void SmoothTerrainRegion(WorldBuffers &buffers, int centerIdx, float radius,
-                           float speed);
+  // Legacy/Compatibility for S.A.G.A. Architect
+  static void GenerateProceduralTerrain(WorldBuffers &b,
+                                        const WorldSettings &s) {
+    GenerateHeightmap(b, s);
+  }
+  static void ApplyThermalErosion(WorldBuffers &b, int iterations);
+  static void EnforceOceanEdges(WorldBuffers &b, int side, float fadeDist);
+  static void SmoothTerrain(WorldBuffers &b, int side);
+  static void RoughenCoastlines(WorldBuffers &b, int side, float seaLevel);
 };
-
-// IO Helpers
-void LoadHeightmapData(const char *path, WorldBuffers &buffers, uint32_t count);
