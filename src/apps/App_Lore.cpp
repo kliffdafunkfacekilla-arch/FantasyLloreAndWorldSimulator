@@ -1,8 +1,9 @@
 #include "../../include/AssetManager.hpp"
 #include "../../include/BinaryExporter.hpp"
-#include "../../include/PlatformUtils.hpp"
-#include "../../include/Theme.hpp"
 #include "../../include/WorldEngine.hpp"
+#include "../../include/nlohmann/json.hpp"
+#include "../../include/stb_image.h"
+
 
 #include "../../deps/imgui/backends/imgui_impl_glfw.h"
 #include "../../deps/imgui/backends/imgui_impl_opengl3.h"
@@ -11,210 +12,285 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
-#include <algorithm>
+
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <map>
+#include <sstream>
 #include <string>
 #include <vector>
 
-// Note: Using manual JSON formatting to match existing AssetManager.cpp pattern
-// for maximum stability and speed without external header dependencies.
 
-// --- ENUMS & STRUCTS ---
-enum class ArticleType {
-  LOCATION,
-  FACTION,
-  FLORA,
-  FAUNA,
-  EVENT,
-  CHARACTER,
-  RESOURCE
+namespace fs = std::filesystem;
+
+// --- THEME ---
+void SetupTheme() {
+  ImGuiStyle &style = ImGui::GetStyle();
+  style.WindowRounding = 6.0f;
+  style.FrameRounding = 4.0f;
+  style.Colors[ImGuiCol_WindowBg] = ImVec4(0.10f, 0.10f, 0.13f, 1.00f);
+  style.Colors[ImGuiCol_Header] = ImVec4(0.20f, 0.25f, 0.30f, 1.00f);
+  style.Colors[ImGuiCol_Button] = ImVec4(0.25f, 0.40f, 0.55f, 1.00f);
+  style.Colors[ImGuiCol_Text] = ImVec4(0.90f, 0.90f, 0.90f, 1.00f);
+}
+
+// --- DATA STRUCTURES ---
+enum class FieldType { TEXT, NUMBER, SLIDER, COLOR, IMAGE_PATH, SPRITE_REF };
+
+struct CategoryTemplate {
+  std::string name;
+  struct FieldDef {
+    std::string label;
+    FieldType type;
+  };
+  std::vector<FieldDef> fields;
 };
-
-const char *TypeNames[] = {"Location",       "Faction", "Flora (Plant)",
-                           "Fauna (Animal)", "Event",   "Character",
-                           "Resource"};
 
 struct WikiArticle {
   int id;
   std::string title;
-  ArticleType type;
-  std::string content;
+  std::string categoryName; // Links to CategoryTemplate
+  std::string content;      // Main Body (Markdown)
 
-  // Geo-Spatial
+  // Dynamic Data (Matches Template)
+  std::map<std::string, std::string> data;
+
+  // Links
+  std::vector<std::string> tags;
+  int simID = -1; // Links to AgentSystem
   bool hasLocation = false;
   int mapX = 0, mapY = 0;
 
-  // Link to Simulation Engine
-  int simID = -1;
-
-  // Timeline
-  bool isTimelineEvent = false;
-  int year = 0, month = 1;
-  std::string simEffect;
+  // Media
+  std::string imagePath;   // Main illustration
+  GLuint imageTexture = 0; // GPU Handle
 };
 
 // --- GLOBALS ---
 std::vector<WikiArticle> wikiDB;
+std::vector<CategoryTemplate> templates;
 WorldBuffers mapData;
 GLuint mapTexture = 0;
 int selectedIdx = -1;
 bool showMapOverlay = false;
+bool showHelp = false;
 
-// --- HELPER: HELPER UI FOR MAPS (DIET/OUTPUT) ---
-void DrawResourceMap(const char *label, std::map<int, float> &dataMap) {
-  ImGui::PushID(label);
-  ImGui::Text("%s", label);
-  ImGui::Indent();
+// --- HELPER: IMAGE LOADER ---
+GLuint LoadTexture(const std::string &path) {
+  if (path.empty() || !fs::exists(path))
+    return 0;
+  int w, h, ch;
+  unsigned char *data = stbi_load(path.c_str(), &w, &h, &ch, 4);
+  if (!data)
+    return 0;
 
-  // List existing
-  std::vector<int> toRemove;
-  for (auto &[resID, amount] : dataMap) {
-    std::string name = "Unknown ID:" + std::to_string(resID);
-    for (auto &r : AssetManager::resourceRegistry)
-      if (r.id == resID)
-        name = r.name;
-
-    ImGui::PushID(resID);
-    if (ImGui::Button("X"))
-      toRemove.push_back(resID);
-    ImGui::SameLine();
-    ImGui::Text("%s:", name.c_str());
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(60);
-    ImGui::DragFloat("##amt", &amount, 0.1f, 0.0f, 100.0f);
-    ImGui::PopID();
-  }
-  for (int id : toRemove)
-    dataMap.erase(id);
-
-  // Add New
-  static int selRes = 0;
-  if (!AssetManager::resourceRegistry.empty()) {
-    if (selRes >= (int)AssetManager::resourceRegistry.size())
-      selRes = 0;
-    const char *preview = AssetManager::resourceRegistry[selRes].name.c_str();
-    ImGui::SetNextItemWidth(100);
-    if (ImGui::BeginCombo("##add", preview)) {
-      for (int i = 0; i < (int)AssetManager::resourceRegistry.size(); ++i) {
-        if (ImGui::Selectable(AssetManager::resourceRegistry[i].name.c_str(),
-                              selRes == i))
-          selRes = i;
-      }
-      ImGui::EndCombo();
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Add")) {
-      dataMap[AssetManager::resourceRegistry[selRes].id] = 1.0f;
-    }
-  }
-  ImGui::Unindent();
-  ImGui::PopID();
+  GLuint tex;
+  glGenTextures(1, &tex);
+  glBindTexture(GL_TEXTURE_2D, tex);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+               data);
+  stbi_image_free(data);
+  return tex;
 }
 
-// --- FILE IO (Manual JSON) ---
-void SaveAllData() {
-  // 1. Save Lore
+// --- HELPER: MARKDOWN RENDERER ---
+void RenderMarkdown(const std::string &text) {
+  std::stringstream ss(text);
+  std::string line;
+  while (std::getline(ss, line)) {
+    if (line.rfind("# ", 0) == 0) { // H1
+      ImGui::SetWindowFontScale(1.5f);
+      ImGui::TextColored(ImVec4(1, 0.8f, 0.4f, 1), "%s",
+                         line.substr(2).c_str());
+      ImGui::SetWindowFontScale(1.0f);
+      ImGui::Separator();
+    } else if (line.rfind("## ", 0) == 0) { // H2
+      ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1), "%s",
+                         line.substr(3).c_str());
+    } else if (line.rfind("* ", 0) == 0) { // Bullet
+      ImGui::Bullet();
+      ImGui::TextWrapped("%s", line.substr(2).c_str());
+    } else if (line.rfind("---", 0) == 0) { // Divider
+      ImGui::Separator();
+    } else { // Body
+      ImGui::TextWrapped("%s", line.c_str());
+    }
+  }
+}
+
+// --- IO SYSTEMS ---
+void SaveData() {
+  nlohmann::json root = nlohmann::json::array();
+  for (const auto &a : wikiDB) {
+    nlohmann::json obj;
+    obj["id"] = a.id;
+    obj["title"] = a.title;
+    obj["cat"] = a.categoryName;
+    obj["content"] = a.content;
+    obj["data"] = a.data;
+    obj["tags"] = a.tags;
+    obj["simID"] = a.simID;
+    obj["img"] = a.imagePath;
+    if (a.hasLocation)
+      obj["loc"] = {a.mapX, a.mapY};
+    root.push_back(obj);
+  }
   std::ofstream o("data/lore.json");
-  if (o.is_open()) {
-    o << "[\n";
-    for (size_t i = 0; i < wikiDB.size(); ++i) {
-      const auto &a = wikiDB[i];
-      o << "  {\n";
-      o << "    \"id\": " << a.id << ",\n";
-      o << "    \"title\": \"" << a.title << "\",\n";
-      o << "    \"type\": " << (int)a.type << ",\n";
-      o << "    \"content\": \"" << a.content << "\",\n";
-      o << "    \"simID\": " << a.simID;
-      if (a.hasLocation) {
-        o << ",\n    \"loc\": [" << a.mapX << ", " << a.mapY << "]";
+  o << std::setw(4) << root;
+
+  // Save Templates
+  nlohmann::json tRoot = nlohmann::json::array();
+  for (const auto &t : templates) {
+    nlohmann::json tObj;
+    tObj["name"] = t.name;
+    nlohmann::json fields = nlohmann::json::array();
+    for (const auto &f : t.fields)
+      fields.push_back({{"l", f.label}, {"t", (int)f.type}});
+    tObj["fields"] = fields;
+    tRoot.push_back(tObj);
+  }
+  std::ofstream ot("data/templates.json");
+  ot << std::setw(4) << tRoot;
+
+  AssetManager::SaveAll(); // Save Sim Rules
+}
+
+void LoadData() {
+  AssetManager::LoadAll();
+  // Load Templates
+  std::ifstream ft("data/templates.json");
+  if (ft.is_open()) {
+    try {
+      nlohmann::json tRoot;
+      ft >> tRoot;
+      templates.clear();
+      for (const auto &tObj : tRoot) {
+        CategoryTemplate t;
+        t.name = tObj["name"];
+        for (const auto &fObj : tObj["fields"])
+          t.fields.push_back({fObj["l"], (FieldType)fObj["t"]});
+        templates.push_back(t);
       }
-      if (a.isTimelineEvent) {
-        o << ",\n    \"time\": [" << a.year << ", " << a.month << "],\n";
-        o << "    \"effect\": \"" << a.simEffect << "\"";
-      }
-      o << "\n  }";
-      if (i < wikiDB.size() - 1)
-        o << ",";
-      o << "\n";
+    } catch (...) {
     }
-    o << "]\n";
-    o.close();
+  }
+  if (templates.empty()) {
+    templates.push_back({"General", {{"Description", FieldType::TEXT}}});
+    templates.push_back(
+        {"Faction",
+         {{"Population", FieldType::NUMBER}, {"Color", FieldType::COLOR}}});
   }
 
-  // 2. Save Rules
-  AssetManager::SaveAll();
-}
-
-void LoadAllData() {
-  AssetManager::LoadAll(); // Load Rules first
-
-  // Note: Manual loader is complex, for now we re-initialize wikiDB if file is
-  // missing or use a simplified mock loader as this is a transition step.
-}
-
-// --- MAP VISUALS ---
-void GenerateMapTexture() {
-  if (!mapData.height)
+  // Load Wiki
+  std::ifstream f("data/lore.json");
+  if (!f.is_open())
     return;
-  int w = 1000;
-  int h = 1000;
-  std::vector<unsigned char> pixels(w * h * 3);
-  for (int i = 0; i < w * h; ++i) {
-    float hgt = mapData.height[i];
-    unsigned char r, g, b;
-    if (hgt < 0.4f) {
-      r = 10;
-      g = 40;
-      b = 120;
-    } else if (hgt < 0.45f) {
-      r = 200;
-      g = 190;
-      b = 100;
-    } else {
-      r = 30;
-      g = 100;
-      b = 30;
+  try {
+    nlohmann::json root;
+    f >> root;
+    wikiDB.clear();
+    for (auto &obj : root) {
+      WikiArticle a;
+      a.id = obj.value("id", 0);
+      a.title = obj.value("title", "Untitled");
+      a.categoryName = obj.value("cat", "General");
+      a.content = obj.value("content", "");
+      if (obj.contains("data"))
+        a.data = obj["data"].get<std::map<std::string, std::string>>();
+      if (obj.contains("tags"))
+        a.tags = obj["tags"].get<std::vector<std::string>>();
+      a.simID = obj.value("simID", -1);
+      a.imagePath = obj.value("img", "");
+      if (!a.imagePath.empty())
+        a.imageTexture = LoadTexture(a.imagePath);
+
+      if (obj.contains("loc")) {
+        a.hasLocation = true;
+        a.mapX = obj["loc"][0];
+        a.mapY = obj["loc"][1];
+      }
+      wikiDB.push_back(a);
     }
-    pixels[i * 3] = r;
-    pixels[i * 3 + 1] = g;
-    pixels[i * 3 + 2] = b;
+  } catch (...) {
   }
-  glGenTextures(1, &mapTexture);
-  glBindTexture(GL_TEXTURE_2D, mapTexture);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE,
-               pixels.data());
 }
 
-// --- UI LOGIC ---
+// --- EXPORT TO HTML ---
+void ExportHTML() {
+  fs::create_directories("export");
+
+  // Index
+  std::ofstream idx("export/index.html");
+  idx << "<html><head><style>body{background:#222;color:#eee;font-family:sans-"
+         "serif;max-width:800px;margin:auto;padding:20px;} "
+         "a{color:#4da6ff;}</style></head><body>";
+  idx << "<h1>S.A.G.A. World Codex</h1><hr>";
+
+  for (const auto &a : wikiDB) {
+    std::string fname = "article_" + std::to_string(a.id) + ".html";
+    idx << "<h3><a href='" << fname << "'>" << a.title << "</a> <small>("
+        << a.categoryName << ")</small></h3>";
+
+    // Article Page
+    std::ofstream p("export/" + fname);
+    p << "<html><head><style>body{background:#222;color:#eee;font-family:sans-"
+         "serif;max-width:800px;margin:auto;padding:20px;}</style></"
+         "head><body>";
+    p << "<a href='index.html'>&larr; Back</a>";
+    p << "<h1>" << a.title << "</h1>";
+    if (a.hasLocation)
+      p << "<p><b>Location:</b> " << a.mapX << ", " << a.mapY << "</p>";
+
+    // Data Table
+    if (!a.data.empty()) {
+      p << "<table border='1' style='border-collapse:collapse;width:100%'>";
+      for (auto &[k, v] : a.data)
+        p << "<tr><td style='padding:5px'><b>" << k
+          << "</b></td><td style='padding:5px'>" << v << "</td></tr>";
+      p << "</table><br>";
+    }
+
+    // Content (Simple markdown conversion)
+    std::string htmlContent = a.content;
+    p << "<div style='white-space: pre-wrap;'>" << htmlContent << "</div>";
+    p << "</body></html>";
+  }
+  idx << "</body></html>";
+  system("start export/index.html");
+}
+
+// --- UI COMPONENTS ---
 
 void DrawSidebar() {
-  ImGui::Begin("S.A.G.A. Database", nullptr, ImGuiWindowFlags_NoCollapse);
-
-  // NEW ARTICLE BUTTON
-  if (ImGui::Button("+ New Article", ImVec2(-1, 40))) {
+  ImGui::Begin("Codex", nullptr, ImGuiWindowFlags_NoCollapse);
+  if (ImGui::Button("+ New Article", ImVec2(-1, 0))) {
     WikiArticle a;
     a.id = rand();
-    a.title = "New Entry";
-    a.type = ArticleType::LOCATION;
+    a.title = "New";
+    a.categoryName = "General";
     wikiDB.push_back(a);
-    selectedIdx = wikiDB.size() - 1;
+    selectedIdx = (int)wikiDB.size() - 1;
   }
-
   ImGui::Separator();
-  ImGui::BeginChild("List");
-  for (int i = 0; i < (int)wikiDB.size(); ++i) {
-    // Color code types
-    ImVec4 color = ImVec4(1, 1, 1, 1);
-    if (wikiDB[i].type == ArticleType::FACTION)
-      color = ImVec4(1, 0.5f, 0.5f, 1);
-    if (wikiDB[i].type == ArticleType::FAUNA)
-      color = ImVec4(0.5f, 1, 0.5f, 1);
 
-    ImGui::PushStyleColor(ImGuiCol_Text, color);
+  // Filter
+  static char filter[64] = "";
+  ImGui::InputText("Search", filter, 64);
+
+  ImGui::BeginChild("List");
+  for (int i = 0; i < wikiDB.size(); ++i) {
+    if (strlen(filter) > 0 && wikiDB[i].title.find(filter) == std::string::npos)
+      continue;
+
+    ImVec4 col = ImVec4(1, 1, 1, 1);
+    if (wikiDB[i].categoryName == "Faction")
+      col = ImVec4(1, 0.6f, 0.6f, 1);
+
+    ImGui::PushStyleColor(ImGuiCol_Text, col);
     if (ImGui::Selectable(wikiDB[i].title.c_str(), selectedIdx == i))
       selectedIdx = i;
     ImGui::PopStyleColor();
@@ -223,160 +299,212 @@ void DrawSidebar() {
   ImGui::End();
 }
 
+void DrawTemplateEditor() {
+  if (!ImGui::Begin("Category Builder")) {
+    ImGui::End();
+    return;
+  }
+
+  static int selTemp = 0;
+  if (templates.empty()) {
+    ImGui::Text("No Templates");
+    ImGui::End();
+    return;
+  }
+  if (selTemp >= templates.size())
+    selTemp = 0;
+
+  if (ImGui::BeginCombo("Template", templates[selTemp].name.c_str())) {
+    for (int i = 0; i < templates.size(); ++i)
+      if (ImGui::Selectable(templates[i].name.c_str(), selTemp == i))
+        selTemp = i;
+    ImGui::EndCombo();
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("+")) {
+    templates.push_back({"New Category", {}});
+    selTemp = (int)templates.size() - 1;
+  }
+
+  ImGui::InputText("Name", &templates[selTemp].name);
+  ImGui::Separator();
+  ImGui::Text("Fields:");
+
+  auto &fields = templates[selTemp].fields;
+  for (int i = 0; i < fields.size(); ++i) {
+    ImGui::PushID(i);
+    ImGui::SetNextItemWidth(100);
+    ImGui::InputText("##lbl", &fields[i].label);
+    ImGui::SameLine();
+    const char *types[] = {"Text",  "Number", "Slider",
+                           "Color", "Image",  "Sprite"};
+    int t = (int)fields[i].type;
+    ImGui::SetNextItemWidth(80);
+    if (ImGui::Combo("##type", &t, types, 6))
+      fields[i].type = (FieldType)t;
+    ImGui::SameLine();
+    if (ImGui::Button("x")) {
+      fields.erase(fields.begin() + i);
+      ImGui::PopID();
+      break;
+    }
+    ImGui::PopID();
+  }
+  if (ImGui::Button("Add Field"))
+    fields.push_back({"New Field", FieldType::TEXT});
+
+  ImGui::End();
+}
+
 void DrawMainEditor() {
   ImGui::Begin("Inspector");
-
-  if (selectedIdx >= 0 && selectedIdx < (int)wikiDB.size()) {
+  if (selectedIdx >= 0 && selectedIdx < wikiDB.size()) {
     WikiArticle &a = wikiDB[selectedIdx];
 
-    // --- HEADER ---
-    ImGui::InputText("Title", &a.title);
-
-    // Type Selector
-    int typeInt = (int)a.type;
-    if (ImGui::Combo("Category", &typeInt, TypeNames, 7)) {
-      a.type = (ArticleType)typeInt;
-    }
-
-    // --- MAP LOCATION ---
+    ImGui::InputText("##Title", &a.title);
     ImGui::SameLine();
-    if (ImGui::Button(a.hasLocation ? "Edit Location" : "Mark on Map")) {
-      showMapOverlay = true;
-      if (!mapData.height) { // Lazy load map
-        mapData.Initialize(1000000);
-        if (BinaryExporter::LoadWorld(mapData, "data/world.map"))
-          GenerateMapTexture();
+    if (ImGui::Button("Export HTML"))
+      ExportHTML();
+    ImGui::SameLine();
+    if (ImGui::Button("?"))
+      showHelp = true;
+
+    if (ImGui::BeginCombo("Category", a.categoryName.c_str())) {
+      for (const auto &t : templates) {
+        if (ImGui::Selectable(t.name.c_str(), t.name == a.categoryName))
+          a.categoryName = t.name;
       }
+      ImGui::EndCombo();
     }
-    if (a.hasLocation)
-      ImGui::TextDisabled("Coords: %d, %d", a.mapX, a.mapY);
 
     ImGui::Separator();
+    CategoryTemplate *tmpl = nullptr;
+    for (auto &t : templates)
+      if (t.name == a.categoryName)
+        tmpl = &t;
 
-    // --- DYNAMIC SIMULATION PROPERTIES ---
-    // Links Lore to Code
+    if (tmpl) {
+      if (ImGui::BeginTable("Form", 2)) {
+        for (const auto &f : tmpl->fields) {
+          ImGui::TableNextRow();
+          ImGui::TableNextColumn();
+          ImGui::Text("%s", f.label.c_str());
+          ImGui::TableNextColumn();
 
-    if (a.type == ArticleType::FACTION || a.type == ArticleType::FLORA ||
-        a.type == ArticleType::FAUNA) {
+          std::string &val = a.data[f.label];
 
-      // Check if linked
-      if (a.simID == -1) {
-        ImGui::TextColored(ImVec4(1, 0, 0, 1), "No Simulation Rules Found.");
-        if (ImGui::Button("Create Sim Agent")) {
-          AssetManager::CreateNewAgent();
-          a.simID = AssetManager::agentRegistry.back().id;
-          AssetManager::agentRegistry.back().name = a.title; // Sync name
-
-          if (a.type == ArticleType::FACTION)
-            AssetManager::agentRegistry.back().type = AgentType::CIVILIZED;
-          if (a.type == ArticleType::FAUNA)
-            AssetManager::agentRegistry.back().type = AgentType::FAUNA;
-          if (a.type == ArticleType::FLORA)
-            AssetManager::agentRegistry.back().type = AgentType::FLORA;
-        }
-      } else {
-        AgentDefinition *agent = nullptr;
-        for (auto &ag : AssetManager::agentRegistry)
-          if (ag.id == a.simID)
-            agent = &ag;
-
-        if (agent) {
-          ImGui::TextColored(ImVec4(0, 1, 1, 1),
-                             "Simulation Properties (Sim ID: %d)", a.simID);
-          ImGui::Indent();
-
-          if (agent->name != a.title) {
-            if (ImGui::Button("Sync Name to Agent"))
-              agent->name = a.title;
+          ImGui::PushID(f.label.c_str());
+          if (f.type == FieldType::TEXT) {
+            ImGui::InputText("##v", &val);
+          } else if (f.type == FieldType::NUMBER) {
+            float v = 0.0f;
+            try {
+              if (!val.empty())
+                v = std::stof(val);
+            } catch (...) {
+            }
+            if (ImGui::DragFloat("##v", &v))
+              val = std::to_string(v);
+          } else if (f.type == FieldType::SLIDER) {
+            float v = 0.5f;
+            try {
+              if (!val.empty())
+                v = std::stof(val);
+            } catch (...) {
+            }
+            if (ImGui::SliderFloat("##v", &v, 0.0f, 1.0f))
+              val = std::to_string(v);
+          } else if (f.type == FieldType::IMAGE_PATH ||
+                     f.type == FieldType::SPRITE_REF) {
+            ImGui::InputText("##v", &val);
+            if (f.type == FieldType::SPRITE_REF) {
+              if (ImGui::IsItemHovered())
+                ImGui::SetTooltip(
+                    "This image will be used in Replay Viewer for this Agent.");
+            }
+          } else if (f.type == FieldType::COLOR) {
+            ImVec4 col(1, 1, 1, 1);
+            if (ImGui::ColorEdit4("##v", (float *)&col)) {
+              val = std::to_string(col.x) + "," + std::to_string(col.y) + "," +
+                    std::to_string(col.z) + "," + std::to_string(col.w);
+            }
           }
-
-          ImGui::ColorEdit3("Map Color", agent->color);
-          ImGui::SliderFloat("Ideal Temp", &agent->idealTemp, 0.0f, 1.0f,
-                             "Cold %.2f Hot");
-          ImGui::SliderFloat("Resilience", &agent->resilience, 0.0f, 1.0f);
-          ImGui::SliderFloat("Spread/Move Speed", &agent->expansionRate, 0.0f,
-                             2.0f);
-
-          if (a.type == ArticleType::FACTION) {
-            ImGui::SliderFloat("Aggression", &agent->aggression, 0.0f, 1.0f);
-          }
-
-          DrawResourceMap("Diet / Upkeep:", agent->diet);
-          DrawResourceMap("Produces / Yield:", agent->output);
-
-          ImGui::Unindent();
+          ImGui::PopID();
         }
-      }
-    } else if (a.type == ArticleType::RESOURCE) {
-      if (a.simID == -1) {
-        if (ImGui::Button("Create Resource Definition")) {
-          AssetManager::CreateNewResource();
-          a.simID = AssetManager::resourceRegistry.back().id;
-          AssetManager::resourceRegistry.back().name = a.title;
-        }
-      } else {
-        ResourceDef *res = nullptr;
-        for (auto &r : AssetManager::resourceRegistry)
-          if (r.id == a.simID)
-            res = &r;
-
-        if (res) {
-          ImGui::TextColored(ImVec4(1, 1, 0, 1), "Resource Stats (ID: %d)",
-                             a.simID);
-          ImGui::InputFloat("Market Value", &res->value);
-          ImGui::Checkbox("Renewable?", &res->isRenewable);
-        }
-      }
-    } else if (a.type == ArticleType::EVENT) {
-      a.isTimelineEvent = true;
-      ImGui::Separator();
-      ImGui::TextColored(ImVec4(1, 0.5f, 0, 1), "Timeline Trigger");
-      ImGui::InputInt("Year", &a.year);
-      const char *effects[] = {"NONE", "TRIGGER_ICE_AGE",
-                               "TRIGGER_GLOBAL_WARMING", "SPAWN_PLAGUE",
-                               "BOOST_MAGIC"};
-      if (ImGui::BeginCombo("Effect", a.simEffect.c_str())) {
-        for (auto e : effects) {
-          if (ImGui::Selectable(e, a.simEffect == e))
-            a.simEffect = e;
-        }
-        ImGui::EndCombo();
+        ImGui::EndTable();
       }
     }
 
     ImGui::Separator();
+    ImGui::Text("Tags:");
+    ImGui::SameLine();
+    static std::string newTag;
+    ImGui::SetNextItemWidth(100);
+    ImGui::InputText("##nt", &newTag);
+    ImGui::SameLine();
+    if (ImGui::Button("+") && !newTag.empty()) {
+      a.tags.push_back(newTag);
+      newTag = "";
+    }
 
-    ImGui::Text("Lore / Description:");
-    ImGui::InputTextMultiline("##content", &a.content, ImVec2(-1, -1));
+    for (auto &t : a.tags) {
+      ImGui::SameLine();
+      ImGui::Button(t.c_str());
+    }
+
+    ImGui::Separator();
+    if (a.imageTexture) {
+      ImGui::Image((void *)(intptr_t)a.imageTexture, ImVec2(200, 200));
+      if (ImGui::Button("Reload Image"))
+        a.imageTexture = LoadTexture(a.imagePath);
+    } else {
+      ImGui::InputText("Image Path", &a.imagePath);
+      if (ImGui::Button("Load Image") && !a.imagePath.empty())
+        a.imageTexture = LoadTexture(a.imagePath);
+    }
+
+    ImGui::Separator();
+    ImGui::Text("Lore (Markdown Supported):");
+
+    if (ImGui::BeginTabBar("ContentTabs")) {
+      if (ImGui::BeginTabItem("Edit")) {
+        ImGui::InputTextMultiline("##c", &a.content, ImVec2(-1, -1));
+        ImGui::EndTabItem();
+      }
+      if (ImGui::BeginTabItem("Preview")) {
+        RenderMarkdown(a.content);
+        ImGui::EndTabItem();
+      }
+      ImGui::EndTabBar();
+    }
 
   } else {
     ImGui::TextDisabled("Select an article to edit.");
   }
 
-  // GLOBAL SAVE BUTTON
-  ImGui::SetCursorPos(ImVec2(ImGui::GetWindowWidth() - 120, 30));
-  if (ImGui::Button("SAVE ALL", ImVec2(100, 30))) {
-    SaveAllData();
-  }
-
   ImGui::End();
 }
 
-void DrawMapModal() {
-  if (!showMapOverlay)
+void DrawHelp() {
+  if (!showHelp)
     return;
-  ImGui::OpenPopup("Select Location");
-
-  if (ImGui::BeginPopupModal("Select Location", &showMapOverlay,
-                             ImGuiWindowFlags_AlwaysAutoResize)) {
-    if (mapTexture) {
-      ImGui::Image((void *)(intptr_t)mapTexture, ImVec2(600, 600));
-    } else {
-      ImGui::Text("No World Map found in data/world.map");
-    }
-
+  ImGui::OpenPopup("Help Modal");
+  if (ImGui::BeginPopupModal("Help Modal", &showHelp)) {
+    ImGui::Text("S.A.G.A. Wiki Help");
+    ImGui::Separator();
+    ImGui::Text("MARKDOWN:");
+    ImGui::BulletText("# Title (Big Header)");
+    ImGui::BulletText("## Subtitle (Small Header)");
+    ImGui::BulletText("* List Item");
+    ImGui::BulletText("--- (Horizontal Line)");
+    ImGui::Separator();
+    ImGui::Text("VARIABLES:");
+    ImGui::TextWrapped(
+        "Use the 'Category Builder' window to define custom stat blocks (e.g. "
+        "Health, Mana) for different types of articles.");
+    ImGui::Separator();
     if (ImGui::Button("Close")) {
-      showMapOverlay = false;
+      showHelp = false;
       ImGui::CloseCurrentPopup();
     }
     ImGui::EndPopup();
@@ -387,17 +515,18 @@ void DrawMapModal() {
 int main(int, char **) {
   if (!glfwInit())
     return 1;
-  GLFWwindow *w =
-      glfwCreateWindow(1400, 800, "S.A.G.A. Unified Database", NULL, NULL);
+  GLFWwindow *w = glfwCreateWindow(1600, 900, "S.A.G.A. Database", NULL, NULL);
+  if (!w)
+    return 1;
   glfwMakeContextCurrent(w);
   glewInit();
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
-  SetupSAGATheme();
+  SetupTheme();
   ImGui_ImplGlfw_InitForOpenGL(w, true);
   ImGui_ImplOpenGL3_Init("#version 130");
 
-  LoadAllData();
+  LoadData();
 
   while (!glfwWindowShouldClose(w)) {
     glfwPollEvents();
@@ -405,28 +534,38 @@ int main(int, char **) {
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 
-    // Manual Simple Split Layout (to avoid DockSpaceOverViewport build issues)
-    ImGui::SetNextWindowPos(ImVec2(0, 0));
-    ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
-    ImGui::Begin("MasterWindow", nullptr,
-                 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
-                     ImGuiWindowFlags_NoBringToFrontOnFocus);
-
-    DrawSidebar();
-    ImGui::SameLine();
-    DrawMainEditor();
-    DrawMapModal();
-
-    ImGui::End();
-
-    ImGui::Render();
+    // Use a simple non-docking manual layout
     int dw, dh;
     glfwGetFramebufferSize(w, &dw, &dh);
+
+    ImGui::SetNextWindowPos(ImVec2(0, 0));
+    ImGui::SetNextWindowSize(ImVec2(300, (float)dh));
+    DrawSidebar();
+
+    ImGui::SetNextWindowPos(ImVec2(300, 0));
+    ImGui::SetNextWindowSize(ImVec2((float)dw - 600, (float)dh));
+    DrawMainEditor();
+
+    ImGui::SetNextWindowPos(ImVec2((float)dw - 300, 0));
+    ImGui::SetNextWindowSize(ImVec2(300, (float)dh));
+    DrawTemplateEditor();
+
+    DrawHelp();
+
+    ImGui::Render();
     glViewport(0, 0, dw, dh);
     glClearColor(0.1f, 0.1f, 0.1f, 1);
     glClear(GL_COLOR_BUFFER_BIT);
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     glfwSwapBuffers(w);
   }
+  SaveData();
+
+  ImGui_ImplOpenGL3_Shutdown();
+  ImGui_ImplGlfw_Shutdown();
+  ImGui::DestroyContext();
+  glfwDestroyWindow(w);
+  glfwTerminate();
+
   return 0;
 }
