@@ -1,0 +1,30 @@
+[SETUP] Setting up environment...
+[BUILD] S.A.G.A. Architect...
+src/io/BinaryExporter.cpp:39:15: error: no member named 'agentID' in 'WorldBuffers'
+   39 |   if (buffers.agentID)
+      |       ~~~~~~~ ^
+src/io/BinaryExporter.cpp:40:58: error: no member named 'agentID' in 'WorldBuffers'
+   40 |     outFile.write(reinterpret_cast<const char *>(buffers.agentID),
+      |                                                  ~~~~~~~ ^
+src/io/BinaryExporter.cpp:42:15: error: no member named 'agentStrength' in 'WorldBuffers'
+   42 |   if (buffers.agentStrength)
+      |       ~~~~~~~ ^
+src/io/BinaryExporter.cpp:43:58: error: no member named 'agentStrength' in 'WorldBuffers'
+   43 |     outFile.write(reinterpret_cast<const char *>(buffers.agentStrength),
+      |                                                  ~~~~~~~ ^
+src/io/BinaryExporter.cpp:88:15: error: no member named 'agentID' in 'WorldBuffers'
+   88 |   if (buffers.agentID)
+      |       ~~~~~~~ ^
+src/io/BinaryExporter.cpp:89:50: error: no member named 'agentID' in 'WorldBuffers'
+   89 |     inFile.read(reinterpret_cast<char *>(buffers.agentID), count * sizeof(int));
+      |                                          ~~~~~~~ ^
+src/io/BinaryExporter.cpp:90:15: error: no member named 'agentStrength' in 'WorldBuffers'
+   90 |   if (buffers.agentStrength)
+      |       ~~~~~~~ ^
+src/io/BinaryExporter.cpp:91:50: error: no member named 'agentStrength' in 'WorldBuffers'
+   91 |     inFile.read(reinterpret_cast<char *>(buffers.agentStrength),
+      |                                          ~~~~~~~ ^
+8 errors generated.
+[ERROR] SAGA Architect Build Failed.
+Press any key to continue . . . 
+Terminate batch job (Y/N)? 

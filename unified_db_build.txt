@@ -6,3 +6,4 @@ C:/msys64/mingw64/bin/ld: C:/Users/krazy/AppData/Local/Temp/App_Lore-626cf9.o:Ap
 clang++: error: linker command failed with exit code 1 (use -v to see invocation)
 [ERROR] SAGA Database Build Failed.
 Press any key to continue . . . 
+Terminate batch job (Y/N)? 

@@ -7,7 +7,6 @@
 #include <string>
 #include <vector>
 
-
 // --- BIOME ENUM (Whittaker-inspired) ---
 enum BiomeType {
   OCEAN = 0,
@@ -251,6 +250,10 @@ struct WorldBuffers {
   uint8_t *structureType = nullptr;
   float *defense = nullptr; // Calculated defense (Walls + Terrain)
 
+  // --- UNIT LAYER (For Replay & Tactical View) ---
+  int *agentID = nullptr;
+  float *agentStrength = nullptr;
+
   // --- ECONOMY LAYER ---
   int *civTier = nullptr;
   int *buildingID = nullptr;          // Which building type is here
@@ -301,6 +304,11 @@ struct WorldBuffers {
     defense = new float[count];
     std::fill_n(defense, count, 0.0f);
 
+    agentID = new int[count];
+    std::fill_n(agentID, count, -1);
+    agentStrength = new float[count];
+    std::fill_n(agentStrength, count, 0.0f);
+
     flux = new float[count];            // Allocate Flux
     std::fill_n(flux, count, 0.0f);     // Zero it out
     nextFlux = new float[count];        // Allocate NextFlux
@@ -346,6 +354,8 @@ struct WorldBuffers {
     delete[] civTier;
     delete[] buildingID;
     delete[] resourceInventory;
+    delete[] agentID;
+    delete[] agentStrength;
 
     posX = nullptr; // Safety flag
   }
