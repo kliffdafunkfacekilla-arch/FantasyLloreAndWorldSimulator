@@ -5,3 +5,4 @@ src/core/TerrainController.cpp:135:40: error: invalid operands to binary express
       |                               ~~~~~~~~ ^ ~~~~
 1 error generated.
 [ERROR] SAGA Architect Build Failed.
+Press any key to continue . . . 

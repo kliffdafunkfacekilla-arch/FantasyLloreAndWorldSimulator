@@ -7,3 +7,4 @@ C:/msys64/mingw64/bin/ld: C:/Users/krazy/AppData/Local/Temp/AssetManager-f34250.
 C:/msys64/mingw64/bin/ld: C:/Users/krazy/AppData/Local/Temp/AssetManager-f34250.o:AssetManager.cpp:(.text+0x2420): undefined reference to `LoreScribeNS::LogEvent(int, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, int, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)'
 clang++: error: linker command failed with exit code 1 (use -v to see invocation)
 [ERROR] SAGA Projector Build Failed.
+Press any key to continue . . . 

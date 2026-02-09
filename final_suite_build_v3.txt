@@ -9,3 +9,4 @@
 3. bin/SAGA_Engine.exe    (Run the Simulation)
 4. bin/SAGA_Projector.exe (Watch the History)
 Press any key to continue . . . 
+Terminate batch job (Y/N)? 

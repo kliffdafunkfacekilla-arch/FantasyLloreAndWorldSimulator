@@ -1,9 +1,9 @@
+#include "../../include/BinaryExporter.hpp"
 #include "../../include/Environment.hpp"
 #include "../../include/PlatformUtils.hpp"
 #include "../../include/Terrain.hpp"
 #include "../../include/WorldEngine.hpp"
 #include "../../include/stb_image.h"
-
 
 // --- CRITICAL: Include GLEW before GLFW ---
 #include <GL/glew.h>
@@ -13,11 +13,9 @@
 #include "../../deps/imgui/backends/imgui_impl_opengl3.h"
 #include "../../deps/imgui/imgui.h"
 
-
 #include <algorithm>
 #include <iostream>
 #include <vector>
-
 
 // --- GLOBALS ---
 WorldBuffers buffers;
@@ -215,7 +213,7 @@ void DrawTools() {
 
     if (ImGui::BeginTabItem("File System")) {
       if (ImGui::Button("Save Map (data/world.map)")) {
-        // BinaryExporter::SaveWorld(buffers, "data/world.map");
+        BinaryExporter::SaveWorld(buffers, "data/world.map");
       }
       ImGui::EndTabItem();
     }

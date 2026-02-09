@@ -5,3 +5,4 @@ src/core/TerrainController.cpp:3:10: fatal error: '../../include/stbi_image_impl
       |          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 1 error generated.
 [ERROR] SAGA Architect Build Failed.
+Press any key to continue . . . 
