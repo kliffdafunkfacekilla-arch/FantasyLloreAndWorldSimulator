@@ -1,0 +1,7 @@
+[SETUP] Setting up environment...
+[BUILD] S.A.G.A. Architect...
+src/core/TerrainController.cpp:3:10: fatal error: '../../include/stbi_image_impl.cpp' file not found
+    3 | #include "../../include/stbi_image_impl.cpp" // Using implementation file to avoid linker issues if needed, or just standard header
+      |          ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+1 error generated.
+[ERROR] SAGA Architect Build Failed.

@@ -84,9 +84,9 @@ void UpdateMapTexture() {
 
     // 3. Shoreline Highlight
     if (h_val > settings.seaLevel && h_val < settings.seaLevel + 0.02f) {
-      r = std::min(255, (int)r + 40);
-      g = std::min(255, (int)g + 40);
-      b = std::min(255, (int)b + 20);
+      r = std::min(255, r + 40);
+      g = std::min(255, g + 40);
+      b = std::min(255, b + 20); // Sand tint
     }
 
     pixels[i * 3 + 0] = r;
@@ -169,18 +169,9 @@ void DrawTools() {
       static int seed = 12345;
       ImGui::InputInt("Seed", &seed);
 
-      if (ImGui::Button("Generate New World (Perlin)", ImVec2(-1, 30))) {
+      if (ImGui::Button("Generate New World", ImVec2(-1, 30))) {
         settings.seed = seed;
         TerrainController::GenerateHeightmap(buffers, settings);
-        ClimateSim::Update(buffers, settings);
-        mapDirty = true;
-      }
-
-      ImGui::Separator();
-      ImGui::TextColored(ImVec4(1, 0.5f, 0, 1), "Advanced Tectonics");
-      if (ImGui::Button("Generate Continents (Voronoi)", ImVec2(-1, 30))) {
-        settings.seed = seed;
-        TerrainController::GenerateTectonicPlates(buffers, settings);
         ClimateSim::Update(buffers, settings);
         mapDirty = true;
       }
@@ -261,6 +252,9 @@ int main(int, char **) {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
+
+    // ImGui::DockSpaceOverViewport(ImGui::GetMainViewport()); // Removed as it
+    // caused errors
 
     DrawViewport();
     DrawTools();

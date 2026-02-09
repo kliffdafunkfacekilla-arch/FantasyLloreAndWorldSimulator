@@ -1,0 +1,7 @@
+[SETUP] Setting up environment...
+[BUILD] S.A.G.A. Architect...
+src/core/TerrainController.cpp:135:40: error: invalid operands to binary expression ('float' and 'int')
+  135 |     float m = mNoise.GetNoise((float)i % side, (float)y) * 0.5f + 0.5f;
+      |                               ~~~~~~~~ ^ ~~~~
+1 error generated.
+[ERROR] SAGA Architect Build Failed.

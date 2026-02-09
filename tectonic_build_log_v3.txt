@@ -1,0 +1,6 @@
+[SETUP] Setting up environment...
+[BUILD] S.A.G.A. Architect...
+C:/msys64/mingw64/bin/ld: cannot open output file bin/SAGA_Architect.exe: Permission denied
+clang++: error: unable to remove file: Permission denied
+clang++: error: linker command failed with exit code 1 (use -v to see invocation)
+[ERROR] SAGA Architect Build Failed.

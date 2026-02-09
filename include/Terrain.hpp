@@ -11,6 +11,9 @@ public:
   static void SimulateHydrology(WorldBuffers &b,
                                 const WorldSettings &s); // Rivers
 
+  // NEW: The "Nortantis" Style Generator (Voronoi Plates)
+  static void GenerateTectonicPlates(WorldBuffers &b, const WorldSettings &s);
+
   // Tools
   static void ApplyBrush(WorldBuffers &b, int width, int cx, int cy, float r,
                          float str, int mode);
