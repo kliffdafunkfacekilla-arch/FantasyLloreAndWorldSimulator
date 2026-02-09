@@ -3,6 +3,7 @@
 #include "../../deps/imgui/imgui.h"
 #include "../../include/AssetManager.hpp"
 #include "../../include/BinaryExporter.hpp"
+#include "../../include/Theme.hpp"
 #include "../../include/WorldEngine.hpp"
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
@@ -12,7 +13,6 @@
 #include <iostream>
 #include <string>
 #include <vector>
-
 
 namespace fs = std::filesystem;
 
@@ -100,62 +100,97 @@ void DrawTacticalView(ImDrawList *drawList, ImVec2 winPos, ImVec2 winSize) {
   }
 }
 
-// --- MAP RENDERER ---
+// --- MAP RENDERER (RELIEF MAPPER) ---
 void UpdateTexture() {
   int w = 1000;
   int h = 1000;
   static std::vector<unsigned char> pixels(w * h * 3);
+  float seaLevel = 0.4f; // Default sea level for Replay
 
-  for (int i = 0; i < (int)buffers.count; ++i) {
-    float hgt = buffers.height[i];
-    int agID = buffers.agentID[i];
+  for (int y = 0; y < h; ++y) {
+    for (int x = 0; x < w; ++x) {
+      int i = y * w + x;
+      float height = buffers.height[i];
+      int agID = buffers.agentID[i];
 
-    unsigned char r, g, b;
-    if (hgt < 0.4f) {
-      r = 10;
-      g = 10;
-      b = 100;
-    } else if (hgt < 0.45f) {
-      r = 180;
-      g = 170;
-      b = 120;
-    } else if (hgt > 0.8f) {
-      r = 220;
-      g = 220;
-      b = 220;
-    } else {
-      r = 30;
-      g = 80;
-      b = 30;
-    }
+      // --- 1. CALCULATE NORMAL (SLOPE) ---
+      float hL = (x > 0) ? buffers.height[i - 1] : height;
+      float hR = (x < w - 1) ? buffers.height[i + 1] : height;
+      float hU = (y > 0) ? buffers.height[i - w] : height;
+      float hD = (y < h - 1) ? buffers.height[i + w] : height;
 
-    if (agID != -1) {
-      bool found = false;
-      for (const auto &def : AssetManager::agentRegistry) {
-        if (def.id == agID) {
-          r = (unsigned char)(def.color[0] * 255);
-          g = (unsigned char)(def.color[1] * 255);
-          b = (unsigned char)(def.color[2] * 255);
-          found = true;
-          break;
+      float dx = (hL - hR) * 20.0f;
+      float dy = (hU - hD) * 20.0f;
+      float dz = 1.0f;
+
+      float len = std::sqrt(dx * dx + dy * dy + dz * dz);
+      dx /= len;
+      dy /= len;
+      dz /= len;
+
+      // --- 2. CALCULATE LIGHTING ---
+      float light = (dx * 0.5f) + (dy * 0.5f) + (dz * 0.7f);
+      light = std::clamp(light, 0.4f, 1.1f);
+
+      // --- 3. BASE COLOR ---
+      unsigned char r, g, b;
+
+      if (height < seaLevel) {
+        float depth = (seaLevel - height) * 10.0f;
+        r = 10;
+        g = (unsigned char)std::clamp(80.0f - depth * 20.0f, 0.0f, 255.0f);
+        b = (unsigned char)std::clamp(180.0f - depth * 50.0f, 0.0f, 255.0f);
+        light = 1.0f;
+        if (height > seaLevel - 0.01f) {
+          r = 200;
+          g = 220;
+          b = 255;
+        }
+      } else if (height < seaLevel + 0.04f) {
+        r = 210;
+        g = 200;
+        b = 130;
+      } else if (height < 0.6f) {
+        r = 60;
+        g = 140;
+        b = 60;
+      } else if (height < 0.85f) {
+        r = 100;
+        g = 90;
+        b = 80;
+      } else {
+        r = 240;
+        g = 240;
+        b = 255;
+      }
+
+      // Agent Color Overlay
+      if (agID != -1) {
+        for (const auto &def : AssetManager::agentRegistry) {
+          if (def.id == agID) {
+            r = (unsigned char)(def.color[0] * 255);
+            g = (unsigned char)(def.color[1] * 255);
+            b = (unsigned char)(def.color[2] * 255);
+            break;
+          }
         }
       }
-      if (!found) {
-        r = 200;
-        g = 50;
-        b = 50;
-      }
+
+      // --- 4. APPLY LIGHTING ---
+      pixels[i * 3 + 0] =
+          (unsigned char)std::clamp((float)r * light, 0.0f, 255.0f);
+      pixels[i * 3 + 1] =
+          (unsigned char)std::clamp((float)g * light, 0.0f, 255.0f);
+      pixels[i * 3 + 2] =
+          (unsigned char)std::clamp((float)b * light, 0.0f, 255.0f);
     }
-    pixels[i * 3] = r;
-    pixels[i * 3 + 1] = g;
-    pixels[i * 3 + 2] = b;
   }
 
   if (mapTextureID == 0)
     glGenTextures(1, &mapTextureID);
   glBindTexture(GL_TEXTURE_2D, mapTextureID);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE,
                pixels.data());
 }
@@ -194,6 +229,7 @@ int main(int, char **) {
   glewInit();
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
+  SetupSAGATheme();
   ImGui_ImplGlfw_InitForOpenGL(window, true);
   ImGui_ImplOpenGL3_Init("#version 130");
 

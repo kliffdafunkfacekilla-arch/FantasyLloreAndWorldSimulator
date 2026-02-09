@@ -1,8 +1,8 @@
 #include "../../include/AssetManager.hpp"
 #include "../../include/BinaryExporter.hpp"
 #include "../../include/PlatformUtils.hpp"
+#include "../../include/Theme.hpp"
 #include "../../include/WorldEngine.hpp"
-
 
 #include "../../deps/imgui/backends/imgui_impl_glfw.h"
 #include "../../deps/imgui/backends/imgui_impl_opengl3.h"
@@ -11,14 +11,12 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
-
 #include <algorithm>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <string>
 #include <vector>
-
 
 // Note: Using manual JSON formatting to match existing AssetManager.cpp pattern
 // for maximum stability and speed without external header dependencies.
@@ -395,6 +393,7 @@ int main(int, char **) {
   glewInit();
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
+  SetupSAGATheme();
   ImGui_ImplGlfw_InitForOpenGL(w, true);
   ImGui_ImplOpenGL3_Init("#version 130");
 

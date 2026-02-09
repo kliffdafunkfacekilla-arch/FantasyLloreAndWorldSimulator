@@ -1,6 +1,11 @@
 #include <ctime>
+#include <filesystem>
 #include <iostream>
+#include <string>
 #include <vector>
+
+
+namespace fs = std::filesystem;
 
 // Modular Headers
 #include "../../include/AssetManager.hpp"
@@ -28,10 +33,15 @@ int main() {
   std::cout << "[LOG] Loading S.A.G.A. Rules (data/rules.json)...\n";
   AssetManager::Initialize();
 
+  // 2.5 Prepare History Folder
+  if (!fs::exists("data/history")) {
+    fs::create_directories("data/history");
+  }
+
   std::cout << "[LOG] Loading S.A.G.A. Map (data/world.map)...\n";
   if (!BinaryExporter::LoadWorld(buffers, "bin/data/world.map")) {
     if (!BinaryExporter::LoadWorld(buffers, "data/world.map")) {
-      std::cout << "[ERROR] Could not find S.A.G.A. world data! Run Architect "
+      std::cout << "[ERROR] Could find S.A.G.A. world data! Run Architect "
                    "first.\n";
       return -1;
     }
@@ -67,8 +77,15 @@ int main() {
       CivilizationSim::Update(buffers, graph, settings);
     }
 
+    // --- FLIGHT RECORDER ---
+    // Save the state of the world this year so the Projector can watch it later
+    std::string snapshotName =
+        "data/history/year_" + std::to_string(year) + ".map";
+    BinaryExporter::SaveWorld(buffers, snapshotName);
+
     if (year % 10 == 0) {
-      std::cout << "[SIM] Decade " << year / 10 << " complete.\n";
+      std::cout << "[SIM] Decade " << year / 10
+                << " complete. (Snapshot Saved)\n";
     }
   }
 

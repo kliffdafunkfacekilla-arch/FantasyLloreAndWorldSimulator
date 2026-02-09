@@ -2,6 +2,7 @@
 #include "../../include/Environment.hpp"
 #include "../../include/PlatformUtils.hpp"
 #include "../../include/Terrain.hpp"
+#include "../../include/Theme.hpp"
 #include "../../include/WorldEngine.hpp"
 #include "../../include/stb_image.h"
 
@@ -14,6 +15,7 @@
 #include "../../deps/imgui/imgui.h"
 
 #include <algorithm>
+#include <cmath>
 #include <iostream>
 #include <vector>
 
@@ -31,75 +33,110 @@ float brushSize = 20.0f;
 float brushStrength = 0.5f;
 bool mapDirty = true; // Flag to redraw texture
 
-// --- TEXTURE GENERATOR ---
-struct Color {
-  unsigned char r, g, b;
-};
-Color biomeColors[] = {
-    {10, 60, 120},   // OCEAN (Deep Blue)
-    {100, 100, 100}, // SCORCHED (Dark Grey)
-    {160, 160, 160}, // BARE (Grey)
-    {200, 220, 230}, // TUNDRA (White-ish)
-    {255, 255, 255}, // SNOW (White)
-    {210, 180, 140}, // TEMPERATE_DESERT (Sand)
-    {180, 200, 150}, // SHRUBLAND (Pale Green)
-    {100, 180, 50},  // GRASSLAND (Green)
-    {50, 140, 50},   // TEMP_DECIDUOUS (Forest Green)
-    {30, 100, 30},   // TEMP_RAIN_FOREST (Dark Green)
-    {230, 210, 150}, // SUBTROPICAL_DESERT (Bright Sand)
-    {60, 160, 60},   // TROPICAL_SEASONAL (Lush Green)
-    {20, 90, 20}     // TROPICAL_RAIN_FOREST (Deep Jungle)
-};
+// --- TEXTURE GENERATOR (RELIEF MAPPER) ---
 
 void UpdateMapTexture() {
   int w = 1000;
   int h = 1000;
-
   static std::vector<unsigned char> pixels(w * h * 3);
 
-  for (int i = 0; i < (int)buffers.count; ++i) {
-    unsigned char r, g, b;
+  // Light Direction (Simulated Sun from Top-Left)
+  // float lightX = -1.0f;
+  // float lightY = -1.0f;
 
-    // 1. Get Biome Color
-    int biome = buffers.biomeID[i];
-    if (biome >= 0 && biome <= 12) {
-      Color c = biomeColors[biome];
-      r = c.r;
-      g = c.g;
-      b = c.b;
-    } else {
-      r = 255;
-      g = 0;
-      b = 255; // Error Pink
+  for (int y = 0; y < h; ++y) {
+    for (int x = 0; x < w; ++x) {
+      int i = y * w + x;
+      float height = buffers.height[i];
+
+      // --- 1. CALCULATE NORMAL (SLOPE) ---
+      // Get height of neighbors (clamped to edges)
+      float hL = (x > 0) ? buffers.height[i - 1] : height;
+      float hR = (x < w - 1) ? buffers.height[i + 1] : height;
+      float hU = (y > 0) ? buffers.height[i - w] : height;
+      float hD = (y < h - 1) ? buffers.height[i + w] : height;
+
+      // Simple gradient vector
+      float dx = (hL - hR) * 20.0f; // Multiplier amplifies "steepness"
+      float dy = (hU - hD) * 20.0f;
+      float dz = 1.0f; // Up vector
+
+      // Normalize
+      float len = std::sqrt(dx * dx + dy * dy + dz * dz);
+      dx /= len;
+      dy /= len;
+      dz /= len;
+
+      // --- 2. CALCULATE LIGHTING ---
+      // Dot Product of Slope vs Sun
+      // Sun direction: 0.5, 0.5, 0.5 (Top Left)
+      float light = (dx * 0.5f) + (dy * 0.5f) + (dz * 0.7f);
+
+      // Contrast curve (make shadows darker)
+      light = std::clamp(light, 0.4f, 1.1f);
+
+      // --- 3. BASE COLOR (BIOMES) ---
+      unsigned char r, g, b;
+
+      // Water (Specially handled - no relief map, just depth)
+      if (height < settings.seaLevel) {
+        float depth = (settings.seaLevel - height) * 10.0f;
+        r = 10;
+        g = (unsigned char)std::clamp(80.0f - depth * 20.0f, 0.0f, 255.0f);
+        b = (unsigned char)std::clamp(180.0f - depth * 50.0f, 0.0f, 255.0f);
+        light = 1.0f; // Water is flat
+
+        // Shoreline foam
+        if (height > settings.seaLevel - 0.01f) {
+          r = 200;
+          g = 220;
+          b = 255;
+        }
+      }
+      // Sand
+      else if (height < settings.seaLevel + 0.04f) {
+        r = 210;
+        g = 200;
+        b = 130;
+      }
+      // Grass / Forest
+      else if (height < 0.6f) {
+        r = 60;
+        g = 140;
+        b = 60;
+        // Moisture variation (if available)
+        // if (buffers.moisture[i] < 0.3f) { r=160; g=160; b=80; } // Dry grass
+      }
+      // Rock
+      else if (height < 0.85f) {
+        r = 100;
+        g = 90;
+        b = 80;
+      }
+      // Snow
+      else {
+        r = 240;
+        g = 240;
+        b = 255;
+      }
+
+      // --- 4. APPLY LIGHTING ---
+      pixels[i * 3 + 0] =
+          (unsigned char)std::clamp((float)r * light, 0.0f, 255.0f);
+      pixels[i * 3 + 1] =
+          (unsigned char)std::clamp((float)g * light, 0.0f, 255.0f);
+      pixels[i * 3 + 2] =
+          (unsigned char)std::clamp((float)b * light, 0.0f, 255.0f);
     }
-
-    // 2. Blend with Height (Shadows/Depth)
-    float h_val = buffers.height[i];
-    float shade = 0.8f + (h_val * 0.4f); // Brighter at peaks
-    r = (unsigned char)std::clamp((float)r * shade, 0.0f, 255.0f);
-    g = (unsigned char)std::clamp((float)g * shade, 0.0f, 255.0f);
-    b = (unsigned char)std::clamp((float)b * shade, 0.0f, 255.0f);
-
-    // 3. Shoreline Highlight
-    if (h_val > settings.seaLevel && h_val < settings.seaLevel + 0.02f) {
-      r = std::min(255, (int)r + 40);
-      g = std::min(255, (int)g + 40);
-      b = std::min(255, (int)b + 20);
-    }
-
-    pixels[i * 3 + 0] = r;
-    pixels[i * 3 + 1] = g;
-    pixels[i * 3 + 2] = b;
   }
 
-  if (mapTextureID == 0) {
+  // Upload to GPU
+  if (mapTextureID == 0)
     glGenTextures(1, &mapTextureID);
-    glBindTexture(GL_TEXTURE_2D, mapTextureID);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  }
-
   glBindTexture(GL_TEXTURE_2D, mapTextureID);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+                  GL_LINEAR); // Linear for smoother look
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE,
                pixels.data());
 
@@ -242,7 +279,7 @@ int main(int, char **) {
 
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
-  ImGui::StyleColorsDark();
+  SetupSAGATheme();
   ImGui_ImplGlfw_InitForOpenGL(window, true);
   ImGui_ImplOpenGL3_Init("#version 130");
 
