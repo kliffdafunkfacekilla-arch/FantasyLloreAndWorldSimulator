@@ -1,32 +1,82 @@
+#include "../../include/BinaryExporter.hpp"
+#include "../../include/WorldEngine.hpp"
 #include <fstream>
 #include <iostream>
-#include "../../include/WorldEngine.hpp"
+#include <vector>
 
-void SaveWorldSnapshot(const WorldBuffers& buffers, uint32_t count, const char* filename) {
-    std::ofstream outFile(filename, std::ios::binary);
 
-    if (!outFile.is_open()) {
-        std::cerr << "[ERROR] Could not create snapshot file." << std::endl;
-        return;
-    }
+namespace BinaryExporter {
 
-    // 1. Write Header (Cell Count)
-    outFile.write(reinterpret_cast<const char*>(&count), sizeof(uint32_t));
+void SaveWorld(const WorldBuffers &buffers, const std::string &filename) {
+  std::ofstream outFile(filename, std::ios::binary);
 
-    // 2. Dump Memory Blocks
-    // We only save what is allocated. For a full app, you'd add flags.
+  if (!outFile.is_open()) {
+    std::cerr << "[ERROR] Could not create map file: " << filename << std::endl;
+    return;
+  }
 
-    // Core Geometry
-    if (buffers.height)
-        outFile.write(reinterpret_cast<char*>(buffers.height), count * sizeof(float));
+  // 1. Write Header
+  uint32_t count = buffers.count;
+  outFile.write(reinterpret_cast<const char *>(&count), sizeof(uint32_t));
 
-    // Simulation Data
-    if (buffers.population)
-        outFile.write(reinterpret_cast<char*>(buffers.population), count * sizeof(uint32_t));
+  // 2. Dump Layers
+  if (buffers.height)
+    outFile.write(reinterpret_cast<char *>(buffers.height),
+                  count * sizeof(float));
+  if (buffers.temperature)
+    outFile.write(reinterpret_cast<char *>(buffers.temperature),
+                  count * sizeof(float));
+  if (buffers.moisture)
+    outFile.write(reinterpret_cast<char *>(buffers.moisture),
+                  count * sizeof(float));
+  if (buffers.cultureID)
+    outFile.write(reinterpret_cast<char *>(buffers.cultureID),
+                  count * sizeof(int));
+  if (buffers.population)
+    outFile.write(reinterpret_cast<char *>(buffers.population),
+                  count * sizeof(uint32_t));
 
-    if (buffers.factionID)
-        outFile.write(reinterpret_cast<char*>(buffers.factionID), count * sizeof(int));
-
-    outFile.close();
-    std::cout << "[SNAPSHOT] Saved world state to " << filename << std::endl;
+  outFile.close();
+  std::cout << "[MAP] Saved world to " << filename << std::endl;
 }
+
+bool LoadWorld(WorldBuffers &buffers, const std::string &filename) {
+  std::ifstream inFile(filename, std::ios::binary);
+
+  if (!inFile.is_open()) {
+    return false;
+  }
+
+  // 1. Read Header
+  uint32_t count = 0;
+  inFile.read(reinterpret_cast<char *>(&count), sizeof(uint32_t));
+
+  if (count != buffers.count) {
+    std::cerr << "[ERROR] Map cell count mismatch! Expected " << buffers.count
+              << " got " << count << std::endl;
+    return false;
+  }
+
+  // 2. Load Layers
+  if (buffers.height)
+    inFile.read(reinterpret_cast<char *>(buffers.height),
+                count * sizeof(float));
+  if (buffers.temperature)
+    inFile.read(reinterpret_cast<char *>(buffers.temperature),
+                count * sizeof(float));
+  if (buffers.moisture)
+    inFile.read(reinterpret_cast<char *>(buffers.moisture),
+                count * sizeof(float));
+  if (buffers.cultureID)
+    inFile.read(reinterpret_cast<char *>(buffers.cultureID),
+                count * sizeof(int));
+  if (buffers.population)
+    inFile.read(reinterpret_cast<char *>(buffers.population),
+                count * sizeof(uint32_t));
+
+  inFile.close();
+  std::cout << "[MAP] Loaded world from " << filename << std::endl;
+  return true;
+}
+
+} // namespace BinaryExporter

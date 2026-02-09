@@ -1,0 +1,2 @@
+C:/msys64/mingw64/bin/ld: obj/AssetManager.o:AssetManager.cpp:(.text+0x234b): undefined reference to `NameGenerator::GenerateCityName[abi:cxx11]()'
+clang++: error: linker command failed with exit code 1 (use -v to see invocation)

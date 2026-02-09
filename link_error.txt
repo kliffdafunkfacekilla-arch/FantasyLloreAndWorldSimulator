@@ -1,0 +1,5 @@
+C:/msys64/mingw64/bin/ld: obj/GuiController.o:GuiController.cpp:(.text+0xa26): undefined reference to `DisasterSystem::Update(WorldBuffers&, WorldSettings const&)'
+C:/msys64/mingw64/bin/ld: obj/GuiController.o:GuiController.cpp:(.text+0x138b): undefined reference to `AgentSystem::SpawnCivilization(WorldBuffers&, int)'
+C:/msys64/mingw64/bin/ld: obj/GuiController.o:GuiController.cpp:(.text+0x35bc): undefined reference to `DisasterSystem::Trigger(WorldBuffers&, int, int, float)'
+C:/msys64/mingw64/bin/ld: obj/AssetManager.o:AssetManager.cpp:(.text+0x234b): undefined reference to `NameGenerator::GenerateCityName[abi:cxx11]()'
+clang++: error: linker command failed with exit code 1 (use -v to see invocation)
