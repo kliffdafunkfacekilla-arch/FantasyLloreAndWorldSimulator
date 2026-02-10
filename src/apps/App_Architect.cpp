@@ -42,8 +42,53 @@ float brushSize = 20.0f;
 float brushStrength = 0.5f;
 bool mapDirty = true;
 
-// --- TEXTURE GENERATOR (RELIEF MAPPER) ---
+// Biome Colors (Hand-curated for the SAGA aesthetic)
+struct BiomeColor {
+  unsigned char r, g, b;
+};
 
+BiomeColor GetBiomeColor(int biomeID, float height, float seaLevel) {
+  if (height < seaLevel) {
+    // Ocean colors based on depth
+    float depth = (seaLevel - height);
+    if (depth < 0.01f)
+      return {200, 220, 255}; // Shore
+    if (depth < 0.1f)
+      return {10, 80, 180}; // Shallow
+    return {5, 40, 100};    // Deep
+  }
+
+  switch (biomeID) {
+  case BiomeType::SNOW:
+    return {240, 240, 255};
+  case BiomeType::TUNDRA:
+    return {180, 190, 180};
+  case BiomeType::BARE:
+    return {130, 130, 130};
+  case BiomeType::SCORCHED:
+    return {90, 80, 70};
+  case BiomeType::TROPICAL_RAIN_FOREST:
+    return {20, 100, 40};
+  case BiomeType::TROPICAL_SEASONAL_FOREST:
+    return {50, 120, 50};
+  case BiomeType::TEMPERATE_RAIN_FOREST:
+    return {40, 140, 80};
+  case BiomeType::TEMPERATE_DECIDUOUS_FOREST:
+    return {70, 160, 60};
+  case BiomeType::GRASSLAND:
+    return {120, 180, 80};
+  case BiomeType::SHRUBLAND:
+    return {140, 160, 100};
+  case BiomeType::SUBTROPICAL_DESERT:
+    return {210, 180, 100};
+  case BiomeType::TEMPERATE_DESERT:
+    return {190, 170, 130};
+  default:
+    return {60, 140, 60}; // Default Lush
+  }
+}
+
+// --- TEXTURE GENERATOR ---
 void UpdateMapTexture() {
   int w = 1000;
   int h = 1000;
@@ -54,6 +99,7 @@ void UpdateMapTexture() {
       int i = y * w + x;
       float height = buffers.height[i];
 
+      // Lighting (Relief)
       float hL = (x > 0) ? buffers.height[i - 1] : height;
       float hR = (x < w - 1) ? buffers.height[i + 1] : height;
       float hU = (y > 0) ? buffers.height[i - w] : height;
@@ -71,43 +117,18 @@ void UpdateMapTexture() {
       float light = (dx * 0.5f) + (dy * 0.5f) + (dz * 0.7f);
       light = clamp_val(light, 0.4f, 1.1f);
 
-      unsigned char r, g, b;
-
-      if (height < settings.seaLevel) {
-        float depth = (settings.seaLevel - height) * 10.0f;
-        r = 10;
-        g = (unsigned char)clamp_val(80.0f - depth * 20.0f, 0.0f, 255.0f);
-        b = (unsigned char)clamp_val(180.0f - depth * 50.0f, 0.0f, 255.0f);
-        light = 1.0f;
-        if (height > settings.seaLevel - 0.01f) {
-          r = 200;
-          g = 220;
-          b = 255;
-        }
-      } else if (height < settings.seaLevel + 0.04f) {
-        r = 210;
-        g = 200;
-        b = 130;
-      } else if (height < 0.6f) {
-        r = 60;
-        g = 140;
-        b = 60;
-      } else if (height < 0.85f) {
-        r = 100;
-        g = 90;
-        b = 80;
-      } else {
-        r = 240;
-        g = 240;
-        b = 255;
-      }
+      // Biome-based Color
+      BiomeColor bc =
+          GetBiomeColor(buffers.biomeID[i], height, settings.seaLevel);
+      if (height < settings.seaLevel)
+        light = 1.0f; // No shading on water surface
 
       pixels[i * 3 + 0] =
-          (unsigned char)clamp_val((float)r * light, 0.0f, 255.0f);
+          (unsigned char)clamp_val((float)bc.r * light, 0.0f, 255.0f);
       pixels[i * 3 + 1] =
-          (unsigned char)clamp_val((float)g * light, 0.0f, 255.0f);
+          (unsigned char)clamp_val((float)bc.g * light, 0.0f, 255.0f);
       pixels[i * 3 + 2] =
-          (unsigned char)clamp_val((float)b * light, 0.0f, 255.0f);
+          (unsigned char)clamp_val((float)bc.b * light, 0.0f, 255.0f);
     }
   }
 
@@ -136,24 +157,16 @@ void DrawViewport() {
                    ImGuiWindowFlags_NoScrollWithMouse |
                    ImGuiWindowFlags_NoMove);
   ImVec2 winSize = ImGui::GetContentRegionAvail();
-  float dispW = winSize.x * zoom;
-  float dispH =
-      winSize.y * zoom; // Fix: Use y for height if possible, or maintain aspect
-
-  // Maintain square aspect for the world map
   float size = std::min(winSize.x, winSize.y) * zoom;
-  dispW = size;
-  dispH = size;
-
   ImVec2 cursorStart = ImGui::GetCursorScreenPos();
   if (mapTextureID != 0) {
-    ImGui::Image((void *)(intptr_t)mapTextureID, ImVec2(dispW, dispH));
+    ImGui::Image((void *)(intptr_t)mapTextureID, ImVec2(size, size));
   }
 
   if (ImGui::IsItemHovered() && ImGui::IsMouseDown(0)) {
     ImVec2 mPos = ImGui::GetMousePos();
-    float relX = (mPos.x - cursorStart.x) / dispW;
-    float relY = (mPos.y - cursorStart.y) / dispH;
+    float relX = (mPos.x - cursorStart.x) / size;
+    float relY = (mPos.y - cursorStart.y) / size;
     if (relX >= 0 && relX <= 1 && relY >= 0 && relY <= 1) {
       TerrainController::ApplyBrush(buffers, 1000, (int)(relX * 1000),
                                     (int)(relY * 1000), brushSize,
@@ -178,10 +191,10 @@ void DrawTools() {
                ImGuiWindowFlags_AlwaysAutoResize);
 
   if (ImGui::BeginTabBar("ArchitectTabs")) {
-    // Landscape Tab: Primary map creation
     if (ImGui::BeginTabItem("Landscape")) {
       ImGui::SetNextItemWidth(150);
-      ImGui::InputInt("Seed", &settings.seed);
+      if (ImGui::InputInt("Seed", &settings.seed))
+        mapDirty = true;
       ImGui::SameLine();
       if (ImGui::Button("Randomize")) {
         settings.seed = rand();
@@ -189,7 +202,15 @@ void DrawTools() {
         mapDirty = true;
       }
 
-      ImGui::Checkbox("Island Mode", &settings.islandMode);
+      const char *templateNames[] = {
+          "Random",          "Continents", "Island Chain", "Single Landmass",
+          "Twin Landmasses", "Broken",     "Custom"};
+      int currentType = (int)settings.worldType;
+      if (ImGui::Combo("World Template", &currentType, templateNames, 7)) {
+        settings.worldType = (MapTemplate)currentType;
+        TerrainController::GenerateHeightmap(buffers, settings);
+        mapDirty = true;
+      }
 
       if (ImGui::Button("Generate New Heightmap", ImVec2(-1, 30))) {
         TerrainController::GenerateHeightmap(buffers, settings);
@@ -204,9 +225,7 @@ void DrawTools() {
       ImGui::Separator();
       ImGui::Text("Terraforming Tools");
       const char *modes[] = {"Raise", "Lower", "Smooth"};
-      if (ImGui::Combo("Brush Mode", &brushMode, modes, 3)) {
-      }
-
+      ImGui::Combo("Brush Mode", &brushMode, modes, 3);
       ImGui::SliderFloat("Radius", &brushSize, 1.0f, 200.0f);
       ImGui::SliderFloat("Strength", &brushStrength, 0.01f, 1.0f);
 
@@ -220,17 +239,16 @@ void DrawTools() {
         TerrainController::SmoothTerrain(buffers, 1000);
         mapDirty = true;
       }
-
       ImGui::EndTabItem();
     }
 
-    // Climate Tab: Environmental settings
     if (ImGui::BeginTabItem("Climate")) {
       ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f),
                          "Atmospheric Controls");
       if (ImGui::SliderFloat("Sea Level", &settings.seaLevel, 0.0f, 1.0f))
         mapDirty = true;
-      if (ImGui::SliderFloat("Rainfall", &settings.raininess, 0.0f, 3.0f))
+      if (ImGui::SliderFloat("Global Moisture", &settings.raininess, 0.0f,
+                             3.0f))
         mapDirty = true;
 
       ImGui::Separator();
@@ -246,7 +264,7 @@ void DrawTools() {
         mapDirty = true;
 
       ImGui::Separator();
-      ImGui::Text("Wind Currents (Prevailing Winds)");
+      ImGui::Text("Wind Currents");
       for (int i = 0; i < 5; ++i) {
         char label[64];
         sprintf(label, "Zone %d Direction", i);
@@ -259,16 +277,15 @@ void DrawTools() {
       ImGui::EndTabItem();
     }
 
-    // IO Tab: File operations
     if (ImGui::BeginTabItem("Project")) {
       ImGui::Text("Heightmap Import/Export");
-      static char manualPath[260] = "data/heightmap.png";
-      ImGui::InputText("Import Path", manualPath, 260);
-      if (ImGui::Button("Load External Heightmap")) {
-        TerrainController::LoadHeightmapFromImage(buffers, manualPath);
-        mapDirty = true;
+      if (ImGui::Button("Choose File & Import Heightmap", ImVec2(-1, 40))) {
+        std::string path = PlatformUtils::OpenFileDialog();
+        if (!path.empty()) {
+          TerrainController::LoadHeightmapFromImage(buffers, path);
+          mapDirty = true;
+        }
       }
-
       ImGui::Separator();
       if (ImGui::Button("Save Current World (world.map)", ImVec2(-1, 40))) {
         BinaryExporter::SaveWorld(buffers, "data/world.map");
@@ -278,11 +295,10 @@ void DrawTools() {
     ImGui::EndTabBar();
   }
 
-  if (mapDirty) {
+  if (mapDirty)
     ImGui::TextColored(ImVec4(1, 1, 0, 1), "STATUS: RECALCULATING...");
-  } else {
+  else
     ImGui::TextColored(ImVec4(0, 1, 0, 1), "STATUS: READY");
-  }
 
   ImGui::End();
 }

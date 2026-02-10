@@ -19,34 +19,71 @@ void LoadHeightmapData(const char *path, WorldBuffers &buffers, uint32_t count);
 void TerrainController::GenerateHeightmap(WorldBuffers &b,
                                           const WorldSettings &s) {
   FastNoiseLite noise;
-  noise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
-  noise.SetFrequency(0.005f);
+  noise.SetSeed(s.seed);
   noise.SetFractalType(FastNoiseLite::FractalType_FBm);
   noise.SetFractalOctaves(5);
-  noise.SetSeed(s.seed);
 
   int side = (int)std::sqrt(b.count);
+  float freq = 0.005f;
+
+  // Branch based on Template
+  switch (s.worldType) {
+  case TEMPLATE_CONTINENTS:
+    noise.SetFrequency(0.004f);
+    noise.SetFractalOctaves(4);
+    break;
+  case TEMPLATE_ISLAND_CHAIN:
+    noise.SetFrequency(0.02f);
+    break;
+  case TEMPLATE_SINGLE_LANDMASS:
+    noise.SetFrequency(0.006f);
+    break;
+  case TEMPLATE_TWIN_LANMASSES:
+    noise.SetFrequency(0.005f);
+    break;
+  case TEMPLATE_BROKEN:
+    noise.SetFrequency(0.04f);
+    noise.SetFractalOctaves(6);
+    break;
+  default:
+    noise.SetFrequency(0.005f);
+    break;
+  }
+
   for (int i = 0; i < (int)b.count; ++i) {
     int x = i % side;
     int y = i / side;
 
     float n = noise.GetNoise((float)x, (float)y);
-    b.height[i] = (n * 0.5f + 0.5f);
+    float h = (n * 0.5f + 0.5f);
 
-    if (s.islandMode) {
+    // Apply Template-specific masks/distortions
+    if (s.worldType == TEMPLATE_SINGLE_LANDMASS || s.islandMode) {
       float dx = (x - side / 2.0f) / (side / 2.0f);
       float dy = (y - side / 2.0f) / (side / 2.0f);
       float dist = std::sqrt(dx * dx + dy * dy);
       float mask = 1.0f - std::pow(dist, 1.5f);
-      if (mask < 0)
-        mask = 0;
-      if (mask > 1)
-        mask = 1;
-      b.height[i] *= mask;
+      h *= clamp_val(mask, 0.0f, 1.0f);
+    } else if (s.worldType == TEMPLATE_TWIN_LANMASSES) {
+      // Two blobs
+      float dx1 = (x - side * 0.3f) / (side / 3.0f);
+      float dy1 = (y - side * 0.5f) / (side / 3.0f);
+      float dx2 = (x - side * 0.7f) / (side / 3.0f);
+      float dy2 = (y - side * 0.5f) / (side / 3.0f);
+      float d1 = std::sqrt(dx1 * dx1 + dy1 * dy1);
+      float d2 = std::sqrt(dx2 * dx2 + dy2 * dy2);
+      float mask = (1.0f - std::pow(d1, 2.0f)) + (1.0f - std::pow(d2, 2.0f));
+      h *= clamp_val(mask, 0.0f, 1.0f);
+    } else if (s.worldType == TEMPLATE_CONTINENTS) {
+      // Tectonic favor: slightly boost center areas
+      float dx = (x - side / 2.0f) / (side / 2.0f);
+      float dy = (y - side / 2.0f) / (side / 2.0f);
+      float dist = std::sqrt(dx * dx + dy * dy);
+      if (dist > 0.8f)
+        h *= (1.0f - (dist - 0.8f) * 5.0f);
     }
 
-    if (b.height[i] < 0)
-      b.height[i] = 0;
+    b.height[i] = clamp_val(h, 0.0f, 1.0f);
   }
 }
 

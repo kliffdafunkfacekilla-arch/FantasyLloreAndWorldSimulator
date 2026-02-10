@@ -126,11 +126,23 @@ struct AgentDefinition {
   std::map<int, float> output; // What they produce
 };
 
+// --- MAP TEMPLATES ---
+enum MapTemplate {
+  TEMPLATE_RANDOM = 0,
+  TEMPLATE_CONTINENTS,
+  TEMPLATE_ISLAND_CHAIN,
+  TEMPLATE_SINGLE_LANDMASS,
+  TEMPLATE_TWIN_LANMASSES,
+  TEMPLATE_BROKEN,
+  TEMPLATE_CUSTOM
+};
+
 // 1. World Configuration (Linked to God Mode UI)
 struct WorldSettings {
   // Core Generation
   uint32_t cellCount = 1000000;
   int seed = 1337;
+  MapTemplate worldType = TEMPLATE_CONTINENTS;
 
   // Terrain & Import Controls
   char heightmapPath[256] = ""; // Fixed size for ImGui InputText compatibility
