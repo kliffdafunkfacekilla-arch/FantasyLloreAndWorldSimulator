@@ -5,16 +5,19 @@
 #include "../../include/BinaryExporter.hpp"
 #include "../../include/Theme.hpp"
 #include "../../include/WorldEngine.hpp"
+#include "../../include/nlohmann/json.hpp"
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
 
 namespace fs = std::filesystem;
+using json = nlohmann::json;
 
 // --- GLOBALS ---
 WorldBuffers buffers;
@@ -30,6 +33,21 @@ float accumulator = 0.0f;
 // Camera
 float zoom = 1.0f;
 float camX = 0.5f, camY = 0.5f; // Center (0.0-1.0)
+
+// Campaign Overlay
+bool showCampaign = false;
+json campaignData;
+
+// --- HELPERS ---
+ImVec2 GridToScreen(float x, float y, ImVec2 winPos, ImVec2 winSize) {
+  float uvX = x / 1000.0f;
+  float uvY = y / 1000.0f;
+  float scrX =
+      winPos.x + ((uvX - camX) * zoom * winSize.x) + (winSize.x * 0.5f);
+  float scrY =
+      winPos.y + ((uvY - camY) * zoom * winSize.x) + (winSize.y * 0.5f);
+  return ImVec2(scrX, scrY);
+}
 
 // --- TACTICAL RENDERER ---
 void DrawTacticalView(ImDrawList *drawList, ImVec2 winPos, ImVec2 winSize) {
@@ -95,6 +113,67 @@ void DrawTacticalView(ImDrawList *drawList, ImVec2 winPos, ImVec2 winSize) {
 
         drawList->AddCircleFilled(ImVec2(scrX + offX, scrY + offY),
                                   cellSize * 0.15f, color);
+      }
+    }
+  }
+}
+
+// --- CAMPAIGN RENDERER ---
+void DrawCampaignOverlay(ImDrawList *drawList, ImVec2 winPos, ImVec2 winSize) {
+  if (campaignData.empty() || !campaignData.contains("nodes"))
+    return;
+
+  auto &nodes = campaignData["nodes"];
+  ImU32 nodeColor = IM_COL32(255, 255, 0, 255);      // Yellow
+  ImU32 lineColor = IM_COL32(255, 255, 0, 150);      // Faded Yellow
+  ImU32 encounterColor = IM_COL32(255, 100, 0, 255); // Orange
+
+  ImVec2 lastPos;
+  bool first = true;
+
+  for (auto &node : nodes) {
+    float x = node["location"][0];
+    float y = node["location"][1];
+    ImVec2 p = GridToScreen(x, y, winPos, winSize);
+
+    // Draw Line from previous node
+    if (!first) {
+      drawList->AddLine(lastPos, p, lineColor, 3.0f);
+    }
+
+    // Draw Node Icon
+    drawList->AddCircleFilled(p, 8.0f, nodeColor);
+    drawList->AddCircle(p, 10.0f, nodeColor, 12, 2.0f);
+
+    // Label
+    std::string label = node["type"].get<std::string>();
+    drawList->AddText(ImVec2(p.x + 12, p.y - 6), nodeColor, label.c_str());
+
+    lastPos = p;
+    first = false;
+  }
+
+  // Draw travel encounters as points along the path (simplified visualization)
+  if (campaignData.contains("travel_encounters") && nodes.size() >= 2) {
+    auto &encounters = campaignData["travel_encounters"];
+    float numE = (float)encounters.size();
+    if (numE > 0) {
+      ImVec2 p1 = GridToScreen(nodes[0]["location"][0], nodes[0]["location"][1],
+                               winPos, winSize);
+      ImVec2 p2 = GridToScreen(nodes.back()["location"][0],
+                               nodes.back()["location"][1], winPos, winSize);
+
+      for (int i = 0; i < (int)numE; ++i) {
+        float lerp = (float)(i + 1) / (numE + 1.0f);
+        ImVec2 ep =
+            ImVec2(p1.x + (p2.x - p1.x) * lerp, p1.y + (p2.y - p1.y) * lerp);
+
+        drawList->AddCircleFilled(ep, 4.0f, encounterColor);
+        if (ImGui::IsMouseHoveringRect(ImVec2(ep.x - 5, ep.y - 5),
+                                       ImVec2(ep.x + 5, ep.y + 5))) {
+          std::string encTitle = encounters[i]["title"].get<std::string>();
+          ImGui::SetTooltip("%s", encTitle.c_str());
+        }
       }
     }
   }
@@ -217,6 +296,20 @@ void DrawUI() {
   if (zoom > 5.0f)
     ImGui::TextColored(ImVec4(1, 1, 0, 1), "TACTICAL VIEW ACTIVE");
 
+  ImGui::Separator();
+  if (ImGui::Checkbox("Show Campaign Overlay", &showCampaign)) {
+    if (showCampaign) {
+      std::ifstream f("data/current_campaign.json");
+      if (f.is_open()) {
+        f >> campaignData;
+        std::cout << "[LOG] Loaded campaign data.\n";
+      } else {
+        std::cout << "[ERROR] Could not find data/current_campaign.json\n";
+        showCampaign = false;
+      }
+    }
+  }
+
   ImGui::End();
 }
 
@@ -279,17 +372,25 @@ int main(int, char **) {
     ImGui::Begin("View", nullptr,
                  ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground);
 
+    ImVec2 winPos = ImGui::GetCursorScreenPos();
+    ImVec2 winSize = ImVec2((float)w, (float)h);
+
     if (zoom <= 5.0f) {
       float uvRange = 0.5f / zoom;
-      ImGui::Image((void *)(intptr_t)mapTextureID, ImVec2((float)w, (float)h),
+      ImGui::Image((void *)(intptr_t)mapTextureID, winSize,
                    ImVec2(std::clamp(camX - uvRange, 0.0f, 1.0f - 2 * uvRange),
                           std::clamp(camY - uvRange, 0.0f, 1.0f - 2 * uvRange)),
                    ImVec2(std::clamp(camX + uvRange, 2 * uvRange, 1.0f),
                           std::clamp(camY + uvRange, 2 * uvRange, 1.0f)));
     } else {
-      DrawTacticalView(ImGui::GetWindowDrawList(), ImGui::GetCursorScreenPos(),
-                       ImVec2((float)w, (float)h));
+      DrawTacticalView(ImGui::GetWindowDrawList(), winPos, winSize);
     }
+
+    // DRAW CAMPAIGN OVERLAY
+    if (showCampaign) {
+      DrawCampaignOverlay(ImGui::GetWindowDrawList(), winPos, winSize);
+    }
+
     ImGui::End();
 
     DrawUI();

@@ -4,7 +4,6 @@
 #include <cmath>
 #include <iostream>
 
-
 namespace ClimateSim {
 
 // Helper: Whittaker Diagram Lookup
@@ -18,7 +17,7 @@ int GetBiome(float temp, float moisture) {
       return BiomeType::BARE;
     if (moisture < 0.6f)
       return BiomeType::SHRUBLAND;
-    return BiomeType::TEMPERATE_DECIDUOUS_FOREST; // ताएगा approximation
+    return BiomeType::TEMPERATE_DECIDUOUS_FOREST;
   }
   if (temp < 0.7f) {
     if (moisture < 0.2f)
@@ -40,12 +39,9 @@ int GetBiome(float temp, float moisture) {
 }
 
 void Update(WorldBuffers &b, const WorldSettings &s) {
-  int side = std::sqrt(b.count);
+  int side = (int)std::sqrt(b.count);
   if (side == 0)
     return;
-
-  float windX = std::cos(s.windAngle);
-  float windY = std::sin(s.windAngle);
 
   // Noise generators for variation
   FastNoiseLite tempNoise;
@@ -58,29 +54,44 @@ void Update(WorldBuffers &b, const WorldSettings &s) {
     int y = i / side;
     float h = b.height[i];
 
-    // --- 1. TEMPERATURE ---
-    // Base: Latitude (Pole to Equator)
-    float latitude = (float)y / side;
-    float baseTemp = 1.0f - std::abs(latitude - 0.5f) * 2.0f;
+    // --- 1. TEMPERATURE (3-ZONE LERP) ---
+    float lat = (float)y / side; // 0.0 (N) to 1.0 (S)
+    float baseTemp = 0.0f;
+
+    if (lat < 0.5f) {
+      float alpha = lat / 0.5f;
+      baseTemp = s.tempZonePolar * (1.0f - alpha) + s.tempZoneTemperate * alpha;
+    } else {
+      float alpha = (lat - 0.5f) / 0.5f;
+      baseTemp =
+          s.tempZoneTemperate * (1.0f - alpha) + s.tempZoneTropical * alpha;
+    }
 
     // Modifier: Altitude (Higher is colder)
     float altMod = std::max(0.0f, h - s.seaLevel) * 0.8f;
-
-    // Modifier: Noise & Global Setting
+    // Modifier: Noise
     float nT = tempNoise.GetNoise((float)x, (float)y) * 0.1f;
 
-    b.temperature[i] =
-        std::clamp(baseTemp - altMod + nT + s.globalTemp, 0.0f, 1.0f);
+    b.temperature[i] = std::clamp(baseTemp - altMod + nT, 0.0f, 1.0f);
 
-    // --- 2. MOISTURE & WIND ---
-    // "Look Upwind" to see if we are blocked by mountains
+    // --- 2. WIND (5-ZONE MAPPING) ---
+    int windZoneIdx = std::clamp((int)(lat * 5.0f), 0, 4);
+    float localWindAngle = s.windZonesDir[windZoneIdx];
+    float localWindStrength = s.windZonesStr[windZoneIdx];
+
+    float windX = std::cos(localWindAngle) * localWindStrength;
+    float windY = std::sin(localWindAngle) * localWindStrength;
+
+    b.windDX[i] = windX;
+    b.windDY[i] = windY;
+
+    // --- 3. MOISTURE (RAIN SHADOW LOGIC) ---
     float moisture = 0.0f;
 
-    // Sample a point "upwind"
-    int uwX = x - (int)(windX * 15.0f); // 15 tiles away
+    // Sample upwind
+    int uwX = x - (int)(windX * 15.0f);
     int uwY = y - (int)(windY * 15.0f);
 
-    // Is the upwind spot Ocean or Land?
     bool upwindIsOcean = true;
     float blockage = 0.0f;
 
@@ -89,33 +100,30 @@ void Update(WorldBuffers &b, const WorldSettings &s) {
       if (b.height[uwIdx] > s.seaLevel)
         upwindIsOcean = false;
 
-      // Check for mountain obstruction (Rain Shadow) between here and there
+      // Check for mountain obstruction
       int midX = (x + uwX) / 2;
       int midY = (y + uwY) / 2;
       int midIdx = midY * side + midX;
-      if (b.height[midIdx] > 0.7f)
-        blockage = 1.0f; // Blocked by peak
+      if (b.height[midIdx] > s.seaLevel + 0.3f) // High peak
+        blockage = 1.0f;
     }
 
-    // Calculate Base Rainfall
     if (h <= s.seaLevel) {
-      moisture = 1.0f; // Ocean is wet
+      moisture = 1.0f;
     } else {
-      // If wind comes from ocean and not blocked -> Wet
       if (upwindIsOcean && blockage < 0.5f)
-        moisture += 0.6f;
-      // If blocked -> Dry (Shadow)
+        moisture += 0.6f * localWindStrength;
+      else if (blockage > 0.5f)
+        moisture -= 0.4f;
       else
-        moisture -= 0.3f;
+        moisture -= 0.1f;
 
-      // Add Noise variation
       moisture += rainNoise.GetNoise((float)x, (float)y) * 0.2f;
     }
 
-    // Apply Global Rain Settings
     b.moisture[i] = std::clamp(moisture * s.raininess, 0.0f, 1.0f);
 
-    // --- 3. BIOME CLASSIFICATION ---
+    // --- 4. BIOME CLASSIFICATION ---
     if (h <= s.seaLevel) {
       b.biomeID[i] = BiomeType::OCEAN;
     } else {

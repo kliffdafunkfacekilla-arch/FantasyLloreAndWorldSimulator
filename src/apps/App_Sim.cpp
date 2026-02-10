@@ -1,5 +1,6 @@
 #include <ctime>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -16,6 +17,40 @@ namespace fs = std::filesystem;
 #include "../../include/Simulation.hpp"
 #include "../../include/Terrain.hpp"
 #include "../../include/WorldEngine.hpp"
+#include "../../include/nlohmann/json.hpp"
+
+using json = nlohmann::json;
+
+void ExportStoryHooks(const WorldBuffers &buffers, const std::string &path) {
+  std::cout << "[LOG] Exporting Story Hooks to " << path << "...\n";
+  json hooks = json::array();
+  int side = 1000;
+
+  for (int i = 0; i < (int)buffers.count; ++i) {
+    bool isWar = buffers.agentStrength[i] > 200.0f;
+    bool isFamine = buffers.chaos[i] > 0.8f;
+
+    if (isWar || isFamine) {
+      json hook;
+      hook["location"] = {(float)(i % side), (float)(i / side)};
+      hook["type"] = isWar ? "WAR_FRONT" : "FAMINE";
+      hooks.push_back(hook);
+
+      // Skip nearby cells to avoid spamming the same event
+      // Simple heuristic: skip next 20 cells in the loop (approximate)
+      if (isWar)
+        i += 50;
+    }
+  }
+
+  std::ofstream file(path);
+  if (file.is_open()) {
+    file << hooks.dump(4);
+    std::cout << "[SUCCESS] Exported " << hooks.size() << " hooks.\n";
+  } else {
+    std::cout << "[ERROR] Could not write hooks.json!\n";
+  }
+}
 
 int main() {
   std::cout << "========================================\n";
@@ -95,6 +130,9 @@ int main() {
   std::cout << "\n[SUCCESS] S.A.G.A. Simulation Finished in " << elapsed
             << "s.\n";
   std::cout << "[LOG] History compiled to logs/history.txt\n";
+
+  // --- EXPORT STORY HOOKS ---
+  ExportStoryHooks(buffers, "data/hooks.json");
 
   // Cleanup
   finder.Cleanup(graph);

@@ -32,6 +32,7 @@ int brushMode = 0; // 0:Raise, 1:Lower, 2:Smooth
 float brushSize = 20.0f;
 float brushStrength = 0.5f;
 bool mapDirty = true; // Flag to redraw texture
+bool lockViewport = false;
 
 // --- TEXTURE GENERATOR (RELIEF MAPPER) ---
 
@@ -40,81 +41,58 @@ void UpdateMapTexture() {
   int h = 1000;
   static std::vector<unsigned char> pixels(w * h * 3);
 
-  // Light Direction (Simulated Sun from Top-Left)
-  // float lightX = -1.0f;
-  // float lightY = -1.0f;
-
   for (int y = 0; y < h; ++y) {
     for (int x = 0; x < w; ++x) {
       int i = y * w + x;
       float height = buffers.height[i];
 
       // --- 1. CALCULATE NORMAL (SLOPE) ---
-      // Get height of neighbors (clamped to edges)
       float hL = (x > 0) ? buffers.height[i - 1] : height;
       float hR = (x < w - 1) ? buffers.height[i + 1] : height;
       float hU = (y > 0) ? buffers.height[i - w] : height;
       float hD = (y < h - 1) ? buffers.height[i + w] : height;
 
-      // Simple gradient vector
-      float dx = (hL - hR) * 20.0f; // Multiplier amplifies "steepness"
+      float dx = (hL - hR) * 20.0f;
       float dy = (hU - hD) * 20.0f;
-      float dz = 1.0f; // Up vector
+      float dz = 1.0f;
 
-      // Normalize
       float len = std::sqrt(dx * dx + dy * dy + dz * dz);
       dx /= len;
       dy /= len;
       dz /= len;
 
       // --- 2. CALCULATE LIGHTING ---
-      // Dot Product of Slope vs Sun
-      // Sun direction: 0.5, 0.5, 0.5 (Top Left)
       float light = (dx * 0.5f) + (dy * 0.5f) + (dz * 0.7f);
-
-      // Contrast curve (make shadows darker)
       light = std::clamp(light, 0.4f, 1.1f);
 
       // --- 3. BASE COLOR (BIOMES) ---
       unsigned char r, g, b;
 
-      // Water (Specially handled - no relief map, just depth)
       if (height < settings.seaLevel) {
         float depth = (settings.seaLevel - height) * 10.0f;
         r = 10;
         g = (unsigned char)std::clamp(80.0f - depth * 20.0f, 0.0f, 255.0f);
         b = (unsigned char)std::clamp(180.0f - depth * 50.0f, 0.0f, 255.0f);
-        light = 1.0f; // Water is flat
+        light = 1.0f;
 
-        // Shoreline foam
         if (height > settings.seaLevel - 0.01f) {
           r = 200;
           g = 220;
           b = 255;
         }
-      }
-      // Sand
-      else if (height < settings.seaLevel + 0.04f) {
+      } else if (height < settings.seaLevel + 0.04f) {
         r = 210;
         g = 200;
         b = 130;
-      }
-      // Grass / Forest
-      else if (height < 0.6f) {
+      } else if (height < 0.6f) {
         r = 60;
         g = 140;
         b = 60;
-        // Moisture variation (if available)
-        // if (buffers.moisture[i] < 0.3f) { r=160; g=160; b=80; } // Dry grass
-      }
-      // Rock
-      else if (height < 0.85f) {
+      } else if (height < 0.85f) {
         r = 100;
         g = 90;
         b = 80;
-      }
-      // Snow
-      else {
+      } else {
         r = 240;
         g = 240;
         b = 255;
@@ -130,12 +108,10 @@ void UpdateMapTexture() {
     }
   }
 
-  // Upload to GPU
   if (mapTextureID == 0)
     glGenTextures(1, &mapTextureID);
   glBindTexture(GL_TEXTURE_2D, mapTextureID);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
-                  GL_LINEAR); // Linear for smoother look
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE,
                pixels.data());
@@ -153,13 +129,22 @@ void Setup() {
 
 // --- MAP VIEW ---
 void DrawViewport() {
-  ImGui::Begin("World Viewport", nullptr,
-               ImGuiWindowFlags_NoScrollbar |
-                   ImGuiWindowFlags_NoScrollWithMouse);
+  ImGuiWindowFlags flags =
+      ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
+  if (lockViewport)
+    flags |= ImGuiWindowFlags_NoMove;
+
+  ImGui::Begin("World Viewport", nullptr, flags);
+
+  if (ImGui::IsWindowHovered()) {
+    lockViewport = true;
+  } else {
+    lockViewport = false;
+  }
 
   ImVec2 winSize = ImGui::GetContentRegionAvail();
   float dispW = winSize.x * zoom;
-  float dispH = winSize.x * zoom; // Assuming square map 1000x1000
+  float dispH = winSize.x * zoom;
 
   ImVec2 cursorStart = ImGui::GetCursorScreenPos();
 
@@ -221,18 +206,61 @@ void DrawTools() {
       }
 
       ImGui::Separator();
-      ImGui::TextColored(ImVec4(0, 1, 1, 1), "Climate Control");
+      ImGui::TextColored(ImVec4(0, 1, 1, 1), "Terrain Optimization");
+      if (ImGui::Button("Apply Thermal Erosion (10 iterations)")) {
+        TerrainController::ApplyThermalErosion(buffers, 10);
+        mapDirty = true;
+      }
+      if (ImGui::Button("Smooth Terrain")) {
+        TerrainController::SmoothTerrain(buffers, 1000);
+        mapDirty = true;
+      }
+      if (ImGui::Button("Enforce Ocean Edges")) {
+        TerrainController::EnforceOceanEdges(buffers, 1000, 0.15f);
+        mapDirty = true;
+      }
+      if (ImGui::Button("Roughen Coastlines")) {
+        TerrainController::RoughenCoastlines(buffers, 1000, settings.seaLevel);
+        mapDirty = true;
+      }
 
+      ImGui::EndTabItem();
+    }
+
+    if (ImGui::BeginTabItem("Climate")) {
+      ImGui::TextColored(ImVec4(0, 1, 1, 1), "Global Settings");
       if (ImGui::SliderFloat("Sea Level", &settings.seaLevel, 0.0f, 1.0f))
         mapDirty = true;
-      if (ImGui::SliderFloat("Global Temp", &settings.globalTemp, -0.5f, 0.5f))
-        mapDirty = true;
-      if (ImGui::SliderAngle("Wind Dir", &settings.windAngle))
-        mapDirty = true;
-      if (ImGui::SliderFloat("Rainfall", &settings.raininess, 0.0f, 3.0f))
+      if (ImGui::SliderFloat("Rainfall Multiplier", &settings.raininess, 0.0f,
+                             3.0f))
         mapDirty = true;
 
-      if (ImGui::Button("Recalculate Climate")) {
+      ImGui::Separator();
+      ImGui::TextColored(ImVec4(1, 1, 0, 1), "Temperature Zones");
+      if (ImGui::SliderFloat("Polar Temp", &settings.tempZonePolar, -1.0f,
+                             1.0f))
+        mapDirty = true;
+      if (ImGui::SliderFloat("Temperate Temp", &settings.tempZoneTemperate,
+                             -1.0f, 1.0f))
+        mapDirty = true;
+      if (ImGui::SliderFloat("Tropical Temp", &settings.tempZoneTropical, -1.0f,
+                             1.0f))
+        mapDirty = true;
+
+      ImGui::Separator();
+      ImGui::TextColored(ImVec4(0.5f, 1.0f, 0.5f, 1), "Wind Zones (N -> S)");
+      for (int i = 0; i < 5; ++i) {
+        char bufDir[32], bufStr[32];
+        sprintf(bufDir, "Wind %d Dir", i);
+        sprintf(bufStr, "Wind %d Str", i);
+        if (ImGui::SliderAngle(bufDir, &settings.windZonesDir[i]))
+          mapDirty = true;
+        ImGui::SameLine();
+        if (ImGui::SliderFloat(bufStr, &settings.windZonesStr[i], 0.0f, 2.0f))
+          mapDirty = true;
+      }
+
+      if (ImGui::Button("Full Climate Recalculation", ImVec2(-1, 30))) {
         ClimateSim::Update(buffers, settings);
         mapDirty = true;
       }
@@ -249,7 +277,16 @@ void DrawTools() {
     }
 
     if (ImGui::BeginTabItem("File System")) {
-      if (ImGui::Button("Save Map (data/world.map)")) {
+      if (ImGui::Button("Import Heightmap from Image", ImVec2(-1, 30))) {
+        std::string path = PlatformUtils::OpenFileDialog();
+        if (!path.empty()) {
+          TerrainController::LoadHeightmapFromImage(buffers, path);
+          ClimateSim::Update(buffers, settings);
+          mapDirty = true;
+        }
+      }
+      ImGui::Separator();
+      if (ImGui::Button("Save Map (data/world.map)", ImVec2(-1, 30))) {
         BinaryExporter::SaveWorld(buffers, "data/world.map");
       }
       ImGui::EndTabItem();
