@@ -19,6 +19,20 @@ set LIBS=-Lbin -L C:/msys64/mingw64/lib -lglew32 -lglfw3 -lopengl32 -lgdi32 -lus
 :: Common Source Files (Used by all apps)
 set SRC_COMMON=src/platform/WindowsUtils.cpp src/io/PlatformUtils.cpp src/io/BinaryExporter.cpp src/io/AssetManager.cpp src/io/stb_image_impl.cpp src/lore/LoreScribe.cpp src/lore/NameGenerator.cpp deps/imgui/imgui.cpp deps/imgui/imgui_draw.cpp deps/imgui/imgui_tables.cpp deps/imgui/imgui_widgets.cpp deps/imgui/misc/cpp/imgui_stdlib.cpp deps/imgui/backends/imgui_impl_glfw.cpp deps/imgui/backends/imgui_impl_opengl3.cpp
 
+:: --- APP 0: SAGA LAUNCHER (Main Dashboard) ---
+echo [BUILD] S.A.G.A. Launcher...
+%CXX% %CXXFLAGS% ^
+    src/apps/App_Launcher.cpp ^
+    %SRC_COMMON% ^
+    -o bin/SAGA_Launcher.exe ^
+    %LIBS%
+
+if %errorlevel% neq 0 (
+    echo [ERROR] SAGA Launcher Build Failed.
+    pause
+    exit /b %errorlevel%
+)
+
 :: --- APP 1: SAGA ARCHITECT (Map Builder) ---
 echo [BUILD] S.A.G.A. Architect...
 %CXX% %CXXFLAGS% ^
@@ -96,6 +110,7 @@ if %errorlevel% neq 0 (
 )
 
 echo [SUCCESS] S.A.G.A. Suite Build Complete.
+echo 0. bin/SAGA_Launcher.exe (Central Dashboard)
 echo 1. bin/SAGA_Architect.exe (Build the World)
 echo 2. bin/SAGA_Database.exe  (Write the Rules)
 echo 3. bin/SAGA_Engine.exe    (Run the Simulation)

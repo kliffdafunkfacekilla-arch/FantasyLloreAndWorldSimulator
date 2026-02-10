@@ -4,7 +4,6 @@
 #include "../../include/nlohmann/json.hpp"
 #include "../../include/stb_image.h"
 
-
 #include "../../deps/imgui/backends/imgui_impl_glfw.h"
 #include "../../deps/imgui/backends/imgui_impl_opengl3.h"
 #include "../../deps/imgui/imgui.h"
@@ -22,7 +21,6 @@
 #include <string>
 #include <vector>
 
-
 namespace fs = std::filesystem;
 
 // --- THEME ---
@@ -35,6 +33,121 @@ void SetupTheme() {
   style.Colors[ImGuiCol_Button] = ImVec4(0.25f, 0.40f, 0.55f, 1.00f);
   style.Colors[ImGuiCol_Text] = ImVec4(0.90f, 0.90f, 0.90f, 1.00f);
 }
+
+// --- ADVANCED CALENDAR SYSTEM ---
+struct Moon {
+  std::string name = "Luna";
+  float cycle = 29.5f; // Days per cycle
+  float shift = 0.0f;  // Offset
+  ImVec4 color = ImVec4(0.9f, 0.9f, 0.9f, 1.0f);
+};
+
+struct Season {
+  std::string name = "Summer";
+  int startMonth = 6;
+  int startDay = 1;
+  ImVec4 color = ImVec4(1.0f, 0.6f, 0.2f, 1.0f);
+};
+
+struct Era {
+  std::string name;
+  std::string abbreviation; // e.g. "AD", "BC", "3E"
+  int startYear;
+  bool inverted = false; // For BC dates counting down
+};
+
+struct CalendarSystem {
+  // Basics
+  std::string name = "Gregorian";
+  int currentYear = 1;
+  int currentMonth = 1;
+  int currentDay = 1;
+
+  // Time
+  int hoursPerDay = 24;
+  int minutesPerHour = 60;
+
+  // Structure
+  std::vector<std::string> monthNames = {
+      "Hammer",    "Alturiak", "Ches",   "Tarsakh",   "Mirtul", "Kythorn",
+      "Flamerule", "Eleasis",  "Eleint", "Marpenoth", "Uktar",  "Nightal"};
+  std::vector<int> monthLengths; // Days per month
+  std::vector<std::string> weekDayNames = {"Monday",   "Tuesday", "Wednesday",
+                                           "Thursday", "Friday",  "Saturday",
+                                           "Sunday"};
+
+  // Advanced Features
+  std::vector<Moon> moons;
+  std::vector<Season> seasons;
+  std::vector<Era> eras;
+
+  CalendarSystem() {
+    // Defaults
+    for (int i = 0; i < 12; ++i)
+      monthLengths.push_back(30);
+    moons.push_back({"Selune", 30.44f, 0.0f, ImVec4(0.8f, 0.8f, 1.0f, 1.0f)});
+  }
+
+  void Save() {
+    nlohmann::json j;
+    j["name"] = name;
+    j["current"] = {currentYear, currentMonth, currentDay};
+    j["months"] = monthNames;
+    j["monthLens"] = monthLengths;
+    j["weekdays"] = weekDayNames;
+
+    // Moons
+    nlohmann::json mArr = nlohmann::json::array();
+    for (auto &m : moons)
+      mArr.push_back({{"n", m.name},
+                      {"c", m.cycle},
+                      {"s", m.shift},
+                      {"col", {m.color.x, m.color.y, m.color.z}}});
+    j["moons"] = mArr;
+
+    // Seasons
+    nlohmann::json sArr = nlohmann::json::array();
+    for (auto &s : seasons)
+      sArr.push_back({{"n", s.name}, {"m", s.startMonth}, {"d", s.startDay}});
+    j["seasons"] = sArr;
+
+    std::ofstream o("data/calendar.json");
+    o << std::setw(4) << j;
+  }
+
+  void Load() {
+    std::ifstream f("data/calendar.json");
+    if (f.is_open()) {
+      try {
+        nlohmann::json j;
+        f >> j;
+        name = j.value("name", "New Calendar");
+        if (j.contains("months")) {
+          monthNames = j["months"].get<std::vector<std::string>>();
+          monthLengths = j["monthLens"].get<std::vector<int>>();
+        }
+        if (j.contains("weekdays")) {
+          weekDayNames = j["weekdays"].get<std::vector<std::string>>();
+        }
+        if (j.contains("moons")) {
+          moons.clear();
+          for (auto &obj : j["moons"]) {
+            std::vector<float> c = obj["col"].get<std::vector<float>>();
+            moons.push_back(
+                {obj["n"], obj["c"], obj["s"], ImVec4(c[0], c[1], c[2], 1)});
+          }
+        }
+        if (j.contains("seasons")) {
+          seasons.clear();
+          for (auto &obj : j["seasons"]) {
+            seasons.push_back({obj["n"], obj["m"], obj["d"]});
+          }
+        }
+      } catch (...) {
+      }
+    }
+  }
+};
 
 // --- DATA STRUCTURES ---
 enum class FieldType { TEXT, NUMBER, SLIDER, COLOR, IMAGE_PATH, SPRITE_REF };
@@ -69,6 +182,7 @@ struct WikiArticle {
 };
 
 // --- GLOBALS ---
+CalendarSystem calendar;
 std::vector<WikiArticle> wikiDB;
 std::vector<CategoryTemplate> templates;
 WorldBuffers mapData;
@@ -157,10 +271,13 @@ void SaveData() {
   ot << std::setw(4) << tRoot;
 
   AssetManager::SaveAll(); // Save Sim Rules
+  calendar.Save();
 }
 
 void LoadData() {
   AssetManager::LoadAll();
+  calendar.Load();
+
   // Load Templates
   std::ifstream ft("data/templates.json");
   if (ft.is_open()) {
@@ -228,7 +345,7 @@ void ExportHTML() {
   idx << "<html><head><style>body{background:#222;color:#eee;font-family:sans-"
          "serif;max-width:800px;margin:auto;padding:20px;} "
          "a{color:#4da6ff;}</style></head><body>";
-  idx << "<h1>S.A.G.A. World Codex</h1><hr>";
+  idx << "<h1>" << calendar.name << " World Codex</h1><hr>";
 
   for (const auto &a : wikiDB) {
     std::string fname = "article_" + std::to_string(a.id) + ".html";
@@ -485,6 +602,133 @@ void DrawMainEditor() {
   ImGui::End();
 }
 
+void DrawCalendarEditor() {
+  if (!ImGui::Begin("Timekeeper")) {
+    ImGui::End();
+    return;
+  }
+
+  ImGui::TextColored(ImVec4(1, 0.8f, 0.2f, 1), "%s Settings",
+                     calendar.name.c_str());
+  ImGui::InputText("Calendar Name", &calendar.name);
+
+  if (ImGui::BeginTabBar("CalTabs")) {
+
+    // --- TAB 1: MONTHS & DAYS ---
+    if (ImGui::BeginTabItem("Structure")) {
+      ImGui::Separator();
+      ImGui::Text("Months");
+      ImGui::BeginChild("Months", ImVec2(0, 200), true);
+      for (int i = 0; i < (int)calendar.monthNames.size(); ++i) {
+        ImGui::PushID(i);
+        ImGui::SetNextItemWidth(30);
+        ImGui::Text("%2d", i + 1);
+        ImGui::SameLine();
+
+        ImGui::SetNextItemWidth(150);
+        ImGui::InputText("##name", &calendar.monthNames[i]);
+        ImGui::SameLine();
+
+        ImGui::SetNextItemWidth(80);
+        ImGui::InputInt("Days", &calendar.monthLengths[i]);
+        ImGui::SameLine();
+
+        if (ImGui::Button("X")) {
+          calendar.monthNames.erase(calendar.monthNames.begin() + i);
+          calendar.monthLengths.erase(calendar.monthLengths.begin() + i);
+        }
+        ImGui::PopID();
+      }
+      if (ImGui::Button("+ Add Month")) {
+        calendar.monthNames.push_back("New Month");
+        calendar.monthLengths.push_back(30);
+      }
+      ImGui::EndChild();
+
+      ImGui::Separator();
+      ImGui::Text("Weekdays");
+      for (int i = 0; i < (int)calendar.weekDayNames.size(); ++i) {
+        ImGui::PushID(i + 1000);
+        ImGui::SetNextItemWidth(150);
+        ImGui::InputText("##wd", &calendar.weekDayNames[i]);
+        ImGui::SameLine();
+        if (ImGui::Button("X")) {
+          calendar.weekDayNames.erase(calendar.weekDayNames.begin() + i);
+        }
+        ImGui::PopID();
+      }
+      if (ImGui::Button("+ Add Weekday"))
+        calendar.weekDayNames.push_back("New Day");
+
+      ImGui::EndTabItem();
+    }
+
+    // --- TAB 2: CELESTIAL BODIES (MOONS) ---
+    if (ImGui::BeginTabItem("Moons")) {
+      ImGui::TextWrapped("Moons affect night visibility and lycanthropy events "
+                         "in the simulation.");
+      for (int i = 0; i < (int)calendar.moons.size(); ++i) {
+        Moon &m = calendar.moons[i];
+        ImGui::PushID(i + 2000);
+        if (ImGui::CollapsingHeader(m.name.c_str(),
+                                    ImGuiTreeNodeFlags_DefaultOpen)) {
+          ImGui::InputText("Name", &m.name);
+          ImGui::DragFloat("Cycle (Days)", &m.cycle, 0.1f, 1.0f, 1000.0f);
+          ImGui::SliderFloat("Phase Offset", &m.shift, 0.0f, m.cycle);
+          ImGui::ColorEdit3("Moon Color", (float *)&m.color);
+
+          ImGui::Text("Preview:");
+          ImGui::SameLine();
+          ImGui::ColorButton("##preview", m.color, 0, ImVec2(30, 30));
+
+          if (ImGui::Button("Delete Moon")) {
+            calendar.moons.erase(calendar.moons.begin() + i);
+            ImGui::PopID();
+            break;
+          }
+        }
+        ImGui::PopID();
+      }
+      if (ImGui::Button("Add Moon"))
+        calendar.moons.push_back({"New Moon"});
+      ImGui::EndTabItem();
+    }
+
+    // --- TAB 3: SEASONS ---
+    if (ImGui::BeginTabItem("Seasons")) {
+      ImGui::TextWrapped("Seasons drive the Climate Engine.");
+      for (int i = 0; i < (int)calendar.seasons.size(); ++i) {
+        Season &s = calendar.seasons[i];
+        ImGui::PushID(i + 3000);
+        ImGui::InputText("##sn", &s.name);
+        ImGui::SameLine();
+        ImGui::Text("Starts Month:");
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(60);
+        ImGui::InputInt("##sm", &s.startMonth);
+        ImGui::SameLine();
+        if (ImGui::Button("X")) {
+          calendar.seasons.erase(calendar.seasons.begin() + i);
+          ImGui::PopID();
+          break;
+        }
+        ImGui::PopID();
+      }
+      if (ImGui::Button("Add Season"))
+        calendar.seasons.push_back({"New Season"});
+      ImGui::EndTabItem();
+    }
+
+    ImGui::EndTabBar();
+  }
+
+  ImGui::Separator();
+  if (ImGui::Button("SAVE CALENDAR CONFIG", ImVec2(-1, 40)))
+    calendar.Save();
+
+  ImGui::End();
+}
+
 void DrawHelp() {
   if (!showHelp)
     return;
@@ -534,21 +778,28 @@ int main(int, char **) {
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 
-    // Use a simple non-docking manual layout
     int dw, dh;
     glfwGetFramebufferSize(w, &dw, &dh);
 
+    // Sidebar: 200px
     ImGui::SetNextWindowPos(ImVec2(0, 0));
-    ImGui::SetNextWindowSize(ImVec2(300, (float)dh));
+    ImGui::SetNextWindowSize(ImVec2(250, (float)dh));
     DrawSidebar();
 
-    ImGui::SetNextWindowPos(ImVec2(300, 0));
-    ImGui::SetNextWindowSize(ImVec2((float)dw - 600, (float)dh));
+    // Main: Center
+    ImGui::SetNextWindowPos(ImVec2(250, 0));
+    ImGui::SetNextWindowSize(ImVec2((float)dw - 800, (float)dh));
     DrawMainEditor();
 
-    ImGui::SetNextWindowPos(ImVec2((float)dw - 300, 0));
-    ImGui::SetNextWindowSize(ImVec2(300, (float)dh));
+    // Right Column: Template Builder (Top half)
+    ImGui::SetNextWindowPos(ImVec2((float)dw - 550, 0));
+    ImGui::SetNextWindowSize(ImVec2(550, (float)dh / 2));
     DrawTemplateEditor();
+
+    // Right Column: Calendar (Bottom half)
+    ImGui::SetNextWindowPos(ImVec2((float)dw - 550, (float)dh / 2));
+    ImGui::SetNextWindowSize(ImVec2(550, (float)dh / 2));
+    DrawCalendarEditor();
 
     DrawHelp();
 
