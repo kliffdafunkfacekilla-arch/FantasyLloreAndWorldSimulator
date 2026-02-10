@@ -1,0 +1,58 @@
+{
+    "current": [
+        1,
+        1,
+        1
+    ],
+    "monthLens": [
+        30,
+        30,
+        30,
+        30,
+        30,
+        30,
+        30,
+        30,
+        30,
+        30,
+        30,
+        30
+    ],
+    "months": [
+        "Hammer",
+        "Alturiak",
+        "Ches",
+        "Tarsakh",
+        "Mirtul",
+        "Kythorn",
+        "Flamerule",
+        "Eleasis",
+        "Eleint",
+        "Marpenoth",
+        "Uktar",
+        "Nightal"
+    ],
+    "moons": [
+        {
+            "c": 30.440000534057617,
+            "col": [
+                0.800000011920929,
+                0.800000011920929,
+                1.0
+            ],
+            "n": "Selune",
+            "s": 0.0
+        }
+    ],
+    "name": "Gregorian",
+    "seasons": [],
+    "weekdays": [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday"
+    ]
+}

@@ -6,7 +6,6 @@
 #include <iostream>
 #include <windows.h> // For ShellExecute
 
-
 // --- THEME ---
 void SetupLauncherTheme() {
   ImGuiStyle &style = ImGui::GetStyle();
@@ -20,12 +19,15 @@ void SetupLauncherTheme() {
 }
 
 // --- LAUNCHER HELPER ---
-void RunApp(const char *exeName) {
+void RunApp(const char *exeName, const char *windowTitle) {
+  // Check if already running to prevent "opens 3 times" bugs
+  HWND hwnd = FindWindowA(NULL, windowTitle);
+  if (hwnd) {
+    SetForegroundWindow(hwnd);
+    return;
+  }
+
   // ShellExecute allows launching without freezing this app
-  // "open" = run it
-  // NULL = arguments
-  // "bin" = working directory (Critical so apps find data folder)
-  // SW_SHOW = show window
   ShellExecuteA(NULL, "open", exeName, NULL, "bin", SW_SHOW);
 }
 
@@ -66,7 +68,7 @@ void DrawDashboard() {
   ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.4f, 0.3f, 1));
   if (ImGui::Button("ARCHITECT\n\nBuild World\nPaint Terrain",
                     ImVec2(btnW, btnH))) {
-    RunApp("SAGA_Architect.exe");
+    RunApp("SAGA_Architect.exe", "S.A.G.A. Architect");
   }
   ImGui::PopStyleColor();
 
@@ -76,7 +78,7 @@ void DrawDashboard() {
   ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.3f, 0.4f, 1));
   if (ImGui::Button("DATABASE\n\nWrite Lore\nDefine Rules\nCalendar",
                     ImVec2(btnW, btnH))) {
-    RunApp("SAGA_Database.exe");
+    RunApp("SAGA_Database.exe", "S.A.G.A. Database");
   }
   ImGui::PopStyleColor();
 
@@ -86,7 +88,7 @@ void DrawDashboard() {
   ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.4f, 0.2f, 0.2f, 1));
   if (ImGui::Button("ENGINE\n\nRun Simulation\nGenerate History",
                     ImVec2(btnW, btnH))) {
-    RunApp("SAGA_Engine.exe");
+    RunApp("SAGA_Engine.exe", "S.A.G.A. Engine");
   }
   ImGui::PopStyleColor();
 
@@ -96,7 +98,7 @@ void DrawDashboard() {
   ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.4f, 0.4f, 0.2f, 1));
   if (ImGui::Button("PROJECTOR\n\nWatch Replay\nPhoto Mode",
                     ImVec2(btnW, btnH))) {
-    RunApp("SAGA_Projector.exe");
+    RunApp("SAGA_Projector.exe", "S.A.G.A. Projector");
   }
   ImGui::PopStyleColor();
 

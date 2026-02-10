@@ -11,7 +11,6 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
-
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -391,6 +390,15 @@ void DrawSidebar() {
     a.categoryName = "General";
     wikiDB.push_back(a);
     selectedIdx = (int)wikiDB.size() - 1;
+  }
+
+  if (ImGui::Button("Import Obsidian Notes", ImVec2(-1, 0))) {
+    // Call the external importer script
+    // Note: Using absolute path to ensure it's found regardless of process CWD
+    system("python "
+           "C:/Users/krazy/Documents/GitHub/oracle/BRQSE/scripts/"
+           "obsidian_importer.py");
+    LoadData(); // Refresh the list
   }
   ImGui::Separator();
 

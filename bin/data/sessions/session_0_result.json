@@ -1,0 +1,12 @@
+{
+    "node_index": 0,
+    "outcome": "VICTORY",
+    "loot_taken": true,
+    "enemies_killed": [
+        "Enemy_999"
+    ],
+    "events": [
+        "Opened ancient chest",
+        "Defeated the bandit leader"
+    ]
+}

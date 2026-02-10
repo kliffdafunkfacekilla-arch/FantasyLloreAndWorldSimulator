@@ -2,9 +2,15 @@
 #include "../../include/FastNoiseLite.h"
 #include <algorithm>
 #include <cmath>
-#include <iostream>
 
 namespace ClimateSim {
+template <typename T> T clamp_val(T val, T min, T max) {
+  if (val < min)
+    return min;
+  if (val > max)
+    return max;
+  return val;
+}
 
 // Helper: Whittaker Diagram Lookup
 int GetBiome(float temp, float moisture) {
@@ -72,10 +78,10 @@ void Update(WorldBuffers &b, const WorldSettings &s) {
     // Modifier: Noise
     float nT = tempNoise.GetNoise((float)x, (float)y) * 0.1f;
 
-    b.temperature[i] = std::clamp(baseTemp - altMod + nT, 0.0f, 1.0f);
+    b.temperature[i] = clamp_val(baseTemp - altMod + nT, 0.0f, 1.0f);
 
     // --- 2. WIND (5-ZONE MAPPING) ---
-    int windZoneIdx = std::clamp((int)(lat * 5.0f), 0, 4);
+    int windZoneIdx = clamp_val((int)(lat * 5.0f), 0, 4);
     float localWindAngle = s.windZonesDir[windZoneIdx];
     float localWindStrength = s.windZonesStr[windZoneIdx];
 
@@ -103,9 +109,11 @@ void Update(WorldBuffers &b, const WorldSettings &s) {
       // Check for mountain obstruction
       int midX = (x + uwX) / 2;
       int midY = (y + uwY) / 2;
-      int midIdx = midY * side + midX;
-      if (b.height[midIdx] > s.seaLevel + 0.3f) // High peak
-        blockage = 1.0f;
+      if (midX >= 0 && midX < side && midY >= 0 && midY < side) {
+        int midIdx = midY * side + midX;
+        if (b.height[midIdx] > s.seaLevel + 0.3f) // High peak
+          blockage = 1.0f;
+      }
     }
 
     if (h <= s.seaLevel) {
@@ -121,7 +129,7 @@ void Update(WorldBuffers &b, const WorldSettings &s) {
       moisture += rainNoise.GetNoise((float)x, (float)y) * 0.2f;
     }
 
-    b.moisture[i] = std::clamp(moisture * s.raininess, 0.0f, 1.0f);
+    b.moisture[i] = clamp_val(moisture * s.raininess, 0.0f, 1.0f);
 
     // --- 4. BIOME CLASSIFICATION ---
     if (h <= s.seaLevel) {

@@ -1,34 +1,50 @@
 #include "../../include/FastNoiseLite.h"
 #include "../../include/Terrain.hpp"
 #include "../../include/stb_image.h"
-#include <algorithm>
 #include <cmath>
-#include <iostream>
 #include <vector>
+
+// Helper clamp since std::clamp can be tricky in some MinGW versions
+template <typename T> T clamp_val(T val, T min, T max) {
+  if (val < min)
+    return min;
+  if (val > max)
+    return max;
+  return val;
+}
+
+// Forward declaration for HeightmapLoader logic
+void LoadHeightmapData(const char *path, WorldBuffers &buffers, uint32_t count);
 
 void TerrainController::GenerateHeightmap(WorldBuffers &b,
                                           const WorldSettings &s) {
   FastNoiseLite noise;
   noise.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
-  noise.SetFrequency(0.005f); // Use settings.noiseFreq if available
+  noise.SetFrequency(0.005f);
   noise.SetFractalType(FastNoiseLite::FractalType_FBm);
   noise.SetFractalOctaves(5);
+  noise.SetSeed(s.seed);
 
-  int side = std::sqrt(b.count);
+  int side = (int)std::sqrt(b.count);
   for (int i = 0; i < (int)b.count; ++i) {
     int x = i % side;
     int y = i / side;
 
-    // Base Noise
     float n = noise.GetNoise((float)x, (float)y);
+    b.height[i] = (n * 0.5f + 0.5f);
 
-    // Island Mask (Simple circular falloff)
-    float dx = (x - side / 2.0f) / (side / 2.0f);
-    float dy = (y - side / 2.0f) / (side / 2.0f);
-    float dist = std::sqrt(dx * dx + dy * dy);
-    float mask = 1.0f - std::pow(dist, 1.5f); // Tune exponent for island size
+    if (s.islandMode) {
+      float dx = (x - side / 2.0f) / (side / 2.0f);
+      float dy = (y - side / 2.0f) / (side / 2.0f);
+      float dist = std::sqrt(dx * dx + dy * dy);
+      float mask = 1.0f - std::pow(dist, 1.5f);
+      if (mask < 0)
+        mask = 0;
+      if (mask > 1)
+        mask = 1;
+      b.height[i] *= mask;
+    }
 
-    b.height[i] = (n * 0.5f + 0.5f) * mask;
     if (b.height[i] < 0)
       b.height[i] = 0;
   }
@@ -36,155 +52,56 @@ void TerrainController::GenerateHeightmap(WorldBuffers &b,
 
 void TerrainController::GenerateTectonicPlates(WorldBuffers &b,
                                                const WorldSettings &s) {
-  int side = std::sqrt(b.count);
+  int side = (int)std::sqrt(b.count);
   if (side <= 0)
     return;
 
-  // 1. SETUP PLATES (Voronoi Noise)
   FastNoiseLite plateNoise;
   plateNoise.SetNoiseType(FastNoiseLite::NoiseType_Cellular);
   plateNoise.SetCellularDistanceFunction(
       FastNoiseLite::CellularDistanceFunction_Euclidean);
   plateNoise.SetCellularReturnType(FastNoiseLite::CellularReturnType_CellValue);
-  plateNoise.SetFrequency(
-      0.002f); // Controls size of continents (Lower = Bigger)
+  plateNoise.SetFrequency(0.002f);
   plateNoise.SetSeed(s.seed);
 
-  // 2. SETUP EDGE DETECTION (Mountains)
   FastNoiseLite edgeNoise;
   edgeNoise.SetNoiseType(FastNoiseLite::NoiseType_Cellular);
-  edgeNoise.SetCellularDistanceFunction(
-      FastNoiseLite::CellularDistanceFunction_Euclidean);
-  edgeNoise.SetCellularReturnType(
-      FastNoiseLite::CellularReturnType_Distance2); // Distance to edge
+  edgeNoise.SetCellularReturnType(FastNoiseLite::CellularReturnType_Distance2);
   edgeNoise.SetFrequency(0.002f);
   edgeNoise.SetSeed(s.seed);
 
-  // 3. DETAIL NOISE (Roughness)
   FastNoiseLite detail;
   detail.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
   detail.SetFrequency(0.02f);
-  detail.SetFractalType(FastNoiseLite::FractalType_FBm);
 
   for (int i = 0; i < (int)b.count; ++i) {
     int x = i % side;
     int y = i / side;
 
-    // A. Determine which "Plate" we are on
     float plateID = plateNoise.GetNoise((float)x, (float)y);
-
-    // B. Determine height based on Plate ID
-    // Some plates are Ocean (low), some are Land (high)
     float plateHeight = std::abs(plateID);
-
-    // C. Detect Plate Borders (Mountain Ranges)
-    float distToEdge = edgeNoise.GetNoise((float)x, (float)y);
-    distToEdge = (distToEdge + 1.0f) * 0.5f; // Normalize 0-1
+    float distToEdge = (edgeNoise.GetNoise((float)x, (float)y) + 1.0f) * 0.5f;
 
     float finalHeight;
-
-    // Logic: If Plate is "Ocean" (random < 0.4), make it deep
     if (plateHeight < 0.4f) {
-      // OCEAN PLATE
       finalHeight = 0.1f + (detail.GetNoise((float)x, (float)y) * 0.05f);
-
-      // Trenches near borders
       if (distToEdge < 0.1f)
         finalHeight -= 0.2f;
     } else {
-      // LAND PLATE
-      finalHeight = 0.5f + (plateHeight * 0.2f); // Base elevation
-
-      // Mountain Uplift at borders
+      finalHeight = 0.5f + (plateHeight * 0.2f);
       if (distToEdge < 0.15f) {
         float mountainFactor = 1.0f - (distToEdge / 0.15f);
-        finalHeight += mountainFactor * 0.6f; // Massive mountains
+        finalHeight += mountainFactor * 0.6f;
       }
-
-      // Add detail
       finalHeight += detail.GetNoise((float)x, (float)y) * 0.1f;
     }
-
-    b.height[i] = std::clamp(finalHeight, 0.0f, 1.0f);
-  }
-}
-
-void TerrainController::GenerateClimate(WorldBuffers &b,
-                                        const WorldSettings &s) {
-  int side = std::sqrt(b.count);
-  FastNoiseLite mNoise;
-  mNoise.SetFrequency(0.003f);
-
-  for (int i = 0; i < (int)b.count; ++i) {
-    int y = i / side;
-
-    // 1. TEMPERATURE (Based on Latitude/Y + Height)
-    float latitude = (float)y / side; // 0.0 (North) to 1.0 (South)
-    float baseTemp = 1.0f - std::abs(latitude - 0.5f) * 2.0f; // Equator hot
-    // Altitude Penalty (Higher = Colder)
-    baseTemp -= std::max(0.0f, b.height[i] - s.seaLevel) * 0.5f;
-
-    float finalT = baseTemp;
-    if (finalT < 0.0f)
-      finalT = 0.0f;
-    if (finalT > 1.0f)
-      finalT = 1.0f;
-    b.temperature[i] = finalT;
-
-    // 2. MOISTURE (Perlin Noise + Proximity to Water)
-    float m = mNoise.GetNoise((float)(i % side), (float)y) * 0.5f + 0.5f;
-    if (b.height[i] < s.seaLevel)
-      m = 1.0f; // Ocean is wet
-    b.moisture[i] = m;
-  }
-}
-
-void TerrainController::SimulateHydrology(WorldBuffers &b,
-                                          const WorldSettings &s) {
-  // Simple hydraulic erosion / river mapping
-  std::vector<float> flow(b.count, 0.0f);
-  int side = std::sqrt(b.count);
-
-  struct Cell {
-    int id;
-    float h;
-  };
-  std::vector<Cell> cells(b.count);
-  for (int i = 0; i < (int)b.count; ++i)
-    cells[i] = {i, b.height[i]};
-
-  std::sort(cells.begin(), cells.end(),
-            [](const Cell &a, const Cell &b) { return a.h > b.h; });
-
-  for (const auto &c : cells) {
-    int i = c.id;
-    flow[i] += b.moisture[i];
-
-    int bestN = -1;
-    float minH = b.height[i];
-    int x = i % side;
-    int y = i / side;
-
-    int nIndices[] = {i - 1, i + 1, i - side, i + side};
-    for (int nIdx : nIndices) {
-      if (nIdx >= 0 && nIdx < (int)b.count && b.height[nIdx] < minH) {
-        minH = b.height[nIdx];
-        bestN = nIdx;
-      }
-    }
-
-    if (bestN != -1) {
-      flow[bestN] += flow[i];
-      if (flow[i] > 10.0f && b.height[i] > s.seaLevel) {
-        b.moisture[i] += 0.5f;
-      }
-    }
+    b.height[i] = clamp_val(finalHeight, 0.0f, 1.0f);
   }
 }
 
 void TerrainController::ApplyBrush(WorldBuffers &b, int width, int cx, int cy,
                                    float r, float str, int mode) {
-  int side = std::sqrt(b.count);
+  int side = (int)std::sqrt(b.count);
   int rInt = (int)r;
   for (int y = cy - rInt; y <= cy + rInt; ++y) {
     if (y < 0 || y >= side)
@@ -203,28 +120,113 @@ void TerrainController::ApplyBrush(WorldBuffers &b, int width, int cx, int cy,
       else if (mode == 1)
         b.height[idx] -= str * falloff;
       else if (mode == 2) {
-        // Smoothing placeholder
+        float sum = 0;
+        int count = 0;
+        for (int ny = y - 1; ny <= y + 1; ++ny) {
+          for (int nx = x - 1; nx <= x + 1; ++nx) {
+            if (nx >= 0 && nx < side && ny >= 0 && ny < side) {
+              sum += b.height[ny * side + nx];
+              count++;
+            }
+          }
+        }
+        b.height[idx] = (b.height[idx] * (1.0f - str * falloff)) +
+                        (sum / (float)count * str * falloff);
       }
-      if (b.height[idx] < 0)
-        b.height[idx] = 0;
-      if (b.height[idx] > 1.0f)
-        b.height[idx] = 1.0f;
+      b.height[idx] = clamp_val(b.height[idx], 0.0f, 1.0f);
     }
   }
 }
 
 void TerrainController::LoadHeightmapFromImage(WorldBuffers &b,
                                                const std::string &filepath) {
-  // Note: Implementation in separate file or included correctly
+  LoadHeightmapData(filepath.c_str(), b, b.count);
 }
 
-void TerrainController::RecalculateBiomes(WorldBuffers &b) {
-  // Biome calculation based on Whittaker diagram (Temp vs Moisture)
+void TerrainController::ApplyThermalErosion(WorldBuffers &b, int iterations) {
+  int side = (int)std::sqrt(b.count);
+  float threshold = 0.01f;
+  float amount = 0.1f;
+
+  for (int iter = 0; iter < iterations; ++iter) {
+    for (int i = 0; i < (int)b.count; ++i) {
+      float h = b.height[i];
+      int x = i % side;
+      int y = i / side;
+
+      int neighbors[] = {i - 1, i + 1, i - side, i + side};
+      for (int n : neighbors) {
+        if (n >= 0 && n < (int)b.count) {
+          // Spatial continuity check for horizontal neighbors
+          if ((n == i - 1 || n == i + 1) && (n / side != y))
+            continue;
+
+          float dh = h - b.height[n];
+          if (dh > threshold) {
+            float move = (dh - threshold) * amount;
+            b.height[i] -= move;
+            b.height[n] += move;
+          }
+        }
+      }
+    }
+  }
 }
 
-void TerrainController::ApplyThermalErosion(WorldBuffers &b, int iterations) {}
 void TerrainController::EnforceOceanEdges(WorldBuffers &b, int side,
-                                          float fadeDist) {}
-void TerrainController::SmoothTerrain(WorldBuffers &b, int side) {}
+                                          float fadeDist) {
+  for (int i = 0; i < (int)b.count; ++i) {
+    int x = i % side;
+    int y = i / side;
+    float dx = (float)(x - side / 2) / ((float)side / 2.0f);
+    float dy = (float)(y - side / 2) / ((float)side / 2.0f);
+    float dist = std::sqrt(dx * dx + dy * dy);
+    float mask = (fadeDist > 0.0001f) ? (1.0f - dist) / fadeDist
+                                      : (dist < 1.0f ? 1.0f : 0.0f);
+    if (mask < 0)
+      mask = 0;
+    if (mask > 1)
+      mask = 1;
+    b.height[i] *= mask;
+  }
+}
+
+void TerrainController::SmoothTerrain(WorldBuffers &b, int side) {
+  std::vector<float> nextH(b.count);
+  for (int i = 0; i < (int)b.count; ++i) {
+    int x = i % side;
+    int y = i / side;
+    float sum = 0;
+    int count = 0;
+    for (int ny = y - 1; ny <= y + 1; ++ny) {
+      for (int nx = x - 1; nx <= x + 1; ++nx) {
+        if (nx >= 0 && nx < side && ny >= 0 && ny < side) {
+          sum += b.height[ny * side + nx];
+          count++;
+        }
+      }
+    }
+    nextH[i] = sum / (float)count;
+  }
+  for (int i = 0; i < (int)b.count; ++i)
+    b.height[i] = nextH[i];
+}
+
 void TerrainController::RoughenCoastlines(WorldBuffers &b, int side,
-                                          float seaLevel) {}
+                                          float seaLevel) {
+  FastNoiseLite noise;
+  noise.SetFrequency(0.05f);
+  for (int i = 0; i < (int)b.count; ++i) {
+    if (b.height[i] > seaLevel - 0.05f && b.height[i] < seaLevel + 0.05f) {
+      b.height[i] +=
+          noise.GetNoise((float)(i % side), (float)(i / side)) * 0.02f;
+    }
+    b.height[i] = clamp_val(b.height[i], 0.0f, 1.0f);
+  }
+}
+
+void TerrainController::GenerateClimate(WorldBuffers &b,
+                                        const WorldSettings &s) {}
+void TerrainController::SimulateHydrology(WorldBuffers &b,
+                                          const WorldSettings &s) {}
+void TerrainController::RecalculateBiomes(WorldBuffers &b) {}

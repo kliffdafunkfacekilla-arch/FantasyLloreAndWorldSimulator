@@ -13,8 +13,8 @@ if not exist src\io mkdir src\io
 
 :: Compiler Settings
 set CXX=clang++
-set CXXFLAGS=-std=c++17 -Iinclude -Ideps/imgui -Ideps/imgui/backends -Ideps/glew/include -Ideps/glfw/include -DGLEW_STATIC
-set LIBS=-Lbin -L C:/msys64/mingw64/lib -lglew32 -lglfw3 -lopengl32 -lgdi32 -luser32 -lshell32
+set CXXFLAGS=-std=c++17 -Iinclude -Ideps/imgui -Ideps/imgui/backends -I C:/msys64/mingw64/include -DGLEW_STATIC
+set LIBS=-Lbin -L C:/msys64/mingw64/lib -lglew32 -lglfw3 -lopengl32 -lgdi32 -luser32 -lshell32 -lcomdlg32 -lole32
 
 :: Common Source Files (Used by all apps)
 set SRC_COMMON=src/platform/WindowsUtils.cpp src/io/PlatformUtils.cpp src/io/BinaryExporter.cpp src/io/AssetManager.cpp src/io/stb_image_impl.cpp src/lore/LoreScribe.cpp src/lore/NameGenerator.cpp deps/imgui/imgui.cpp deps/imgui/imgui_draw.cpp deps/imgui/imgui_tables.cpp deps/imgui/imgui_widgets.cpp deps/imgui/misc/cpp/imgui_stdlib.cpp deps/imgui/backends/imgui_impl_glfw.cpp deps/imgui/backends/imgui_impl_opengl3.cpp
@@ -29,7 +29,6 @@ echo [BUILD] S.A.G.A. Launcher...
 
 if %errorlevel% neq 0 (
     echo [ERROR] SAGA Launcher Build Failed.
-    pause
     exit /b %errorlevel%
 )
 
@@ -52,7 +51,6 @@ echo [BUILD] S.A.G.A. Architect...
 
 if %errorlevel% neq 0 (
     echo [ERROR] SAGA Architect Build Failed.
-    pause
     exit /b %errorlevel%
 )
 
@@ -67,7 +65,6 @@ echo [BUILD] S.A.G.A. Database...
 
 if %errorlevel% neq 0 (
     echo [ERROR] SAGA Database Build Failed.
-    pause
     exit /b %errorlevel%
 )
 
@@ -91,7 +88,6 @@ echo [BUILD] S.A.G.A. Engine...
 
 if %errorlevel% neq 0 (
     echo [ERROR] SAGA Engine Build Failed.
-    pause
     exit /b %errorlevel%
 )
 
@@ -105,7 +101,6 @@ echo [BUILD] S.A.G.A. Projector...
 
 if %errorlevel% neq 0 (
     echo [ERROR] SAGA Projector Build Failed.
-    pause
     exit /b %errorlevel%
 )
 
@@ -115,4 +110,3 @@ echo 1. bin/SAGA_Architect.exe (Build the World)
 echo 2. bin/SAGA_Database.exe  (Write the Rules)
 echo 3. bin/SAGA_Engine.exe    (Run the Simulation)
 echo 4. bin/SAGA_Projector.exe (Watch the History)
-pause

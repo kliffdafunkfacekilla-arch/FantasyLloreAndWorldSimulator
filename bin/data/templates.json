@@ -1,0 +1,24 @@
+[
+    {
+        "fields": [
+            {
+                "l": "Description",
+                "t": 0
+            }
+        ],
+        "name": "General"
+    },
+    {
+        "fields": [
+            {
+                "l": "Population",
+                "t": 1
+            },
+            {
+                "l": "Color",
+                "t": 3
+            }
+        ],
+        "name": "Faction"
+    }
+]

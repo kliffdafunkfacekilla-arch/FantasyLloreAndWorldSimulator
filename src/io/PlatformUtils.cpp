@@ -4,8 +4,9 @@
 namespace PlatformUtils {
 
 std::string OpenFileDialog() {
-  // Stubbed to avoid MinGW header compilation issues causing build
-  // hangs/failures. Re-enable when environment headers are fixed.
+  // Temporarily stubbed to unblock the build while we investigate the header
+  // conflict. We will restore the native picker once the rest of the UI is
+  // verified.
   return "";
 }
 
