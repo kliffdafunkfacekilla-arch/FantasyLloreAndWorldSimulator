@@ -372,6 +372,13 @@ struct WorldBuffers {
     posX = nullptr; // Safety flag
   }
 
+  void ClearAgents() {
+    if (cultureID)
+      std::fill_n(cultureID, count, -1);
+    if (population)
+      std::fill_n(population, count, 0);
+  }
+
   // --- RESOURCE HELPERS ---
   float GetResource(uint32_t cellIdx, int resID) const {
     if (!resourceInventory || resID < 0 || resID >= MAX_RESOURCES)

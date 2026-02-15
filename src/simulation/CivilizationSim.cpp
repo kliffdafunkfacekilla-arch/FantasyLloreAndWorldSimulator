@@ -46,6 +46,16 @@ void Update(WorldBuffers &b, const NeighborGraph &g, const WorldSettings &s) {
         b.AddResource(i, 2, -500.0f);
         LoreScribeNS::LogEvent(0, "CITY", i, "A village grew into a city.");
       }
+
+      // Sync infrastructure level immediately on upgrade
+      if (b.infrastructure) {
+        if (structure == 1)
+          b.infrastructure[i] = std::max(b.infrastructure[i], 0.3f);
+        if (structure == 2)
+          b.infrastructure[i] = std::max(b.infrastructure[i], 0.6f);
+        if (structure == 3)
+          b.infrastructure[i] = std::max(b.infrastructure[i], 1.0f);
+      }
     }
     b.population[i] = (uint32_t)pop;
   }

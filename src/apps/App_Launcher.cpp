@@ -1,6 +1,7 @@
 #include "../../deps/imgui/backends/imgui_impl_glfw.h"
 #include "../../deps/imgui/backends/imgui_impl_opengl3.h"
 #include "../../deps/imgui/imgui.h"
+#include "../../include/SagaConfig.hpp"
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
@@ -66,9 +67,9 @@ void DrawDashboard() {
 
   // 1. ARCHITECT
   ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.4f, 0.3f, 1));
-  if (ImGui::Button("ARCHITECT\n\nBuild World\nPaint Terrain",
+  if (ImGui::Button("ARCHITECT\n\nBuild the World\nTerrain & Biomes",
                     ImVec2(btnW, btnH))) {
-    RunApp("SAGA_Architect.exe", "S.A.G.A. Architect");
+    RunApp("TALEWEAVERS_Architect.exe", "T.A.L.E.W.E.A.V.E.R.S. Architect");
   }
   ImGui::PopStyleColor();
 
@@ -76,9 +77,9 @@ void DrawDashboard() {
 
   // 2. DATABASE
   ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.3f, 0.4f, 1));
-  if (ImGui::Button("DATABASE\n\nWrite Lore\nDefine Rules\nCalendar",
+  if (ImGui::Button("DATABASE\n\nWrite the Lore\nRules & Factions",
                     ImVec2(btnW, btnH))) {
-    RunApp("SAGA_Database.exe", "S.A.G.A. Database");
+    RunApp("TALEWEAVERS_Database.exe", "T.A.L.E.W.E.A.V.E.R.S. Database");
   }
   ImGui::PopStyleColor();
 
@@ -86,9 +87,9 @@ void DrawDashboard() {
 
   // 3. ENGINE
   ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.4f, 0.2f, 0.2f, 1));
-  if (ImGui::Button("ENGINE\n\nRun Simulation\nGenerate History",
+  if (ImGui::Button("ENGINE\n\nRun Simulation\nClimate & Agents",
                     ImVec2(btnW, btnH))) {
-    RunApp("SAGA_Engine.exe", "S.A.G.A. Engine");
+    RunApp("TALEWEAVERS_Engine.exe", "T.A.L.E.W.E.A.V.E.R.S. Engine");
   }
   ImGui::PopStyleColor();
 
@@ -98,14 +99,15 @@ void DrawDashboard() {
   ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.4f, 0.4f, 0.2f, 1));
   if (ImGui::Button("PROJECTOR\n\nWatch Replay\nPhoto Mode",
                     ImVec2(btnW, btnH))) {
-    RunApp("SAGA_Projector.exe", "S.A.G.A. Projector");
+    RunApp("TALEWEAVERS_Projector.exe", "T.A.L.E.W.E.A.V.E.R.S. Projector");
   }
   ImGui::PopStyleColor();
 
   // Footer
   ImGui::SetCursorPosY(ImGui::GetWindowHeight() - 50);
   ImGui::Separator();
-  ImGui::TextDisabled("v1.0.0 | Output Directory: /data/");
+  ImGui::TextDisabled("T.A.L.E.W.E.A.V.E.R.S. v1.0.0 | Data Hub: %s",
+                      SagaConfig::DATA_HUB.c_str());
   ImGui::SameLine();
   float exitW = ImGui::CalcTextSize("EXIT").x + 40;
   ImGui::SetCursorPosX(ImGui::GetWindowWidth() - exitW);

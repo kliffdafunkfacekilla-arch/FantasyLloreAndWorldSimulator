@@ -1,6 +1,9 @@
+#include "../../include/AssetManager.hpp"
 #include "../../include/BinaryExporter.hpp"
 #include "../../include/Environment.hpp"
+#include "../../include/Lore.hpp"
 #include "../../include/PlatformUtils.hpp"
+#include "../../include/SagaConfig.hpp"
 #include "../../include/Terrain.hpp"
 #include "../../include/Theme.hpp"
 #include "../../include/WorldEngine.hpp"
@@ -37,10 +40,18 @@ float zoom = 1.0f;
 GLuint mapTextureID = 0;
 
 // --- UI STATE ---
-int brushMode = 0; // 0:Raise, 1:Lower, 2:Smooth
+int brushMode = 0; // 0:Raise, 1:Lower, 2:Smooth, 3:Seed
 float brushSize = 20.0f;
 float brushStrength = 0.5f;
-bool mapDirty = true;
+int selectedAgentIdx = 0;
+bool mapDirty = true; // DEBUG: Re-enabled
+std::vector<TerrainController::ColorKey> importKeys = {
+    {10, 80, 180, 0.1f},   // Deep Water
+    {200, 220, 255, 0.4f}, // Shore
+    {34, 139, 34, 0.5f},   // Forest (Land)
+    {139, 69, 19, 0.8f},   // Mtn
+    {255, 255, 255, 1.0f}  // Snow
+};
 
 // Biome Colors (Hand-curated for the SAGA aesthetic)
 struct BiomeColor {
@@ -145,6 +156,7 @@ void UpdateMapTexture() {
 // --- INITIALIZATION ---
 void Setup() {
   buffers.Initialize(1000 * 1000);
+  LoreManager::Load();
   TerrainController::GenerateHeightmap(buffers, settings);
   ClimateSim::Update(buffers, settings);
   UpdateMapTexture();
@@ -168,10 +180,36 @@ void DrawViewport() {
     float relX = (mPos.x - cursorStart.x) / size;
     float relY = (mPos.y - cursorStart.y) / size;
     if (relX >= 0 && relX <= 1 && relY >= 0 && relY <= 1) {
-      TerrainController::ApplyBrush(buffers, 1000, (int)(relX * 1000),
-                                    (int)(relY * 1000), brushSize,
-                                    brushStrength, brushMode);
-      mapDirty = true;
+      if (brushMode < 3) {
+        TerrainController::ApplyBrush(buffers, 1000, (int)(relX * 1000),
+                                      (int)(relY * 1000), brushSize,
+                                      brushStrength, brushMode);
+        mapDirty = true;
+      } else if (brushMode == 3) {
+        // Seed Agent Brush
+        int centerX = (int)(relX * 1000);
+        int centerY = (int)(relY * 1000);
+        int radius = (int)brushSize;
+        for (int y = centerY - radius; y <= centerY + radius; ++y) {
+          for (int x = centerX - radius; x <= centerX + radius; ++x) {
+            if (x < 0 || x >= 1000 || y < 0 || y >= 1000)
+              continue;
+            float dist = sqrtf((float)((x - centerX) * (x - centerX) +
+                                       (y - centerY) * (y - centerY)));
+            if (dist <= radius) {
+              int idx = y * 1000 + x;
+              if (buffers.height[idx] > settings.seaLevel) {
+                if (selectedAgentIdx <
+                    (int)AssetManager::agentRegistry.size()) {
+                  buffers.cultureID[idx] =
+                      AssetManager::agentRegistry[selectedAgentIdx].id;
+                  buffers.population[idx] = (uint32_t)(1000 * brushStrength);
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
   if (ImGui::IsItemHovered()) {
@@ -224,8 +262,8 @@ void DrawTools() {
 
       ImGui::Separator();
       ImGui::Text("Terraforming Tools");
-      const char *modes[] = {"Raise", "Lower", "Smooth"};
-      ImGui::Combo("Brush Mode", &brushMode, modes, 3);
+      const char *modes[] = {"Raise", "Lower", "Smooth", "Seed Life"};
+      ImGui::Combo("Brush Mode", &brushMode, modes, 4);
       ImGui::SliderFloat("Radius", &brushSize, 1.0f, 200.0f);
       ImGui::SliderFloat("Strength", &brushStrength, 0.01f, 1.0f);
 
@@ -286,9 +324,189 @@ void DrawTools() {
           mapDirty = true;
         }
       }
+
+      ImGui::Separator();
+      ImGui::Text("Advanced Import (Color Key)");
+      for (int i = 0; i < importKeys.size(); ++i) {
+        float col[3] = {importKeys[i].r / 255.0f, importKeys[i].g / 255.0f,
+                        importKeys[i].b / 255.0f};
+        ImGui::ColorEdit3(("Color " + std::to_string(i)).c_str(), col,
+                          ImGuiColorEditFlags_NoInputs);
+        importKeys[i].r = (unsigned char)(col[0] * 255);
+        importKeys[i].g = (unsigned char)(col[1] * 255);
+        importKeys[i].b = (unsigned char)(col[2] * 255);
+        ImGui::SameLine();
+        ImGui::SliderFloat(("H##" + std::to_string(i)).c_str(),
+                           &importKeys[i].targetHeight, 0.0f, 1.0f);
+      }
+
+      if (ImGui::Button("Import with Keys", ImVec2(-1, 40))) {
+        std::string path = PlatformUtils::OpenFileDialog();
+        if (!path.empty()) {
+          TerrainController::LoadHeightmapFromImageWithKeys(buffers, path,
+                                                            importKeys);
+          mapDirty = true;
+        }
+      }
       ImGui::Separator();
       if (ImGui::Button("Save Current World (world.map)", ImVec2(-1, 40))) {
         BinaryExporter::SaveWorld(buffers, "data/world.map");
+      }
+      ImGui::EndTabItem();
+    }
+
+    if (ImGui::BeginTabItem("Rules")) {
+      ImGui::TextColored(ImVec4(1, 0.8f, 0.4f, 1), "Simulation Rules Editor");
+      if (ImGui::Button("Reload from rules.json"))
+        AssetManager::LoadAll();
+      ImGui::SameLine();
+      if (ImGui::Button("Save to rules.json"))
+        AssetManager::SaveAll();
+
+      ImGui::Separator();
+      if (ImGui::CollapsingHeader("Species (Agents)")) {
+        if (ImGui::Button("Add New Species"))
+          AssetManager::CreateNewAgent();
+
+        for (int i = 0; i < (int)AssetManager::agentRegistry.size(); ++i) {
+          auto &a = AssetManager::agentRegistry[i];
+          ImGui::PushID(i);
+          if (ImGui::TreeNode(a.name.c_str())) {
+            char nameBuf[64];
+            strcpy(nameBuf, a.name.c_str());
+            if (ImGui::InputText("Name", nameBuf, 64))
+              a.name = nameBuf;
+
+            const char *typeNames[] = {"Flora", "Fauna", "Civilized"};
+            int type = (int)a.type;
+            if (ImGui::Combo("Type", &type, typeNames, 3))
+              a.type = (AgentType)type;
+
+            ImGui::SliderFloat("Ideal Temp", &a.idealTemp, 0.0f, 1.0f);
+            ImGui::SliderFloat("Resilience", &a.resilience, 0.0f, 1.0f);
+            ImGui::SliderFloat("Aggression", &a.aggression, 0.0f, 1.0f);
+            ImGui::SliderFloat("Expansion", &a.expansionRate, 0.0f, 1.0f);
+            ImGui::ColorEdit3("Map Color", a.color);
+
+            if (ImGui::Button("Delete Species")) {
+              AssetManager::agentRegistry.erase(
+                  AssetManager::agentRegistry.begin() + i);
+              ImGui::TreePop();
+              ImGui::PopID();
+              break;
+            }
+            ImGui::TreePop();
+          }
+          ImGui::PopID();
+        }
+      }
+
+      if (ImGui::CollapsingHeader("Resources")) {
+        if (ImGui::Button("Add Resource"))
+          AssetManager::CreateNewResource();
+        for (auto &r : AssetManager::resourceRegistry) {
+          ImGui::PushID(r.id);
+          if (ImGui::TreeNode(r.name.c_str())) {
+            char rBuf[64];
+            strcpy(rBuf, r.name.c_str());
+            if (ImGui::InputText("Name", rBuf, 64))
+              r.name = rBuf;
+            ImGui::SliderFloat("Scarcity", &r.scarcity, 0.0f, 1.0f);
+            ImGui::Checkbox("Forest", &r.spawnsInForest);
+            ImGui::SameLine();
+            ImGui::Checkbox("Mountain", &r.spawnsInMountain);
+            ImGui::Checkbox("Desert", &r.spawnsInDesert);
+            ImGui::SameLine();
+            ImGui::Checkbox("Ocean", &r.spawnsInOcean);
+            ImGui::TreePop();
+          }
+          ImGui::PopID();
+        }
+      }
+      ImGui::EndTabItem();
+    }
+
+    if (ImGui::BeginTabItem("Life")) {
+      ImGui::Text("Auto-Genesis");
+      if (ImGui::Button("GENESIS: Auto-Populate World", ImVec2(-1, 50))) {
+        TerrainController::AutoPopulate(buffers, settings);
+        mapDirty = true;
+      }
+
+      ImGui::Separator();
+      ImGui::Text("Manual Seeding");
+      if (AssetManager::agentRegistry.empty()) {
+        ImGui::TextColored(ImVec4(1, 0, 0, 1),
+                           "No Species Defined! Link Rules First.");
+      } else {
+        std::vector<const char *> agentNames;
+        for (const auto &a : AssetManager::agentRegistry)
+          agentNames.push_back(a.name.c_str());
+
+        ImGui::Combo("Select Species", &selectedAgentIdx, agentNames.data(),
+                     (int)agentNames.size());
+
+        ImGui::Separator();
+        ImGui::TextWrapped(
+            "How to use: Set 'Brush Mode' to 'Seed Life' in the Landscape tab, "
+            "then click/drag on the map to place your selected species.");
+
+        if (ImGui::Button("Wipe All Life from Map", ImVec2(-1, 40))) {
+          for (uint32_t i = 0; i < buffers.count; ++i) {
+            buffers.cultureID[i] = -1;
+            buffers.population[i] = 0;
+          }
+          mapDirty = true;
+        }
+      }
+      ImGui::EndTabItem();
+    }
+
+    if (ImGui::BeginTabItem("Lore Sync")) {
+      ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f),
+                         "Lore-to-Map Validation");
+      if (ImGui::Button("Re-Scan Lore")) {
+        LoreManager::Load();
+      }
+
+      auto errors = LoreManager::ValidateSync(buffers);
+      if (errors.empty()) {
+        ImGui::TextColored(ImVec4(0, 1, 0, 1),
+                           "SUCCESS: Lore and Map are in sync!");
+      } else {
+        ImGui::TextColored(ImVec4(1, 0.4f, 0.4f, 1),
+                           "WARNING: %d Sync Issues Found", (int)errors.size());
+        ImGui::Separator();
+
+        if (ImGui::BeginChild("ErrorList", ImVec2(0, 200), true)) {
+          for (const auto &e : errors) {
+            ImGui::BulletText("[%s] %s", e.title.c_str(), e.message.c_str());
+            ImGui::SameLine();
+            if (ImGui::SmallButton(("Fix##" + std::to_string(e.id)).c_str())) {
+              // Simple Auto-Fix logic
+              WikiArticle *a = LoreManager::GetArticle(e.id);
+              if (a && a->hasLocation) {
+                int idx = a->mapY * 1000 + a->mapX;
+                if (idx >= 0 && idx < buffers.count) {
+                  if (a->isFaction) {
+                    buffers.population[idx] = 1000;
+                    buffers.cultureID[idx] = a->simID;
+                  }
+                  mapDirty = true;
+                }
+              }
+            }
+          }
+          ImGui::EndChild();
+        }
+      }
+
+      ImGui::Separator();
+      ImGui::Text("Pinned Lore Sites:");
+      for (const auto &a : LoreManager::wikiDB) {
+        if (a.hasLocation) {
+          ImGui::BulletText("%s (%d, %d)", a.title.c_str(), a.mapX, a.mapY);
+        }
       }
       ImGui::EndTabItem();
     }
@@ -304,32 +522,55 @@ void DrawTools() {
 }
 
 int main(int, char **) {
-  if (!glfwInit())
+  setvbuf(stdout, NULL, _IONBF, 0);
+  setvbuf(stderr, NULL, _IONBF, 0);
+  std::cout << "[DEBUG] Starting App_Architect..." << std::endl;
+
+  if (!glfwInit()) {
+    std::cerr << "[ERROR] Failed to init GLFW" << std::endl;
     return 1;
+  }
+  std::cout << "[DEBUG] GLFW Initialized." << std::endl;
+
   GLFWwindow *window =
       glfwCreateWindow(1600, 900, "S.A.G.A. Architect", NULL, NULL);
   if (!window)
     return 1;
+  std::cout << "[DEBUG] Window Created." << std::endl;
   glfwMakeContextCurrent(window);
   glfwSwapInterval(1);
   glewInit();
+  std::cout << "[DEBUG] GLEW Init." << std::endl;
+
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
   SetupSAGATheme();
   ImGui_ImplGlfw_InitForOpenGL(window, true);
   ImGui_ImplOpenGL3_Init("#version 130");
+
+  std::cout << "[DEBUG] Calling Setup()..." << std::endl;
   Setup();
+  std::cout << "[DEBUG] Setup() Complete. Entering Loop." << std::endl;
+
   while (!glfwWindowShouldClose(window)) {
+
     glfwPollEvents();
     if (mapDirty) {
+      // std::cout << "[DEBUG] Updating Map (Dirty)..." << std::endl;
       ClimateSim::Update(buffers, settings);
       UpdateMapTexture();
+      // std::cout << "[DEBUG] Map Updated." << std::endl;
     }
+    // std::cout << "[DEBUG] ImGui NewFrame Start" << std::endl;
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
+
+    // 1. DOCKSPACE
+    // ImGui::DockSpaceOverViewport(ImGui::GetMainViewport());
     DrawViewport();
     DrawTools();
+    // std::cout << "[DEBUG] ImGui Render Start" << std::endl;
     ImGui::Render();
     int dw, dh;
     glfwGetFramebufferSize(window, &dw, &dh);
@@ -338,6 +579,7 @@ int main(int, char **) {
     glClear(GL_COLOR_BUFFER_BIT);
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     glfwSwapBuffers(window);
+    // std::cout << "[DEBUG] Frame Done" << std::endl;
   }
   return 0;
 }

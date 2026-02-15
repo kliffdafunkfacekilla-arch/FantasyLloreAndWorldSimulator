@@ -82,6 +82,11 @@ void Update(WorldBuffers &b, const NeighborGraph &g, const WorldSettings &s) {
           if (myDef.type == AgentType::CIVILIZED) {
             LoreScribeNS::LogEvent(0, "CONQUEST", nIdx,
                                    myDef.name + " conquered territory.");
+            // Phase 3: JSON Event for AI Perception
+            nlohmann::json eventData;
+            eventData["conqueror"] = myDef.name;
+            eventData["cellID"] = nIdx;
+            LoreScribeNS::LogJsonEvent("CONQUEST", eventData);
           }
         } else {
           b.population[nIdx] = (uint32_t)theirStr;

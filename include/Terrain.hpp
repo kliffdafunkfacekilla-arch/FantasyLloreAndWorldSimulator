@@ -20,6 +20,18 @@ public:
   static void LoadHeightmapFromImage(WorldBuffers &b,
                                      const std::string &filepath);
 
+  // Advanced Import
+  struct ColorKey {
+    unsigned char r, g, b;
+    float targetHeight;
+  };
+  static void LoadHeightmapFromImageWithKeys(WorldBuffers &b,
+                                             const std::string &filepath,
+                                             const std::vector<ColorKey> &keys);
+
+  // Life
+  static void AutoPopulate(WorldBuffers &b, const WorldSettings &s);
+
   // Analysis
   static void RecalculateBiomes(WorldBuffers &b); // Fill the biome buffer
 

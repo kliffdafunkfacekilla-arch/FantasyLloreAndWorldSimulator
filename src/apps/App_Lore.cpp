@@ -1,15 +1,18 @@
 #include "../../include/AssetManager.hpp"
 #include "../../include/BinaryExporter.hpp"
+#include "../../include/Lore.hpp"
+#include "../../include/PlatformUtils.hpp"
+#include "../../include/SagaConfig.hpp"
 #include "../../include/WorldEngine.hpp"
 #include "../../include/nlohmann/json.hpp"
 #include "../../include/stb_image.h"
+#include <GL/glew.h>
+#include <GLFW/glfw3.h>
 
 #include "../../deps/imgui/backends/imgui_impl_glfw.h"
 #include "../../deps/imgui/backends/imgui_impl_opengl3.h"
 #include "../../deps/imgui/imgui.h"
 #include "../../deps/imgui/misc/cpp/imgui_stdlib.h"
-#include <GL/glew.h>
-#include <GLFW/glfw3.h>
 
 #include <filesystem>
 #include <fstream>
@@ -20,7 +23,11 @@
 #include <string>
 #include <vector>
 
+#if defined(__GNUC__) && (__GNUC__ < 8) && !defined(__clang__)
+namespace fs = std::experimental::filesystem;
+#else
 namespace fs = std::filesystem;
+#endif
 
 // --- THEME ---
 void SetupTheme() {
@@ -54,6 +61,34 @@ struct Era {
   int startYear;
   bool inverted = false; // For BC dates counting down
 };
+
+// --- SMART IMPORT STRUCTURES ---
+struct Suggestion {
+  std::string name;
+  std::string type; // AGENT, FACTION, RESOURCE
+  std::string source;
+};
+std::vector<Suggestion> importQueue;
+
+void LoadSuggestions() {
+  std::string sugPath = SagaConfig::DATA_HUB + "suggestions.json";
+  std::ifstream f(sugPath);
+  if (f.is_open()) {
+    importQueue.clear();
+    try {
+      nlohmann::json j;
+      f >> j;
+      for (const auto &item : j) {
+        Suggestion s;
+        s.name = item.value("name", "Unknown");
+        s.type = item.value("type", "UNKNOWN");
+        s.source = item.value("source", "");
+        importQueue.push_back(s);
+      }
+    } catch (...) {
+    }
+  }
+}
 
 struct CalendarSystem {
   // Basics
@@ -91,6 +126,8 @@ struct CalendarSystem {
     nlohmann::json j;
     j["name"] = name;
     j["current"] = {currentYear, currentMonth, currentDay};
+    j["hoursPerDay"] = hoursPerDay;
+    j["minutesPerHour"] = minutesPerHour;
     j["months"] = monthNames;
     j["monthLens"] = monthLengths;
     j["weekdays"] = weekDayNames;
@@ -110,17 +147,36 @@ struct CalendarSystem {
       sArr.push_back({{"n", s.name}, {"m", s.startMonth}, {"d", s.startDay}});
     j["seasons"] = sArr;
 
-    std::ofstream o("data/calendar.json");
+    // Eras
+    nlohmann::json eArr = nlohmann::json::array();
+    for (auto &e : eras)
+      eArr.push_back({{"n", e.name},
+                      {"a", e.abbreviation},
+                      {"y", e.startYear},
+                      {"i", e.inverted}});
+    j["eras"] = eArr;
+
+    std::ofstream o(SagaConfig::CALENDAR_JSON);
     o << std::setw(4) << j;
   }
 
   void Load() {
-    std::ifstream f("data/calendar.json");
+    std::ifstream f(SagaConfig::CALENDAR_JSON);
     if (f.is_open()) {
       try {
         nlohmann::json j;
         f >> j;
         name = j.value("name", "New Calendar");
+        hoursPerDay = j.value("hoursPerDay", 24);
+        minutesPerHour = j.value("minutesPerHour", 60);
+
+        if (j.contains("current") && j["current"].is_array() &&
+            j["current"].size() >= 3) {
+          currentYear = j["current"][0];
+          currentMonth = j["current"][1];
+          currentDay = j["current"][2];
+        }
+
         if (j.contains("months")) {
           monthNames = j["months"].get<std::vector<std::string>>();
           monthLengths = j["monthLens"].get<std::vector<int>>();
@@ -142,6 +198,13 @@ struct CalendarSystem {
             seasons.push_back({obj["n"], obj["m"], obj["d"]});
           }
         }
+        if (j.contains("eras")) {
+          eras.clear();
+          for (auto &obj : j["eras"]) {
+            eras.push_back(
+                {obj["n"], obj["a"], obj["y"], obj.value("i", false)});
+          }
+        }
       } catch (...) {
       }
     }
@@ -149,46 +212,61 @@ struct CalendarSystem {
 };
 
 // --- DATA STRUCTURES ---
-enum class FieldType { TEXT, NUMBER, SLIDER, COLOR, IMAGE_PATH, SPRITE_REF };
-
-struct CategoryTemplate {
-  std::string name;
-  struct FieldDef {
-    std::string label;
-    FieldType type;
-  };
-  std::vector<FieldDef> fields;
-};
-
-struct WikiArticle {
-  int id;
-  std::string title;
-  std::string categoryName; // Links to CategoryTemplate
-  std::string content;      // Main Body (Markdown)
-
-  // Dynamic Data (Matches Template)
-  std::map<std::string, std::string> data;
-
-  // Links
-  std::vector<std::string> tags;
-  int simID = -1; // Links to AgentSystem
-  bool hasLocation = false;
-  int mapX = 0, mapY = 0;
-
-  // Media
-  std::string imagePath;   // Main illustration
-  GLuint imageTexture = 0; // GPU Handle
-};
+// (Now using centrally defined structures in Lore.hpp)
 
 // --- GLOBALS ---
 CalendarSystem calendar;
-std::vector<WikiArticle> wikiDB;
-std::vector<CategoryTemplate> templates;
+#define wikiDB LoreManager::wikiDB
+#define templates LoreManager::templates
+
+static bool useFahrenheit = false;
+
+float ToCelsius(float n) { return (n * 100.0f) - 50.0f; }
+float FromCelsius(float c) { return (c + 50.0f) / 100.0f; }
+float ToFahrenheit(float c) { return c * 1.8f + 32.0f; }
+float FromFahrenheit(float f) { return (f - 32.0f) / 1.8f; }
+
 WorldBuffers mapData;
 GLuint mapTexture = 0;
 int selectedIdx = -1;
 bool showMapOverlay = false;
 bool showHelp = false;
+
+// --- HELPER: BIOME NAMES ---
+const char *GetBiomeName(int id) {
+  switch (id) {
+  case 0:
+    return "Deep Ocean";
+  case 1:
+    return "Ocean";
+  case 2:
+    return "Beach";
+  case 3:
+    return "Scorched";
+  case 4:
+    return "Desert";
+  case 5:
+    return "Savanna";
+  case 6:
+    return "Tropical Rainforest";
+  case 7:
+    return "Grassland";
+  case 8:
+    return "Forest";
+  case 9:
+    return "Temperate Rainforest";
+  case 10:
+    return "Taiga";
+  case 11:
+    return "Tundra";
+  case 12:
+    return "Snow";
+  case 13:
+    return "Mountain";
+  default:
+    return "Unknown Biome";
+  }
+}
 
 // --- HELPER: IMAGE LOADER ---
 GLuint LoadTexture(const std::string &path) {
@@ -237,102 +315,16 @@ void RenderMarkdown(const std::string &text) {
 
 // --- IO SYSTEMS ---
 void SaveData() {
-  nlohmann::json root = nlohmann::json::array();
-  for (const auto &a : wikiDB) {
-    nlohmann::json obj;
-    obj["id"] = a.id;
-    obj["title"] = a.title;
-    obj["cat"] = a.categoryName;
-    obj["content"] = a.content;
-    obj["data"] = a.data;
-    obj["tags"] = a.tags;
-    obj["simID"] = a.simID;
-    obj["img"] = a.imagePath;
-    if (a.hasLocation)
-      obj["loc"] = {a.mapX, a.mapY};
-    root.push_back(obj);
-  }
-  std::ofstream o("data/lore.json");
-  o << std::setw(4) << root;
-
-  // Save Templates
-  nlohmann::json tRoot = nlohmann::json::array();
-  for (const auto &t : templates) {
-    nlohmann::json tObj;
-    tObj["name"] = t.name;
-    nlohmann::json fields = nlohmann::json::array();
-    for (const auto &f : t.fields)
-      fields.push_back({{"l", f.label}, {"t", (int)f.type}});
-    tObj["fields"] = fields;
-    tRoot.push_back(tObj);
-  }
-  std::ofstream ot("data/templates.json");
-  ot << std::setw(4) << tRoot;
-
+  LoreManager::Save();
   AssetManager::SaveAll(); // Save Sim Rules
   calendar.Save();
 }
 
 void LoadData() {
+  AssetManager::Initialize();
+  LoreManager::Load();
   AssetManager::LoadAll();
   calendar.Load();
-
-  // Load Templates
-  std::ifstream ft("data/templates.json");
-  if (ft.is_open()) {
-    try {
-      nlohmann::json tRoot;
-      ft >> tRoot;
-      templates.clear();
-      for (const auto &tObj : tRoot) {
-        CategoryTemplate t;
-        t.name = tObj["name"];
-        for (const auto &fObj : tObj["fields"])
-          t.fields.push_back({fObj["l"], (FieldType)fObj["t"]});
-        templates.push_back(t);
-      }
-    } catch (...) {
-    }
-  }
-  if (templates.empty()) {
-    templates.push_back({"General", {{"Description", FieldType::TEXT}}});
-    templates.push_back(
-        {"Faction",
-         {{"Population", FieldType::NUMBER}, {"Color", FieldType::COLOR}}});
-  }
-
-  // Load Wiki
-  std::ifstream f("data/lore.json");
-  if (!f.is_open())
-    return;
-  try {
-    nlohmann::json root;
-    f >> root;
-    wikiDB.clear();
-    for (auto &obj : root) {
-      WikiArticle a;
-      a.id = obj.value("id", 0);
-      a.title = obj.value("title", "Untitled");
-      a.categoryName = obj.value("cat", "General");
-      a.content = obj.value("content", "");
-      if (obj.contains("data"))
-        a.data = obj["data"].get<std::map<std::string, std::string>>();
-      if (obj.contains("tags"))
-        a.tags = obj["tags"].get<std::vector<std::string>>();
-      a.simID = obj.value("simID", -1);
-      a.imagePath = obj.value("img", "");
-      if (!a.imagePath.empty())
-        a.imageTexture = LoadTexture(a.imagePath);
-
-      if (obj.contains("loc")) {
-        a.hasLocation = true;
-        a.mapX = obj["loc"][0];
-        a.mapY = obj["loc"][1];
-      }
-      wikiDB.push_back(a);
-    }
-  } catch (...) {
-  }
 }
 
 // --- EXPORT TO HTML ---
@@ -392,33 +384,140 @@ void DrawSidebar() {
     selectedIdx = (int)wikiDB.size() - 1;
   }
 
-  if (ImGui::Button("Import Obsidian Notes", ImVec2(-1, 0))) {
-    // Call the external importer script
-    // Note: Using absolute path to ensure it's found regardless of process CWD
-    system("python "
-           "C:/Users/krazy/Documents/GitHub/oracle/BRQSE/scripts/"
-           "obsidian_importer.py");
-    LoadData(); // Refresh the list
+  if (ImGui::Button("Scan Lore (Generate Suggestions)", ImVec2(-1, 0))) {
+    // Robust path resolution: find scripts/ relative to the executable
+    fs::path exeDir = PlatformUtils::GetExecutablePath();
+    fs::path projectRoot = exeDir.parent_path();
+    fs::path script = projectRoot / "scripts" / "lore_scanner.py";
+
+    // Build command: normalize to backslashes for Windows shell
+    std::string scriptPath = script.make_preferred().string();
+    fs::path hubPath = SagaConfig::DATA_HUB;
+    if (hubPath.has_filename()) {
+      // No trailing slash
+    } else {
+      hubPath = hubPath.parent_path();
+    }
+    std::string dataDir = hubPath.make_preferred().string();
+
+    std::string cmd =
+        "python \"" + scriptPath + "\" --data-dir \"" + dataDir + "\"";
+    std::cout << "[SCAN] " << cmd << std::endl;
+    int result = system(cmd.c_str());
+    if (result != 0) {
+      // Try "py" if "python" fails
+      cmd = "py \"" + scriptPath + "\" --data-dir \"" + dataDir + "\"";
+      system(cmd.c_str());
+    }
+
+    // Reload the tagged lore data
+    LoreManager::Load();
+    LoadSuggestions();
+    AssetManager::SyncWithLore();
+    ImGui::OpenPopup("SmartImportPopup");
   }
+
+  // --- SMART IMPORT POPUP ---
+  if (ImGui::BeginPopup("SmartImportPopup")) {
+    ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1), "Found %d Entities",
+                       (int)importQueue.size());
+    ImGui::Separator();
+    ImGui::BeginChild("ScrollSugg", ImVec2(400, 300));
+
+    for (auto it = importQueue.begin(); it != importQueue.end();) {
+      ImGui::PushID(it->name.c_str());
+      ImGui::Text("%s (%s)", it->name.c_str(), it->type.c_str());
+      bool processed = false;
+
+      if (ImGui::Button("Add Agent")) {
+        WikiArticle a;
+        a.id = rand();
+        a.title = it->name;
+        a.categoryName = "Bestiary";
+        a.isAgent = true;
+        wikiDB.push_back(a);
+        processed = true;
+      }
+      ImGui::SameLine();
+      if (ImGui::Button("Add Faction")) {
+        WikiArticle a;
+        a.id = rand();
+        a.title = it->name;
+        a.categoryName = "Faction";
+        a.isFaction = true;
+        wikiDB.push_back(a);
+        processed = true;
+      }
+      ImGui::SameLine();
+      if (ImGui::Button("Add Resource")) {
+        WikiArticle a;
+        a.id = rand();
+        a.title = it->name;
+        a.categoryName = "Resource";
+        a.isResource = true;
+        wikiDB.push_back(a);
+        processed = true;
+      }
+      ImGui::SameLine();
+      if (ImGui::Button("Ignore")) {
+        processed = true;
+      }
+
+      if (processed) {
+        it = importQueue.erase(it);
+        ImGui::PopID();
+        continue;
+      }
+      ImGui::PopID();
+      ++it;
+    }
+    ImGui::EndChild();
+    ImGui::EndPopup();
+  }
+  AssetManager::SyncWithLore();
+
   ImGui::Separator();
 
-  // Filter
   static char filter[64] = "";
   ImGui::InputText("Search", filter, 64);
 
-  ImGui::BeginChild("List");
-  for (int i = 0; i < wikiDB.size(); ++i) {
-    if (strlen(filter) > 0 && wikiDB[i].title.find(filter) == std::string::npos)
+  // Group by Category
+  std::map<std::string, std::vector<int>> categories;
+  for (int i = 0; i < (int)wikiDB.size(); ++i) {
+    bool match = false;
+    if (strlen(filter) == 0)
+      match = true;
+    else {
+      if (wikiDB[i].title.find(filter) != std::string::npos)
+        match = true;
+      if (wikiDB[i].categoryName.find(filter) != std::string::npos)
+        match = true;
+      for (const auto &t : wikiDB[i].tags) {
+        if (t.find(filter) != std::string::npos)
+          match = true;
+      }
+    }
+
+    if (!match)
       continue;
+    categories[wikiDB[i].categoryName].push_back(i);
+  }
 
-    ImVec4 col = ImVec4(1, 1, 1, 1);
-    if (wikiDB[i].categoryName == "Faction")
-      col = ImVec4(1, 0.6f, 0.6f, 1);
+  ImGui::BeginChild("List");
+  for (auto const &[catName, indices] : categories) {
+    if (ImGui::CollapsingHeader(catName.c_str(),
+                                ImGuiTreeNodeFlags_DefaultOpen)) {
+      for (int idx : indices) {
+        ImVec4 col = ImVec4(1, 1, 1, 1);
+        if (wikiDB[idx].categoryName == "Faction")
+          col = ImVec4(1, 0.6f, 0.6f, 1);
 
-    ImGui::PushStyleColor(ImGuiCol_Text, col);
-    if (ImGui::Selectable(wikiDB[i].title.c_str(), selectedIdx == i))
-      selectedIdx = i;
-    ImGui::PopStyleColor();
+        ImGui::PushStyleColor(ImGuiCol_Text, col);
+        if (ImGui::Selectable(wikiDB[idx].title.c_str(), selectedIdx == idx))
+          selectedIdx = idx;
+        ImGui::PopStyleColor();
+      }
+    }
   }
   ImGui::EndChild();
   ImGui::End();
@@ -491,15 +590,407 @@ void DrawMainEditor() {
     if (ImGui::Button("Export HTML"))
       ExportHTML();
     ImGui::SameLine();
+    ImGui::Checkbox("°F", &useFahrenheit);
+    ImGui::SameLine();
     if (ImGui::Button("?"))
       showHelp = true;
 
-    if (ImGui::BeginCombo("Category", a.categoryName.c_str())) {
-      for (const auto &t : templates) {
-        if (ImGui::Selectable(t.name.c_str(), t.name == a.categoryName))
-          a.categoryName = t.name;
+    ImGui::Separator();
+    if (ImGui::CollapsingHeader("Simulation Identity",
+                                ImGuiTreeNodeFlags_DefaultOpen)) {
+      ImGui::Checkbox("Is Simulation Agent", &a.isAgent);
+      ImGui::SameLine();
+      ImGui::Checkbox("Is Custom Biome", &a.isBiome);
+      ImGui::SameLine();
+      ImGui::Checkbox("Is Faction/Culture", &a.isFaction);
+      ImGui::SameLine();
+      ImGui::Checkbox("Is Natural Resource", &a.isResource);
+    }
+
+    if (a.isAgent) {
+      if (ImGui::CollapsingHeader("Agent DNA (Biology & Behavior)",
+                                  ImGuiTreeNodeFlags_DefaultOpen)) {
+        // --- BASIC TYPE ---
+        const char *typeNames[] = {"Flora", "Fauna", "Civilized"};
+        int typeInt = (int)a.agentType;
+        if (ImGui::Combo("Biological Class", &typeInt, typeNames, 3))
+          a.agentType = (AgentType)typeInt;
+
+        const char *socialNames[] = {"Solitary", "Pack", "Tribal", "Nomadic",
+                                     "Hive"};
+        int socInt = (int)a.socialType;
+        if (ImGui::Combo("Social Structure", &socInt, socialNames, 5))
+          a.socialType = (SocialType)socInt;
+
+        ImGui::Separator();
+
+        // --- ENVIRONMENTAL LIMITS ---
+        ImGui::Text("Environmental Tolerance");
+        float tMin = useFahrenheit ? ToFahrenheit(ToCelsius(a.minTemp))
+                                   : ToCelsius(a.minTemp);
+        float tMax = useFahrenheit ? ToFahrenheit(ToCelsius(a.maxTemp))
+                                   : ToCelsius(a.maxTemp);
+        const char *unit = useFahrenheit ? "°F" : "°C";
+
+        ImGui::SetNextItemWidth(200);
+        if (ImGui::DragFloatRange2(unit, &tMin, &tMax, 0.5f,
+                                   useFahrenheit ? -58.0f : -50.0f,
+                                   useFahrenheit ? 122.0f : 50.0f)) {
+          float cMin = useFahrenheit ? FromFahrenheit(tMin) : tMin;
+          float cMax = useFahrenheit ? FromFahrenheit(tMax) : tMax;
+          a.minTemp = FromCelsius(cMin);
+          a.maxTemp = FromCelsius(cMax);
+        }
+
+        const char *moistureLabels[] = {"Arid", "Semi-Arid", "Moderate",
+                                        "Humid", "Saturated"};
+        int mMinTier = (int)(a.minMoisture * 4.0f);
+        int mMaxTier = (int)(a.maxMoisture * 4.0f);
+        ImGui::SetNextItemWidth(100);
+        if (ImGui::Combo("Min Moisture", &mMinTier, moistureLabels, 5))
+          a.minMoisture = mMinTier / 4.0f;
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(100);
+        if (ImGui::Combo("Max Moisture", &mMaxTier, moistureLabels, 5))
+          a.maxMoisture = mMaxTier / 4.0f;
+
+        ImGui::Separator();
+
+        // --- BEHAVIOR ---
+        const char *aggLabels[] = {"Pacifist", "Defensive", "Neutral",
+                                   "Aggressive", "Warmonger"};
+        int aggTier = (int)(a.aggression * 4.0f);
+        if (ImGui::Combo("Aggression Level", &aggTier, aggLabels, 5))
+          a.aggression = aggTier / 4.0f;
+
+        const char *expLabels[] = {"Stagnant", "Slow", "Steady", "Rapid",
+                                   "Invasive"};
+        int expTier = (int)(a.expansion * 4.0f);
+        if (ImGui::Combo("Expansion Rate", &expTier, expLabels, 5))
+          a.expansion = expTier / 4.0f;
+
+        ImGui::Checkbox("Tameable", &a.isTameable);
+        ImGui::SameLine();
+        ImGui::Checkbox("Farmable", &a.isFarmable);
+
+        ImGui::Separator();
+
+        // --- RESOURCE RELATIONSHIPS ---
+        ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.4f, 1.0f),
+                           "Resource Relationship Engine");
+        if (ImGui::BeginTable("ResRels", 3, ImGuiTableFlags_Borders)) {
+          ImGui::TableSetupColumn("Resource");
+          ImGui::TableSetupColumn("Interaction Type");
+          ImGui::TableSetupColumn("Actions", ImGuiTableColumnFlags_WidthFixed,
+                                  40);
+          ImGui::TableHeadersRow();
+
+          const char *relNames[] = {
+              "None",          "Necessity",         "Active Bonus",
+              "Passive Bonus", "Desired (Helpful)", "Useful (Helpful)",
+              "War Dislike",   "Passive Dislike",   "Build Required",
+              "Build Bonus"};
+
+          for (auto it = a.resourceRelationships.begin();
+               it != a.resourceRelationships.end();) {
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::Text("%s",
+                        AssetManager::resourceRegistry[it->first].name.c_str());
+            ImGui::TableNextColumn();
+
+            int rInt = (int)it->second;
+            ImGui::SetNextItemWidth(-1);
+            if (ImGui::Combo(("##rel" + std::to_string(it->first)).c_str(),
+                             &rInt, relNames, 10)) {
+              it->second = (ResourceRel)rInt;
+            }
+
+            ImGui::TableNextColumn();
+            if (ImGui::Button(
+                    ("X##delr" + std::to_string(it->first)).c_str())) {
+              it = a.resourceRelationships.erase(it);
+              continue;
+            }
+            ++it;
+          }
+          ImGui::EndTable();
+        }
+
+        if (ImGui::BeginCombo("##addRes", "Add Relationship...")) {
+          for (int i = 0; i < (int)AssetManager::resourceRegistry.size(); ++i) {
+            if (ImGui::Selectable(
+                    AssetManager::resourceRegistry[i].name.c_str())) {
+              a.resourceRelationships[i] = ResourceRel::PASSIVE_BONUS;
+            }
+          }
+          ImGui::EndCombo();
+        }
+
+        ImGui::Separator();
+
+        // --- BIOME PREFERENCES ---
+        ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.8f, 1.0f),
+                           "Biome Love/Hate List");
+        if (ImGui::BeginTable("BiomePrefs", 3, ImGuiTableFlags_Borders)) {
+          ImGui::TableSetupColumn("Biome");
+          ImGui::TableSetupColumn("Value (-1 Hate, +1 Love)");
+          ImGui::TableSetupColumn("Actions", ImGuiTableColumnFlags_WidthFixed,
+                                  40);
+          ImGui::TableHeadersRow();
+
+          for (auto it = a.biomePreferences.begin();
+               it != a.biomePreferences.end();) {
+            ImGui::PushID(it->first);
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::Text("%s (%d)", GetBiomeName(it->first), it->first);
+            ImGui::TableNextColumn();
+            ImGui::SliderFloat("##val", &it->second, -1.0f, 1.0f);
+            ImGui::TableNextColumn();
+            if (ImGui::Button("X##delb")) {
+              it = a.biomePreferences.erase(it);
+              ImGui::PopID();
+              continue;
+            }
+            ImGui::PopID();
+            ++it;
+          }
+          ImGui::EndTable();
+        }
+
+        if (ImGui::BeginCombo("##addBiome", "Add Biome...")) {
+          for (int i = 0; i < 25; ++i) {
+            const char *bName = GetBiomeName(i);
+            if (std::string(bName) == "Unknown Biome" && i > 13)
+              continue;
+            if (ImGui::Selectable(bName, false)) {
+              a.biomePreferences[i] = 0.5f;
+            }
+          }
+          ImGui::EndCombo();
+        }
+
+        ImGui::Separator();
+
+        // --- PRODUCTION TABLES ---
+        ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f),
+                           "Resource Production (Living)");
+        if (ImGui::BeginTable("LivingProd", 3, ImGuiTableFlags_Borders)) {
+          ImGui::TableSetupColumn("Resource");
+          ImGui::TableSetupColumn("Rate (per tick)");
+          ImGui::TableSetupColumn("Actions", ImGuiTableColumnFlags_WidthFixed,
+                                  40);
+          ImGui::TableHeadersRow();
+
+          for (auto it = a.livingOutput.begin(); it != a.livingOutput.end();) {
+            ImGui::PushID(it->first);
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::Text("%s",
+                        AssetManager::resourceRegistry[it->first].name.c_str());
+            ImGui::TableNextColumn();
+            ImGui::SliderFloat("##lprod", &it->second, 0.0f, 10.0f);
+            ImGui::TableNextColumn();
+            if (ImGui::Button("X##dell")) {
+              it = a.livingOutput.erase(it);
+              ImGui::PopID();
+              continue;
+            }
+            ImGui::PopID();
+            ++it;
+          }
+          ImGui::EndTable();
+        }
+        if (ImGui::BeginCombo("##addLiving", "Add Living Output...")) {
+          for (int i = 0; i < (int)AssetManager::resourceRegistry.size(); ++i) {
+            if (ImGui::Selectable(
+                    AssetManager::resourceRegistry[i].name.c_str()))
+              a.livingOutput[i] = 1.0f;
+          }
+          ImGui::EndCombo();
+        }
+
+        ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f),
+                           "Resource Production (Harvested)");
+        if (ImGui::BeginTable("HarvestProd", 3, ImGuiTableFlags_Borders)) {
+          ImGui::TableSetupColumn("Resource");
+          ImGui::TableSetupColumn("Amount");
+          ImGui::TableSetupColumn("Actions", ImGuiTableColumnFlags_WidthFixed,
+                                  40);
+          ImGui::TableHeadersRow();
+
+          for (auto it = a.harvestOutput.begin();
+               it != a.harvestOutput.end();) {
+            ImGui::PushID(it->first);
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::Text("%s",
+                        AssetManager::resourceRegistry[it->first].name.c_str());
+            ImGui::TableNextColumn();
+            ImGui::SliderFloat("##hprod", &it->second, 0.0f, 100.0f);
+            ImGui::TableNextColumn();
+            if (ImGui::Button("X##delh")) {
+              it = a.harvestOutput.erase(it);
+              ImGui::PopID();
+              continue;
+            }
+            ImGui::PopID();
+            ++it;
+          }
+          ImGui::EndTable();
+        }
+        if (ImGui::BeginCombo("##addHarvest", "Add Harvest Output...")) {
+          for (int i = 0; i < (int)AssetManager::resourceRegistry.size(); ++i) {
+            if (ImGui::Selectable(
+                    AssetManager::resourceRegistry[i].name.c_str()))
+              a.harvestOutput[i] = 1.0f;
+          }
+          ImGui::EndCombo();
+        }
       }
-      ImGui::EndCombo();
+    }
+
+    if (a.isResource) {
+      if (ImGui::CollapsingHeader("Resource Properties",
+                                  ImGuiTreeNodeFlags_DefaultOpen)) {
+        // --- SCARCITY ---
+        const char *scarcityLabels[] = {"Mythic", "Very Rare", "Rare", "Common",
+                                        "Abundant"};
+        int sTier = (int)(a.scarcity * 4.0f);
+        if (ImGui::Combo("Scarcity Level", &sTier, scarcityLabels, 5))
+          a.scarcity = sTier / 4.0f;
+
+        // --- RENEWABILITY ---
+        ImGui::Checkbox("Is Renewable", &a.isRenewable);
+        ImGui::SameLine();
+        ImGui::TextDisabled("(?) Regrows/Reproduces vs Finite/Mineral");
+
+        ImGui::Separator();
+
+        // --- SPAWN LOCATIONS (BIOMES) ---
+        ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f),
+                           "Natural Spawn Biomes");
+        if (ImGui::BeginTable("SpawnBiomes", 2, ImGuiTableFlags_Borders)) {
+          ImGui::TableSetupColumn("Biome ID");
+          ImGui::TableSetupColumn("Action", ImGuiTableColumnFlags_WidthFixed,
+                                  40);
+          ImGui::TableHeadersRow();
+
+          for (size_t i = 0; i < a.spawnBiomeIDs.size(); ++i) {
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::Text("%s (%d)", GetBiomeName(a.spawnBiomeIDs[i]),
+                        a.spawnBiomeIDs[i]);
+            ImGui::TableNextColumn();
+            if (ImGui::Button(("X##dsb" + std::to_string(i)).c_str())) {
+              a.spawnBiomeIDs.erase(a.spawnBiomeIDs.begin() + i);
+              break;
+            }
+          }
+          ImGui::EndTable();
+        }
+
+        if (ImGui::BeginCombo("##addSpawn", "Add Spawn Biome...")) {
+          for (int i = 0; i < 25; ++i) {
+            const char *bName = GetBiomeName(i);
+            if (std::string(bName) == "Unknown Biome" && i > 13)
+              continue;
+            bool alreadyIn = false;
+            for (int sid : a.spawnBiomeIDs)
+              if (sid == i)
+                alreadyIn = true;
+
+            if (!alreadyIn && ImGui::Selectable(bName)) {
+              a.spawnBiomeIDs.push_back(i);
+            }
+          }
+          ImGui::EndCombo();
+        }
+      }
+    }
+
+    if (a.isBiome) {
+      if (ImGui::CollapsingHeader("Biome Settings")) {
+        float tModLabel = a.biomeTempMod * 100.0f; // Scale to degrees delta
+        if (useFahrenheit)
+          tModLabel *= 1.8f;
+        ImGui::SliderFloat(useFahrenheit ? "Temp Mod (°F)" : "Temp Mod (°C)",
+                           &a.biomeTempMod, -1.0f, 1.0f, "%.2f");
+        ImGui::TextDisabled("Adds %.1f %s to local climate", tModLabel,
+                            useFahrenheit ? "°F" : "°C");
+
+        ImGui::SliderFloat("Moisture Mod", &a.biomeMoistureMod, -1.0f, 1.0f);
+        ImGui::ColorEdit4("Map Overlay Color", (float *)&a.biomeColor);
+      }
+    }
+
+    if (a.isFaction) {
+      if (ImGui::CollapsingHeader("Faction & Culture")) {
+        ImGui::InputInt("Formation Year", &a.formationYear);
+        ImGui::InputInt("Formation Cell ID", &a.formationCell);
+
+        // --- NEW: LINK TO AGENT (FOUNDER) ---
+        // Find existing agent ID if possible, mostly relies on WikiArticle ID
+        // vs Agent ID For now, we store just the ID in a custom field or reuse
+        // a specific one. Let's add a "founderSpecies" field to WikiArticle? Or
+        // just repurpose data map for now to show the UI concept.
+
+        static int selectedAgentIdx = -1;
+        std::string currentAgentName =
+            a.data.count("Founder") ? a.data["Founder"] : "None";
+
+        if (ImGui::BeginCombo("Founding Species", currentAgentName.c_str())) {
+          // Search wikiDB for agents
+          for (const auto &cand : wikiDB) {
+            if (cand.isAgent) {
+              if (ImGui::Selectable(cand.title.c_str())) {
+                a.data["Founder"] = cand.title;
+                // Ideally store ID: a.data["FounderID"] =
+                // std::to_string(cand.id);
+              }
+            }
+          }
+          ImGui::EndCombo();
+        }
+
+        ImGui::Separator();
+        ImGui::Text("Historical Events");
+        if (ImGui::BeginTable("FactionEvents", 2, ImGuiTableFlags_Borders)) {
+          ImGui::TableSetupColumn("Event ID");
+          ImGui::TableSetupColumn("Action", ImGuiTableColumnFlags_WidthFixed,
+                                  40);
+          for (int i = 0; i < (int)a.linkedEventIDs.size(); ++i) {
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::Text("Event #%d", a.linkedEventIDs[i]);
+            ImGui::TableNextColumn();
+            if (ImGui::Button(("X##ev" + std::to_string(i)).c_str())) {
+              a.linkedEventIDs.erase(a.linkedEventIDs.begin() + i);
+            }
+          }
+          ImGui::EndTable();
+        }
+        static int newEvID = 0;
+        ImGui::SetNextItemWidth(100);
+        ImGui::InputInt("##newEv", &newEvID);
+        ImGui::SameLine();
+        if (ImGui::Button("Add Event Link")) {
+          a.linkedEventIDs.push_back(newEvID);
+        }
+      }
+    }
+
+    ImGui::Separator();
+    if (ImGui::CollapsingHeader("Map Attachment")) {
+      ImGui::Checkbox("Has Location", &a.hasLocation);
+      if (a.hasLocation) {
+        ImGui::DragInt("Map X", &a.mapX, 1.0f, 0, 1000);
+        ImGui::DragInt("Map Y", &a.mapY, 1.0f, 0, 1000);
+        if (ImGui::Button("Center on Map")) {
+          // Logic to jump camera could go here in a unified app
+        }
+      }
     }
 
     ImGui::Separator();
@@ -740,27 +1231,102 @@ void DrawCalendarEditor() {
 void DrawHelp() {
   if (!showHelp)
     return;
+
+  static bool contentLoaded = false;
+  static std::string helpContent;
+  if (!contentLoaded) {
+    std::ifstream f(SagaConfig::MANUAL_MD);
+    if (f.is_open()) {
+      std::stringstream ss;
+      ss << f.rdbuf();
+      helpContent = ss.str();
+    } else {
+      helpContent =
+          "# Help File Not Found\n\nPlease ensure `data/manual.md` exists.";
+    }
+    contentLoaded = true;
+  }
+
+  ImGui::SetNextWindowSize(ImVec2(600, 500), ImGuiCond_FirstUseEver);
   ImGui::OpenPopup("Help Modal");
   if (ImGui::BeginPopupModal("Help Modal", &showHelp)) {
-    ImGui::Text("S.A.G.A. Wiki Help");
+    ImGui::TextColored(ImVec4(1, 0.8f, 0.2f, 1), "S.A.G.A. Database Manual");
     ImGui::Separator();
-    ImGui::Text("MARKDOWN:");
-    ImGui::BulletText("# Title (Big Header)");
-    ImGui::BulletText("## Subtitle (Small Header)");
-    ImGui::BulletText("* List Item");
-    ImGui::BulletText("--- (Horizontal Line)");
+
+    ImGui::BeginChild("HelpScroll",
+                      ImVec2(0, -ImGui::GetFrameHeightWithSpacing()));
+    RenderMarkdown(helpContent);
+    ImGui::EndChild();
+
     ImGui::Separator();
-    ImGui::Text("VARIABLES:");
-    ImGui::TextWrapped(
-        "Use the 'Category Builder' window to define custom stat blocks (e.g. "
-        "Health, Mana) for different types of articles.");
-    ImGui::Separator();
-    if (ImGui::Button("Close")) {
+    if (ImGui::Button("Close", ImVec2(120, 0))) {
       showHelp = false;
       ImGui::CloseCurrentPopup();
     }
     ImGui::EndPopup();
   }
+  AssetManager::SyncWithLore();
+}
+
+void DrawTimeline() {
+  ImGui::Begin("World Timeline", nullptr);
+
+  // Scannable horizontal timeline
+  ImGui::BeginChild("TimeScroll", ImVec2(0, 80), true,
+                    ImGuiWindowFlags_HorizontalScrollbar);
+
+  ImDrawList *drawList = ImGui::GetWindowDrawList();
+  ImVec2 startPos = ImGui::GetCursorScreenPos();
+  float pixelPerYear = 20.0f;
+  float timelineHeight = 40.0f;
+
+  // Draw Axis
+  drawList->AddLine(
+      ImVec2(startPos.x, startPos.y + timelineHeight),
+      ImVec2(startPos.x + 500 * pixelPerYear, startPos.y + timelineHeight),
+      IM_COL32(200, 200, 200, 255), 2.0f);
+
+  // Mark Years and Events
+  for (int year = 0; year <= 500; year += 10) {
+    ImVec2 p =
+        ImVec2(startPos.x + (year * pixelPerYear), startPos.y + timelineHeight);
+    drawList->AddLine(p, ImVec2(p.x, p.y + 10), IM_COL32(200, 200, 200, 255),
+                      1.0f);
+    if (year % 50 == 0) {
+      char buf[16];
+      sprintf(buf, "%d", year);
+      drawList->AddText(ImVec2(p.x - 5, p.y + 12), IM_COL32(255, 255, 255, 255),
+                        buf);
+    }
+  }
+
+  // Highlight events from wikiDB if they have a 'Year' field
+  for (int i = 0; i < (int)wikiDB.size(); ++i) {
+    auto &a = wikiDB[i];
+    if (a.data.count("Year")) {
+      try {
+        int yr = std::stoi(a.data.at("Year"));
+        ImVec2 ep = ImVec2(startPos.x + (yr * pixelPerYear),
+                           startPos.y + timelineHeight);
+
+        ImU32 col = IM_COL32(255, 215, 0, 255); // Gold
+        drawList->AddCircleFilled(ep, 6.0f, col);
+        drawList->AddCircle(ep, 8.0f, col, 12, 1.0f);
+
+        if (ImGui::IsMouseHoveringRect(ImVec2(ep.x - 10, ep.y - 10),
+                                       ImVec2(ep.x + 10, ep.y + 10))) {
+          ImGui::SetTooltip("%s (Year %d)\nClick to View", a.title.c_str(), yr);
+          if (ImGui::IsMouseClicked(0)) {
+            selectedIdx = i;
+          }
+        }
+      } catch (...) {
+      }
+    }
+  }
+
+  ImGui::EndChild();
+  ImGui::End();
 }
 
 // --- MAIN ---
@@ -791,23 +1357,28 @@ int main(int, char **) {
 
     // Sidebar: 200px
     ImGui::SetNextWindowPos(ImVec2(0, 0));
-    ImGui::SetNextWindowSize(ImVec2(250, (float)dh));
+    ImGui::SetNextWindowSize(ImVec2(250, (float)dh - 150));
     DrawSidebar();
 
     // Main: Center
     ImGui::SetNextWindowPos(ImVec2(250, 0));
-    ImGui::SetNextWindowSize(ImVec2((float)dw - 800, (float)dh));
+    ImGui::SetNextWindowSize(ImVec2((float)dw - 800, (float)dh - 150));
     DrawMainEditor();
 
     // Right Column: Template Builder (Top half)
     ImGui::SetNextWindowPos(ImVec2((float)dw - 550, 0));
-    ImGui::SetNextWindowSize(ImVec2(550, (float)dh / 2));
+    ImGui::SetNextWindowSize(ImVec2(550, (float)dh / 2 - 75));
     DrawTemplateEditor();
 
     // Right Column: Calendar (Bottom half)
-    ImGui::SetNextWindowPos(ImVec2((float)dw - 550, (float)dh / 2));
-    ImGui::SetNextWindowSize(ImVec2(550, (float)dh / 2));
+    ImGui::SetNextWindowPos(ImVec2((float)dw - 550, (float)dh / 2 - 75));
+    ImGui::SetNextWindowSize(ImVec2(550, (float)dh / 2 - 75));
     DrawCalendarEditor();
+
+    // Bottom: Timeline
+    ImGui::SetNextWindowPos(ImVec2(0, (float)dh - 150));
+    ImGui::SetNextWindowSize(ImVec2((float)dw, 150));
+    DrawTimeline();
 
     DrawHelp();
 

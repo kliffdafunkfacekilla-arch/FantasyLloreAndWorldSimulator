@@ -2,7 +2,9 @@
 #include "../../include/Terrain.hpp"
 #include "../../include/stb_image.h"
 #include <cmath>
+#include <iostream>
 #include <vector>
+
 
 // Helper clamp since std::clamp can be tricky in some MinGW versions
 template <typename T> T clamp_val(T val, T min, T max) {
@@ -89,50 +91,214 @@ void TerrainController::GenerateHeightmap(WorldBuffers &b,
 
 void TerrainController::GenerateTectonicPlates(WorldBuffers &b,
                                                const WorldSettings &s) {
+  std::cout << "[DEBUG] Generating Tectonic Plates..." << std::endl;
   int side = (int)std::sqrt(b.count);
   if (side <= 0)
     return;
 
-  FastNoiseLite plateNoise;
-  plateNoise.SetNoiseType(FastNoiseLite::NoiseType_Cellular);
-  plateNoise.SetCellularDistanceFunction(
+  // 1. Primary Plates (Large Continents)
+  FastNoiseLite continentNoise;
+  continentNoise.SetNoiseType(FastNoiseLite::NoiseType_Cellular);
+  continentNoise.SetCellularDistanceFunction(
       FastNoiseLite::CellularDistanceFunction_Euclidean);
-  plateNoise.SetCellularReturnType(FastNoiseLite::CellularReturnType_CellValue);
-  plateNoise.SetFrequency(0.002f);
-  plateNoise.SetSeed(s.seed);
+  continentNoise.SetCellularReturnType(
+      FastNoiseLite::CellularReturnType_Distance2); // Distance to edge
+  continentNoise.SetFrequency(0.003f);              // Large plates
+  continentNoise.SetSeed(s.seed);
+  continentNoise.SetCellularJitter(1.2f); // Organic shapes
 
-  FastNoiseLite edgeNoise;
-  edgeNoise.SetNoiseType(FastNoiseLite::NoiseType_Cellular);
-  edgeNoise.SetCellularReturnType(FastNoiseLite::CellularReturnType_Distance2);
-  edgeNoise.SetFrequency(0.002f);
-  edgeNoise.SetSeed(s.seed);
+  // 2. Secondary Plates (Breakup)
+  FastNoiseLite breakupNoise;
+  breakupNoise.SetNoiseType(FastNoiseLite::NoiseType_Cellular);
+  breakupNoise.SetCellularReturnType(
+      FastNoiseLite::CellularReturnType_CellValue);
+  breakupNoise.SetFrequency(0.01f);
+  breakupNoise.SetSeed(s.seed + 1);
 
+  // 3. Detail Noise (Roughness)
   FastNoiseLite detail;
   detail.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
   detail.SetFrequency(0.02f);
+  detail.SetFractalType(FastNoiseLite::FractalType_FBm);
+  detail.SetFractalOctaves(3);
+
+  // 4. Warp Noise (Distortion)
+  FastNoiseLite warp;
+  warp.SetNoiseType(FastNoiseLite::NoiseType_OpenSimplex2);
+  warp.SetFrequency(0.005f);
 
   for (int i = 0; i < (int)b.count; ++i) {
     int x = i % side;
     int y = i / side;
 
-    float plateID = plateNoise.GetNoise((float)x, (float)y);
-    float plateHeight = std::abs(plateID);
-    float distToEdge = (edgeNoise.GetNoise((float)x, (float)y) + 1.0f) * 0.5f;
+    float wx = (float)x;
+    float wy = (float)y;
+    float wForce = 40.0f;
+    float wn = warp.GetNoise(wx, wy);
+    wx += wn * wForce;
+    wy += wn * wForce;
 
-    float finalHeight;
-    if (plateHeight < 0.4f) {
-      finalHeight = 0.1f + (detail.GetNoise((float)x, (float)y) * 0.05f);
-      if (distToEdge < 0.1f)
-        finalHeight -= 0.2f;
-    } else {
-      finalHeight = 0.5f + (plateHeight * 0.2f);
-      if (distToEdge < 0.15f) {
-        float mountainFactor = 1.0f - (distToEdge / 0.15f);
-        finalHeight += mountainFactor * 0.6f;
+    // Plate math
+    float distToEdge = continentNoise.GetNoise(wx, wy); // -1 to 1 range usually
+    distToEdge = (distToEdge + 1.0f) * 0.5f;            // 0 to 1
+
+    // Invert: 1.0 is center of plate, 0.0 is edge
+    float plateHeight = distToEdge;
+
+    // Add breakup
+    float breakup = breakupNoise.GetNoise(wx, wy);
+
+    // Continental Shelf Logic
+    float finalHeight = 0.0f;
+
+    // If we are "on a plate"
+    if (plateHeight > 0.15f) {
+      // Land
+      finalHeight = 0.2f + (plateHeight * 0.8f); // Base lift
+
+      // Mountain Ranges at collision zones (edges of high randomness)
+      if (breakup > 0.5f) {
+        finalHeight += (breakup - 0.5f) * 0.5f;
       }
-      finalHeight += detail.GetNoise((float)x, (float)y) * 0.1f;
+    } else {
+      // Ocean
+      finalHeight = plateHeight; // Deep trench at 0
     }
+
+    // Detail
+    finalHeight += detail.GetNoise((float)x, (float)y) * 0.05f;
+
     b.height[i] = clamp_val(finalHeight, 0.0f, 1.0f);
+  }
+}
+
+// --- NEW FEATURES ---
+
+void LoadHeightmapDataWithKeys(
+    const char *path, WorldBuffers &buffers, uint32_t count,
+    const std::vector<TerrainController::ColorKey> &keys) {
+  int w, h, channels;
+  unsigned char *data = stbi_load(path, &w, &h, &channels, 3); // Force RGB
+  if (!data)
+    return;
+
+  int side = (int)std::sqrt(count);
+
+  for (int i = 0; i < (int)count; ++i) {
+    int x = i % side;
+    int y = i / side;
+
+    // Sample UV
+    int imgX = (int)((float)x / (float)side * w);
+    int imgY = (int)((float)y / (float)side * h);
+
+    int idx = (imgY * w + imgX) * 3;
+    unsigned char r = data[idx];
+    unsigned char g = data[idx + 1];
+    unsigned char b = data[idx + 2];
+
+    // Find closest key
+    float minDist = 1000000.0f;
+    float bestH = 0.0f;
+
+    for (const auto &k : keys) {
+      float dr = (float)r - (float)k.r;
+      float dg = (float)g - (float)k.g;
+      float db = (float)b - (float)k.b;
+      float dist = dr * dr + dg * dg + db * db;
+      if (dist < minDist) {
+        minDist = dist;
+        bestH = k.targetHeight;
+      }
+    }
+
+    buffers.height[i] = bestH;
+  }
+
+  stbi_image_free(data);
+}
+
+void TerrainController::LoadHeightmapFromImageWithKeys(
+    WorldBuffers &b, const std::string &filepath,
+    const std::vector<ColorKey> &keys) {
+  LoadHeightmapDataWithKeys(filepath.c_str(), b, b.count, keys);
+}
+
+#include "../../include/AssetManager.hpp" // Needed for AutoPopulate
+
+void TerrainController::AutoPopulate(WorldBuffers &b, const WorldSettings &s) {
+  b.ClearAgents(); // Assuming this exists or we do it manually
+  for (int i = 0; i < (int)b.count; ++i) {
+    b.population[i] = 0;
+    b.cultureID[i] = -1;
+  }
+
+  // Simple Biome Map
+  // 0: Deep Ocean, 1: Ocean, 2: Beach, 3: Scorched, 4: Desert, 5: Savanna, 6:
+  // TRF, 7: Grass, 8: Forest, 9: Temp RF, 10: Taiga, 11: Tundra, 12: Snow, 13:
+  // Mtn
+
+  // --- DYNAMIC AUTO-POPULATE ---
+  // Iterate every cell
+  for (int i = 0; i < (int)b.count; ++i) {
+    int biomeID = b.biomeID[i];
+
+    // 1. Get Biome Properties
+    // AssetManager::biomeRegistry might not match IDs 1:1 if custom,
+    // but we assume standard ID mapping for now or linear search.
+    const BiomeDef *biome = nullptr;
+    for (const auto &bd : AssetManager::biomeRegistry) {
+      if (bd.id == biomeID) {
+        biome = &bd;
+        break;
+      }
+    }
+
+    if (!biome)
+      continue; // Biome not found in rules
+
+    // 2. Identify Potential Habitats
+    // Skip water for now unless we add aquatic agents
+    if (biome->minHeight < s.seaLevel)
+      continue;
+
+    // 3. Find Suitable Agents
+    // We look for FLORA first as the base layer
+    std::vector<int> suitableFlora;
+    std::vector<int> suitableFauna;
+
+    float cellTemp = b.temperature[i];
+    float cellMoist = b.moisture[i];
+
+    for (const auto &agent : AssetManager::agentRegistry) {
+      // Check Environmental Fit
+      bool tempFit =
+          (cellTemp >= agent.deadlyTempLow && cellTemp <= agent.deadlyTempHigh);
+      // Moisture fit? Agent definition implies idealMoisture but maybe not
+      // strict limits in struct? Let's use IdealTemp proximity as a weight.
+
+      if (tempFit) {
+        if (agent.type == AgentType::FLORA)
+          suitableFlora.push_back(agent.id);
+        if (agent.type == AgentType::FAUNA)
+          suitableFauna.push_back(agent.id);
+      }
+    }
+
+    // 4. Spawn Logic
+    // Bias towards Flora first
+    if (!suitableFlora.empty() &&
+        (rand() % 100 < 60)) { // 60% chance for plant life
+      int idx = rand() % suitableFlora.size();
+      b.cultureID[i] = suitableFlora[idx];
+      b.population[i] = 100 + rand() % 900;
+    } else if (!suitableFauna.empty() &&
+               (rand() % 100 <
+                5)) { // 5% chance for animals (if no plants, or rare)
+      int idx = rand() % suitableFauna.size();
+      b.cultureID[i] = suitableFauna[idx];
+      b.population[i] = 10 + rand() % 90;
+    }
   }
 }
 

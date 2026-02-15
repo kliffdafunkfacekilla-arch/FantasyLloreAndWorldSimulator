@@ -4,9 +4,13 @@
             {
                 "l": "Description",
                 "t": 0
+            },
+            {
+                "l": "New Field",
+                "t": 0
             }
         ],
-        "name": "General"
+        "name": "fauna"
     },
     {
         "fields": [
@@ -20,5 +24,17 @@
             }
         ],
         "name": "Faction"
+    },
+    {
+        "fields": [],
+        "name": "New Category"
+    },
+    {
+        "fields": [],
+        "name": "New Category"
+    },
+    {
+        "fields": [],
+        "name": "New Category"
     }
 ]

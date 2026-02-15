@@ -1,0 +1,238 @@
+
+import os
+import sys
+import uvicorn
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import List, Optional, Any
+
+# --- PATH SETUP ---
+# We need to import from sibling directories.
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(current_dir) # FantasyLloreAndWorldSimulator
+github_root = os.path.dirname(project_root) # GitHub
+
+# Paths to external projects
+brutal_path = os.path.join(github_root, "B.R.U.T.A.L", "brutal_repo")
+brqse_path = os.path.join(github_root, "BRQSE")
+
+print(f"[INFO] Adding to sys.path: {brutal_path}")
+print(f"[INFO] Adding to sys.path: {brqse_path}")
+
+sys.path.append(brutal_path)
+sys.path.append(brqse_path)
+
+# --- IMPORTS ---
+try:
+    # B.R.U.T.A.L Imports (Source of Quest Gen)
+    # brutal_repo/src/modules/macro_generator.py
+    # Note: 'src' is a generic package name, might conflict if not careful.
+    from src.modules.macro_generator import MacroGenerator
+    print("[SUCCESS] Imported B.R.U.T.A.L MacroGenerator")
+except ImportError as e:
+    print(f"[ERROR] Failed to import B.R.U.T.A.L: {e}")
+    MacroGenerator = None
+
+try:
+    # BRQSE Imports (Source of World Sim)
+    from brqse_engine.world.sim_manager import SimulationManager
+    from brqse_engine.world.world_system import ChaosManager
+    print("[SUCCESS] Imported BRQSE Engine")
+except ImportError as e:
+    print(f"[ERROR] Failed to import BRQSE: {e}")
+    SimulationManager = None
+
+try:
+    from campaign_system import CampaignGenerator, QuestType
+    print("[SUCCESS] Imported Campaign System")
+except ImportError as e:
+    print(f"[ERROR] Failed to import Campaign System: {e}")
+    CampaignGenerator = None
+
+# --- APP SETUP ---
+app = FastAPI(title="SAYA: Unified Oracle Interface")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # Allow Oracle VTT (localhost:5173)
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# --- STATE ---
+class MockState:
+    def __init__(self):
+        self.chaos = ChaosManager() if ChaosManager else None
+        self.data = {}
+
+global_state = MockState()
+
+if SimulationManager:
+    sim_manager = SimulationManager(global_state)
+else:
+    sim_manager = None
+
+if MacroGenerator:
+    macro_gen = MacroGenerator()
+else:
+    macro_gen = None
+
+if CampaignGenerator:
+    campaign_gen = CampaignGenerator()
+    # Auto-load or create new for demo
+    if not campaign_gen.load_campaign():
+        print("[LOG] No active campaign found. Creating new Hero's Journey...")
+        campaign_gen.create_new_campaign(hero_name="PlayerOne")
+else:
+    campaign_gen = None
+
+# --- MODELS ---
+class MissionRequest(BaseModel):
+    prompt: Optional[str] = "A dark dungeon"
+
+class ResultSubmission(BaseModel):
+    outcome: str
+    enemies_killed: List[str]
+    loot_taken: List[Any]
+
+# --- ENDPOINTS ---
+
+@app.get("/")
+def health_check():
+    return {"status": "online", "services": {"brutal": bool(macro_gen), "brqse": bool(sim_manager)}}
+
+@app.get("/new-session")
+async def get_new_session():
+    if not macro_gen:
+        raise HTTPException(status_code=503, detail="Quest Generator (B.R.U.T.A.L) not loaded.")
+    
+    # 1. Generate Session via B.R.U.T.A.L
+    print(f"[LOG] Generating new session...")
+    # 1. Get Current Campaign Objective
+    if campaign_gen:
+        quest = campaign_gen.get_current_objective()
+        if not quest:
+            # Campaign Finished or Error
+            return {"meta": {"title": "Campaign Finished", "description": "You have completed the journey."}, "log": ["The End."]}
+        
+        current_prompt = f"Generate a {quest.type} mission in a dungeon. Objective: {quest.title} - {quest.description}"
+        quest_title = quest.title
+        quest_desc = quest.description
+    else:
+        current_prompt = "random dungeon"
+        quest_title = "Random Dungeon"
+        quest_desc = "Explore the unknown."
+
+    # 2. Generate Session via B.R.U.T.A.L
+    print(f"[LOG] Generating new session for: {quest_title}")
+    session = await macro_gen.generate_session(campaign_id="demo", prompt=current_prompt)
+    
+    # Override Session Name with Campaign Info
+    session.location_name = quest_title
+    
+    # 2. Convert to Oracle VTT Frontend Format
+    # Oracle VTT expects: { meta: {}, map: {}, entities: [], log: [] }
+    
+    # Flatten Room Nodes into a Grid for the VTT (Simple Mapping)
+    entities = []
+    
+    # We'll just map the first few rooms to grid positions for the demo
+    # In a real system, we'd have a layout algorithm.
+    # Room 1 -> (5, 5)
+    # Room 2 -> (5, 4)
+    # Room 3 -> (5, 3)
+    
+    room_map = [
+        ("room_01", 5, 5),
+        ("room_02", 5, 4), 
+        ("room_03", 5, 3)
+    ]
+    
+    for r_id, x, y in room_map:
+        if r_id in session.rooms:
+            room = session.rooms[r_id]
+            # Add Room Center Marker? Or just entities?
+            # Let's add entities
+            for ent in room.entities:
+                entities.append({
+                    "id": f"{r_id}_{ent['name']}_{x}_{y}", 
+                    "name": ent['name'],
+                    "type": "enemy", # Assumption
+                    "pos": [x, y],
+                    "hp": ent['hp_current'],
+                    "max_hp": ent['hp_max'],
+                    "icon": "skull"
+                })
+                
+            # Add Loot
+            for item in room.loot:
+                 entities.append({
+                    "id": f"{r_id}_{item['name']}_{x}_{y}", 
+                    "name": item['name'],
+                    "type": "item",
+                    "pos": [x, y], # Same pos as room
+                    "hp": 1,
+                    "max_hp": 1,
+                    "icon": "scroll"
+                })
+    
+    # Add Player
+    entities.append({
+        "id": "player_1",
+        "name": "Hero",
+        "type": "player",
+        "pos": [5, 6],
+        "hp": 20,
+        "max_hp": 20,
+        "icon": "hero"
+    })
+
+    return {
+        "meta": {
+            "title": session.location_name,
+            "description": quest_desc,
+            "turn": 1
+        },
+        "map": {
+            "width": 10,
+            "height": 10,
+            "grid": [], # Can be populated if needed
+            "biome": "dungeon"
+        },
+        "entities": entities,
+        "log": ["Mission Briefing Received.", f"Entering {session.location_name}..."]
+    }
+
+@app.post("/submit-result")
+async def submit_result(result: ResultSubmission):
+    message = "Result Processed."
+    
+    if sim_manager:
+        # Pass time in BRQSE World
+        # 1 Mission = ~4 Hours?
+        display_time = sim_manager.get_time_string()
+        sim_manager.advance_time(4)
+        new_time = sim_manager.get_time_string()
+        message += f" Time advanced from {display_time} to {new_time}."
+    
+    if global_state.chaos:
+        # Adjust Chaos
+        if result.outcome == "VICTORY":
+             # Killing enemies reduces chaos (or increases it? Let's say reduces for success)
+             # world_system.py actually only has 'increment_chaos'.
+             # Let's leave it as is.
+             # Victory Conditions
+             if campaign_gen:
+                 campaign_gen.advance_plot()
+                 message += " Campaign Step Completed! Progress Saved."
+             pass
+        else:
+             lvl = global_state.chaos.increment_chaos(0.1)
+             message += f" Chaos increased to {lvl:.2f}!"
+
+    return {"message": message}
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)

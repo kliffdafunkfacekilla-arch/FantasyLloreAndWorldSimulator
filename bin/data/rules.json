@@ -1,10 +1,349 @@
 {
-  "resources": [
-  ],
-  "chaos": [
-  ],
-  "agents": [
-  ],
-  "biomes": [
-  ]
+    "agents": [
+        {
+            "color": [
+                0.800000011920929,
+                0.6000000238418579,
+                0.6000000238418579
+            ],
+            "id": 0,
+            "idealTemp": 0.5,
+            "maxTemp": 0.0,
+            "minTemp": 0.0,
+            "name": "Human",
+            "resilience": 0.30000001192092896,
+            "type": 2
+        },
+        {
+            "color": [
+                0.6000000238418579,
+                0.4000000059604645,
+                0.20000000298023224
+            ],
+            "id": 1,
+            "idealTemp": 0.4000000059604645,
+            "maxTemp": 0.0,
+            "minTemp": 0.0,
+            "name": "Elk",
+            "resilience": 0.20000000298023224,
+            "type": 1
+        },
+        {
+            "color": [
+                0.20000000298023224,
+                0.800000011920929,
+                0.20000000298023224
+            ],
+            "id": 2,
+            "idealTemp": 0.5,
+            "maxTemp": 6.025583396596713e-44,
+            "minTemp": -1.0782210177973924e-32,
+            "name": "Grass",
+            "resilience": 0.4000000059604645,
+            "type": 0
+        }
+    ],
+    "biomes": [
+        {
+            "color": [
+                0.0,
+                0.0,
+                0.4000000059604645
+            ],
+            "id": 0,
+            "maxHeight": 0.30000001192092896,
+            "maxMoisture": 2.0,
+            "maxTemp": 2.0,
+            "minHeight": -1.0,
+            "minMoisture": -1.0,
+            "minTemp": -1.0,
+            "name": "Deep Ocean",
+            "scarcity": 0.0
+        },
+        {
+            "color": [
+                0.0,
+                0.20000000298023224,
+                0.6000000238418579
+            ],
+            "id": 1,
+            "maxHeight": 0.5,
+            "maxMoisture": 2.0,
+            "maxTemp": 2.0,
+            "minHeight": 0.30000001192092896,
+            "minMoisture": -1.0,
+            "minTemp": -1.0,
+            "name": "Ocean",
+            "scarcity": 0.0
+        },
+        {
+            "color": [
+                0.800000011920929,
+                0.699999988079071,
+                0.5
+            ],
+            "id": 2,
+            "maxHeight": 0.05000000074505806,
+            "maxMoisture": 2.0,
+            "maxTemp": 2.0,
+            "minHeight": 0.0,
+            "minMoisture": -1.0,
+            "minTemp": -1.0,
+            "name": "Beach",
+            "scarcity": 0.0
+        },
+        {
+            "color": [
+                0.30000001192092896,
+                0.10000000149011612,
+                0.10000000149011612
+            ],
+            "id": 3,
+            "maxHeight": 1.0,
+            "maxMoisture": 0.20000000298023224,
+            "maxTemp": 1.0,
+            "minHeight": 0.05000000074505806,
+            "minMoisture": 0.0,
+            "minTemp": 0.800000011920929,
+            "name": "Scorched",
+            "scarcity": 0.0
+        },
+        {
+            "color": [
+                0.8999999761581421,
+                0.800000011920929,
+                0.5
+            ],
+            "id": 4,
+            "maxHeight": 1.0,
+            "maxMoisture": 0.30000001192092896,
+            "maxTemp": 1.0,
+            "minHeight": 0.05000000074505806,
+            "minMoisture": 0.0,
+            "minTemp": 0.6000000238418579,
+            "name": "Desert",
+            "scarcity": 0.0
+        },
+        {
+            "color": [
+                0.699999988079071,
+                0.800000011920929,
+                0.30000001192092896
+            ],
+            "id": 5,
+            "maxHeight": 1.0,
+            "maxMoisture": 0.5,
+            "maxTemp": 1.0,
+            "minHeight": 0.05000000074505806,
+            "minMoisture": 0.30000001192092896,
+            "minTemp": 0.6000000238418579,
+            "name": "Savanna",
+            "scarcity": 0.0
+        },
+        {
+            "color": [
+                0.0,
+                0.4000000059604645,
+                0.10000000149011612
+            ],
+            "id": 6,
+            "maxHeight": 0.800000011920929,
+            "maxMoisture": 1.0,
+            "maxTemp": 1.0,
+            "minHeight": 0.05000000074505806,
+            "minMoisture": 0.6000000238418579,
+            "minTemp": 0.5,
+            "name": "Tropical Rainforest",
+            "scarcity": 0.0
+        },
+        {
+            "color": [
+                0.30000001192092896,
+                0.699999988079071,
+                0.20000000298023224
+            ],
+            "id": 7,
+            "maxHeight": 0.699999988079071,
+            "maxMoisture": 0.6000000238418579,
+            "maxTemp": 0.6000000238418579,
+            "minHeight": 0.05000000074505806,
+            "minMoisture": 0.30000001192092896,
+            "minTemp": 0.30000001192092896,
+            "name": "Grassland",
+            "scarcity": 0.0
+        },
+        {
+            "color": [
+                0.10000000149011612,
+                0.6000000238418579,
+                0.10000000149011612
+            ],
+            "id": 8,
+            "maxHeight": 0.699999988079071,
+            "maxMoisture": 0.8999999761581421,
+            "maxTemp": 0.6000000238418579,
+            "minHeight": 0.05000000074505806,
+            "minMoisture": 0.5,
+            "minTemp": 0.20000000298023224,
+            "name": "Forest",
+            "scarcity": 0.0
+        },
+        {
+            "color": [
+                0.10000000149011612,
+                0.5,
+                0.30000001192092896
+            ],
+            "id": 9,
+            "maxHeight": 0.800000011920929,
+            "maxMoisture": 1.0,
+            "maxTemp": 0.5,
+            "minHeight": 0.05000000074505806,
+            "minMoisture": 0.800000011920929,
+            "minTemp": 0.20000000298023224,
+            "name": "Temperate Rainforest",
+            "scarcity": 0.0
+        },
+        {
+            "color": [
+                0.20000000298023224,
+                0.4000000059604645,
+                0.4000000059604645
+            ],
+            "id": 10,
+            "maxHeight": 0.800000011920929,
+            "maxMoisture": 0.8999999761581421,
+            "maxTemp": 0.30000001192092896,
+            "minHeight": 0.05000000074505806,
+            "minMoisture": 0.4000000059604645,
+            "minTemp": 0.05000000074505806,
+            "name": "Taiga",
+            "scarcity": 0.0
+        },
+        {
+            "color": [
+                0.6000000238418579,
+                0.6000000238418579,
+                0.6000000238418579
+            ],
+            "id": 11,
+            "maxHeight": 0.800000011920929,
+            "maxMoisture": 1.0,
+            "maxTemp": 0.05000000074505806,
+            "minHeight": 0.05000000074505806,
+            "minMoisture": 0.0,
+            "minTemp": -0.20000000298023224,
+            "name": "Tundra",
+            "scarcity": 0.0
+        },
+        {
+            "color": [
+                0.8999999761581421,
+                0.8999999761581421,
+                1.0
+            ],
+            "id": 12,
+            "maxHeight": 1.0,
+            "maxMoisture": 1.0,
+            "maxTemp": -0.20000000298023224,
+            "minHeight": 0.05000000074505806,
+            "minMoisture": 0.0,
+            "minTemp": -1.0,
+            "name": "Snow",
+            "scarcity": 0.0
+        },
+        {
+            "color": [
+                0.4000000059604645,
+                0.4000000059604645,
+                0.4000000059604645
+            ],
+            "id": 13,
+            "maxHeight": 1.0,
+            "maxMoisture": 1.0,
+            "maxTemp": 1.0,
+            "minHeight": 0.699999988079071,
+            "minMoisture": -1.0,
+            "minTemp": -1.0,
+            "name": "Mountain",
+            "scarcity": 0.20000000298023224
+        }
+    ],
+    "chaos": [
+        {
+            "chance": 0.009999999776482582,
+            "name": "Mana Leak",
+            "severity": 0.5,
+            "threshold": 0.20000000298023224,
+            "type": 2
+        },
+        {
+            "chance": 0.0010000000474974513,
+            "name": "Reality Tear",
+            "severity": 1.0,
+            "threshold": 0.800000011920929,
+            "type": 1
+        },
+        {
+            "chance": 0.05000000074505806,
+            "name": "Resource Decay",
+            "severity": 0.30000001192092896,
+            "threshold": 0.5,
+            "type": 3
+        }
+    ],
+    "resources": [
+        {
+            "biomes": {
+                "desert": false,
+                "forest": true,
+                "mountain": false,
+                "ocean": true
+            },
+            "id": 0,
+            "name": "Food",
+            "renewable": true,
+            "scarcity": 0.0,
+            "value": 1.0
+        },
+        {
+            "biomes": {
+                "desert": false,
+                "forest": true,
+                "mountain": false,
+                "ocean": false
+            },
+            "id": 1,
+            "name": "Wood",
+            "renewable": true,
+            "scarcity": 0.20000000298023224,
+            "value": 2.0
+        },
+        {
+            "biomes": {
+                "desert": false,
+                "forest": false,
+                "mountain": true,
+                "ocean": false
+            },
+            "id": 2,
+            "name": "Iron",
+            "renewable": false,
+            "scarcity": 0.800000011920929,
+            "value": 5.0
+        },
+        {
+            "biomes": {
+                "desert": false,
+                "forest": false,
+                "mountain": true,
+                "ocean": false
+            },
+            "id": 3,
+            "name": "Gold",
+            "renewable": false,
+            "scarcity": 0.949999988079071,
+            "value": 10.0
+        }
+    ]
 }

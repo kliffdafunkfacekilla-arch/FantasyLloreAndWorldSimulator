@@ -1,4 +1,5 @@
 #pragma once
+#include "SagaConfig.hpp"
 #include "WorldEngine.hpp"
 #include <map>
 #include <string>
@@ -123,8 +124,8 @@ extern std::map<std::string, float> diplomacyMatrix;
 void Initialize();
 
 // IO Functions
-void LoadAll(const std::string &path = "data/rules.json");
-void SaveAll(const std::string &path = "data/rules.json");
+void LoadAll(const std::string &path = SagaConfig::RULES_JSON);
+void SaveAll(const std::string &path = SagaConfig::RULES_JSON);
 
 // Simulation State Save/Load
 void SaveSimulationState(const std::string &path, const WorldBuffers &buffers,
@@ -152,4 +153,10 @@ void CreateNewResource();
 
 // Agent Editor
 void CreateNewAgent();
+
+// Synchronization
+void SyncWithLore();
+
+// Economy Helpers
+float GetTotalCellWealth(uint32_t cellIdx, const WorldBuffers &b);
 } // namespace AssetManager

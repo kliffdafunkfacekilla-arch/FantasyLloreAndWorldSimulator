@@ -1,3 +1,4 @@
+#include "../../include/AssetManager.hpp"
 #include "../../include/SimulationModules.hpp"
 #include <algorithm>
 #include <vector>
@@ -18,19 +19,9 @@ void Update(WorldBuffers &b, const NeighborGraph &g) {
     if (h < 0.4f)
       continue; // Ocean produces nothing (yet)
 
-    float production = 0.0f;
-
-    // Forest (High Moisture, Med Temp) = Wood/Food
-    if (m > 0.5f && t > 0.3f)
-      production += 1.5f;
-
-    // Mountains (High Height) = Iron/Stone
-    if (h > 0.7f)
-      production += 2.0f;
-
-    // Plains (Med Height, Med Moisture) = Food
-    if (h > 0.4f && h < 0.6f && m > 0.3f)
-      production += 1.0f;
+    // 1. PRODUCTION (Derived from actual resource value)
+    float production =
+        AssetManager::GetTotalCellWealth(i, b) * 0.1f; // 10% liquidity rate
 
     // Add to cell wealth
     b.wealth[i] += production;
@@ -40,11 +31,20 @@ void Update(WorldBuffers &b, const NeighborGraph &g) {
     float consumption = pop * 0.01f;
     b.wealth[i] = std::max(0.0f, b.wealth[i] - consumption);
 
-    // 3. INFRASTRUCTURE GROWTH
-    // If wealth piles up, build roads/cities
-    if (b.wealth[i] > 100.0f) {
-      b.infrastructure[i] = std::min(1.0f, b.infrastructure[i] + 0.01f);
-      b.wealth[i] -= 10.0f; // Invest wealth into building
+    // 3. INFRASTRUCTURE SYNC
+    // Infrastructure now locked to physical structures
+    if (b.structureType) {
+      uint8_t type = b.structureType[i];
+      float targetInfra = 0.0f;
+      if (type == 1)
+        targetInfra = 0.3f; // Road
+      else if (type == 2)
+        targetInfra = 0.6f; // Village
+      else if (type == 3)
+        targetInfra = 1.0f; // City
+
+      // Smoothly move towards target infra instead of jumping
+      b.infrastructure[i] += (targetInfra - b.infrastructure[i]) * 0.1f;
     }
   }
 

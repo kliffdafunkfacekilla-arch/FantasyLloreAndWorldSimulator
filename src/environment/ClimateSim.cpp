@@ -66,11 +66,14 @@ void Update(WorldBuffers &b, const WorldSettings &s) {
 
     if (lat < 0.5f) {
       float alpha = lat / 0.5f;
-      baseTemp = s.tempZonePolar * (1.0f - alpha) + s.tempZoneTemperate * alpha;
+      baseTemp =
+          (s.tempZonePolar * (1.0f - alpha) + s.tempZoneTemperate * alpha) *
+          1.5f; // Boost impact
     } else {
       float alpha = (lat - 0.5f) / 0.5f;
       baseTemp =
-          s.tempZoneTemperate * (1.0f - alpha) + s.tempZoneTropical * alpha;
+          (s.tempZoneTemperate * (1.0f - alpha) + s.tempZoneTropical * alpha) *
+          1.5f;
     }
 
     // Modifier: Altitude (Higher is colder)
@@ -129,7 +132,9 @@ void Update(WorldBuffers &b, const WorldSettings &s) {
       moisture += rainNoise.GetNoise((float)x, (float)y) * 0.2f;
     }
 
-    b.moisture[i] = clamp_val(moisture * s.raininess, 0.0f, 1.0f);
+    // Apply Raininess as a pure multiplier
+    moisture *= (0.5f + s.raininess * 1.5f);
+    b.moisture[i] = clamp_val(moisture, 0.0f, 1.0f);
 
     // --- 4. BIOME CLASSIFICATION ---
     if (h <= s.seaLevel) {

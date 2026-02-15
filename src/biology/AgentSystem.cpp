@@ -18,168 +18,178 @@ void Initialize() {
 float CalculateDesire(int cellIdx, const AgentDefinition &dna,
                       const WorldBuffers &b) {
   float temp = b.temperature[cellIdx];
-  float tempDiff = std::abs(temp - dna.idealTemp);
+  float moisture = b.moisture[cellIdx];
 
-  if (tempDiff > dna.resilience)
+  // Temperature check
+  if (temp < dna.deadlyTempLow || temp > dna.deadlyTempHigh)
+    return 0.0f;
+  // Moisture check
+  if (moisture < dna.deadlyMoistureLow || moisture > dna.deadlyMoistureHigh)
     return 0.0f;
 
-  float biomeScore = 1.0f - (tempDiff / dna.resilience);
+  float tempDiff = std::abs(temp - dna.idealTemp);
+  float moistureDiff = std::abs(moisture - dna.idealMoisture);
+
+  float biomeScore = 1.0f - (tempDiff + moistureDiff) * 2.0f;
+  biomeScore = std::max(0.0f, biomeScore);
 
   float foodScore = 0.0f;
   if (dna.type == AgentType::FAUNA) {
-    for (auto const &[resID, required] : dna.diet) {
+    for (auto const &pair : dna.diet) {
+      int resID = pair.first;
+      float required = pair.second;
       float available = b.GetResource(cellIdx, resID);
-      if (available > required)
+      if (available > 1.0f) // Some Threshold
         foodScore += 1.0f;
     }
   }
 
   float crowding = 0.0f;
-  // Check population using agentStrength (float) or population (uint)
-  // b.population is uint32_t, b.agentStrength is ???
-  // Wait, WorldBuffers has 'population' (uint32) but 'agentStrength' is needed
-  // for smooth sim? Let's use 'b.population' as float cast for now, OR rely on
-  // a float buffer if it exists. WorldEngine.hpp has `uint32_t* population`.
-  // Smart Agent Logic used `b.agentStrength`.
-  // Check WorldBuffers in Step 118:
-  // `uint32_t *population = nullptr;`
-  // NO `agentStrength`.
-  // The logic provided in Step 51 used `agentStrength`.
-  // I must adapt it to use `population` (cast to float).
-
   float myPop = (float)b.population[cellIdx];
   if (b.cultureID[cellIdx] == dna.id) {
-    if (myPop > 500.0f)
-      crowding = 0.5f;
+    if (myPop > 5000.0f)
+      crowding = 1.0f;
   }
 
   return (biomeScore * 2.0f) + foodScore - crowding;
 }
 
-void Update(WorldBuffers &b, const NeighborGraph &g) {
+// Internal Logic Processor
+void ProcessAgentLogic(WorldBuffers &b, const NeighborGraph &g, int i,
+                       const AgentDefinition &dna) {
+  int myID = dna.id;
+  float myPop = (float)b.population[i];
+
+  // 1. METABOLISM
+  bool isStarving = false;
+  for (auto const &pair : dna.diet) {
+    int resID = pair.first;
+    float amount = pair.second;
+    float needed = amount * (myPop / 100.0f);
+    float available = b.GetResource(i, resID);
+    if (available >= needed) {
+      b.AddResource(i, resID, -needed);
+    } else {
+      isStarving = true;
+      b.AddResource(i, resID, -available);
+    }
+  }
+
+  if (!isStarving) {
+    for (auto const &pair : dna.output) {
+      int resID = pair.first;
+      float amount = pair.second;
+      float production = amount * (myPop / 100.0f);
+      b.AddResource(i, resID, production);
+    }
+
+    // Growth
+    if (myPop < 10000.0f && rand() % 100 < 10) {
+      myPop *= (1.0f + dna.expansionRate);
+    }
+  } else {
+    myPop *= 0.90f; // Starvation death
+  }
+
+  // Death from extreme causes
+  if (myPop < 1.0f) {
+    b.cultureID[i] = -1;
+    b.population[i] = 0;
+    return;
+  }
+
+  // 2. MIGRATION (Animals)
+  if (dna.type == AgentType::FAUNA && myPop > 10.0f) {
+    int bestN = -1;
+    float currentScore = CalculateDesire(i, dna, b);
+    float bestScore = currentScore;
+    int offset = g.offsetTable[i];
+    int count = g.countTable[i];
+
+    for (int k = 0; k < count; ++k) {
+      int nIdx = g.neighborData[offset + k];
+      if (b.height[nIdx] < 0.2f)
+        continue; // Ocean
+      if (b.cultureID[nIdx] != -1 && b.cultureID[nIdx] != myID)
+        continue;
+
+      float s = CalculateDesire(nIdx, dna, b);
+      if (s > bestScore) {
+        bestScore = s;
+        bestN = nIdx;
+      }
+    }
+
+    if (bestN != -1 && bestScore > currentScore * 1.05f) {
+      float migrants = myPop * 0.2f;
+      if (b.cultureID[bestN] == -1) {
+        b.cultureID[bestN] = myID;
+        b.population[bestN] = 0;
+      }
+      b.population[bestN] += (uint32_t)migrants;
+      myPop -= migrants;
+    }
+  }
+
+  // 3. REPRODUCTION (Plants / Spreads)
+  if (dna.type == AgentType::FLORA && myPop > 500.0f) {
+    if (rand() % 100 < (dna.expansionRate * 50)) {
+      int offset = g.offsetTable[i];
+      int count = g.countTable[i];
+      int nIdx = g.neighborData[offset + (rand() % count)];
+
+      if (b.cultureID[nIdx] == -1 && CalculateDesire(nIdx, dna, b) > 0.4f) {
+        if (b.height[nIdx] > 0.2f) { // Land only
+          b.cultureID[nIdx] = myID;
+          b.population[nIdx] = 100;
+        }
+      }
+    }
+  }
+
+  // Write back
+  b.population[i] = (uint32_t)myPop;
+}
+
+// Separated Biology System (FAUNA / FLORA)
+void UpdateBiology(WorldBuffers &b, const NeighborGraph &g,
+                   const WorldSettings &s) {
+  if (!b.cultureID || !b.population || !s.enableBiology)
+    return;
+
+  for (uint32_t i = 0; i < b.count; ++i) {
+    int myID = b.cultureID[i];
+    if (myID == -1 || myID >= (int)AssetManager::agentRegistry.size())
+      continue;
+
+    const AgentDefinition &dna = AssetManager::agentRegistry[myID];
+    if (dna.type == AgentType::FLORA || dna.type == AgentType::FAUNA) {
+      ProcessAgentLogic(b, g, i, dna);
+    }
+  }
+}
+
+// Correct Signature Wrapper for Civilization logic
+void UpdateCivilization(WorldBuffers &b, const NeighborGraph &g) {
   if (!b.cultureID || !b.population)
     return;
 
   for (uint32_t i = 0; i < b.count; ++i) {
     int myID = b.cultureID[i];
-    if (myID == -1)
+    if (myID == -1 || myID >= (int)AssetManager::agentRegistry.size())
       continue;
-
-    if (myID >= (int)AssetManager::agentRegistry.size()) {
-      b.cultureID[i] = -1;
-      continue;
-    }
 
     const AgentDefinition &dna = AssetManager::agentRegistry[myID];
-    // Using population (uint) as float strength
-    float myPop = (float)b.population[i];
-
-    // 1. METABOLISM
-    bool isStarving = false;
-    for (auto const &[resID, amount] : dna.diet) {
-      float needed = amount * (myPop / 100.0f);
-      float available = b.GetResource(i, resID);
-      if (available >= needed) {
-        b.AddResource(i, resID, -needed);
-      } else {
-        isStarving = true;
-        b.AddResource(i, resID, -available);
-      }
+    if (dna.type == AgentType::CIVILIZED) {
+      ProcessAgentLogic(b, g, i, dna);
+      // CivilizationSim handles construction and age-related death elsewhere
+      // (CivilizationSim::Update)
     }
-
-    if (!isStarving) {
-      for (auto const &[resID, amount] : dna.output) {
-        float production = amount * (myPop / 100.0f);
-        b.AddResource(i, resID, production);
-      }
-
-      // Growth (Plants/Animals)
-      if (myPop < 1000.0f && rand() % 100 < 5) { // 5% chance to grow
-        myPop *= (1.0f + dna.expansionRate);
-      }
-    } else {
-      myPop *= 0.95f;
-    }
-
-    // Death
-    if (myPop < 1.0f) {
-      b.cultureID[i] = -1;
-      b.population[i] = 0;
-      continue;
-    }
-
-    // 2. MIGRATION (Animals)
-    if (dna.type == AgentType::FAUNA && myPop > 10.0f) {
-      int bestN = -1;
-      float currentScore = CalculateDesire(i, dna, b);
-      float bestScore = currentScore;
-      int offset = g.offsetTable[i];
-      int count = g.countTable[i];
-
-      for (int k = 0; k < count; ++k) {
-        int nIdx = g.neighborData[offset + k];
-        if (b.height[nIdx] < 0.2f)
-          continue; // Ocean check
-        if (b.cultureID[nIdx] != -1 && b.cultureID[nIdx] != myID)
-          continue;
-
-        float s = CalculateDesire(nIdx, dna, b);
-        if (s > bestScore) {
-          bestScore = s;
-          bestN = nIdx;
-        }
-      }
-
-      if (bestN != -1 && bestScore > currentScore * 1.1f) {
-        float migrants = myPop * 0.5f;
-        if (b.cultureID[bestN] == -1) {
-          b.cultureID[bestN] = myID;
-          b.population[bestN] = 0;
-        }
-        b.population[bestN] += (uint32_t)migrants;
-        myPop -= migrants;
-      }
-    }
-
-    // 3. REPRODUCTION (Plants)
-    if (dna.type == AgentType::FLORA && myPop > 200.0f) {
-      if (rand() % 100 < (dna.expansionRate * 100)) {
-        int offset = g.offsetTable[i];
-        int count = g.countTable[i];
-        int nIdx = g.neighborData[offset + (rand() % count)];
-
-        if (b.cultureID[nIdx] == -1 && CalculateDesire(nIdx, dna, b) > 0.5f) {
-          b.cultureID[nIdx] = myID;
-          b.population[nIdx] = 10;
-        }
-      }
-    }
-
-    // Write back population
-    b.population[i] = (uint32_t)myPop;
   }
 }
 
-// Stub wrappers from main.cpp might need this signature
-void UpdateBiology(WorldBuffers &b, const WorldSettings &s) {
-  // Needs graph? UpdateBiology in main called as:
-  // AgentSystem::UpdateBiology(buffers, settings); But logic needs Graph. I
-  // cannot change main.cpp signature easily without verify. Main.cpp:
-  // AgentSystem::UpdateBiology(buffers, settings); BUT my Update takes Graph.
-  // Wait, main.cpp call:
-  // AgentSystem::UpdateBiology(buffers, settings);
-  // And: AgentSystem::UpdateCivilization(buffers, graph);
-
-  // Use Global Graph? No.
-  // I should just implement UpdateBiology to call Update if I can get graph?
-  // Or change main?
-  // For now, let's keep it compiling.
-  // Real fix: Pass graph to UpdateBiology in main.
-}
-
-// Required by GuiController
+// --- UTILS ---
 void SpawnCivilization(WorldBuffers &b, int count) {
-  // Find a Civ agent
   int civID = -1;
   for (const auto &a : AssetManager::agentRegistry) {
     if (a.type == AgentType::CIVILIZED) {
@@ -195,16 +205,10 @@ void SpawnCivilization(WorldBuffers &b, int count) {
     if (b.height[idx] > 0.2f && b.cultureID[idx] == -1) {
       b.cultureID[idx] = civID;
       b.population[idx] = 1000;
-      b.civTier[idx] = 1; // Tribe
+      b.civTier[idx] = 1;
       LoreScribeNS::LogEvent(0, "SPAWN", idx, "A new civilization appears.");
     }
   }
 }
 
-// Correct Signature Wrapper
-void UpdateCivilization(WorldBuffers &b, const NeighborGraph &g) {
-  // Using unified Update for now, or Split?
-  // Let's call Update(b, g) here to run logic?
-  Update(b, g);
-}
 } // namespace AgentSystem

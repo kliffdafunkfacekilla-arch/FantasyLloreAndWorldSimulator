@@ -5,13 +5,16 @@
 // --- LoreScribe Namespace Implementation ---
 namespace LoreScribeNS {
 
-std::ofstream historyFile;
+static LoreScribe globalScribe;
+static std::ofstream historyFile;
 int currentYear = 0;
 
 void Initialize() {
-  historyFile.open("bin/world_history.csv");
+  globalScribe.Initialize(SagaConfig::DATA_HUB + "world_history.csv");
+  std::string fullPath = SagaConfig::DATA_HUB + "world_history.csv";
+  historyFile.open(fullPath);
   historyFile << "Year,Tick,Type,LocationID,Description\n";
-  std::cout << "[LORE] History book opened.\n";
+  std::cout << "[LORE] History book opened at Global Hub: " << fullPath << "\n";
 }
 
 void LogEvent(int tick, const std::string &type, int location,
@@ -25,6 +28,10 @@ void LogEvent(int tick, const std::string &type, int location,
   }
 }
 
+void LogJsonEvent(const std::string &type, const nlohmann::json &data) {
+  globalScribe.RecordJSONEvent(type, data);
+}
+
 void Close() {
   if (historyFile.is_open())
     historyFile.close();
@@ -34,14 +41,17 @@ void Close() {
 
 // --- LoreScribe Class Implementation (Legacy) ---
 void LoreScribe::Initialize(std::string filename) {
+  // Overriding filename with Global Hub path for cross-repo sync
+  std::string fullPath = SagaConfig::DATA_HUB + "world_history.csv";
   // Open in Append mode so we don't wipe history on restart
-  historyFile.open(filename, std::ios::app);
+  historyFile.open(fullPath, std::ios::app);
 
   // Write Header if file is empty/new
   if (historyFile.tellp() == 0) {
     historyFile << "Year,Month,Day,Category,CellID,Log\n";
   }
-  std::cout << "[IO] Lore Scribe initialized: " << filename << std::endl;
+  std::cout << "[IO] Lore Scribe initialized at Global Hub: " << fullPath
+            << std::endl;
 }
 
 void LoreScribe::RecordEvent(const ChronosConfig &time, std::string category,
@@ -63,6 +73,21 @@ void LoreScribe::RecordEvent(const ChronosConfig &time, std::string category,
   // Keep buffer small (last 50 events) to save RAM
   if (sessionLogs.size() > 50) {
     sessionLogs.erase(sessionLogs.begin());
+  }
+}
+
+void LoreScribe::RecordJSONEvent(const std::string &type,
+                                 const nlohmann::json &data) {
+  // Append to a shared world_events.json as a JSONL stream
+  std::ofstream eventFile(SagaConfig::DATA_HUB + "world_events.json",
+                          std::ios::app);
+  if (eventFile.is_open()) {
+    nlohmann::json event;
+    event["type"] = type;
+    event["data"] = data;
+    event["timestamp"] = "Y" + std::to_string(LoreScribeNS::currentYear);
+    eventFile << event.dump() << "\n";
+    eventFile.close();
   }
 }
 

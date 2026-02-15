@@ -3,6 +3,7 @@
 #include "../../deps/imgui/imgui.h"
 #include "../../include/AssetManager.hpp"
 #include "../../include/BinaryExporter.hpp"
+#include "../../include/SagaConfig.hpp"
 #include "../../include/Theme.hpp"
 #include "../../include/WorldEngine.hpp"
 #include "../../include/nlohmann/json.hpp"
@@ -49,6 +50,40 @@ ImVec2 GridToScreen(float x, float y, ImVec2 winPos, ImVec2 winSize) {
   return ImVec2(scrX, scrY);
 }
 
+// --- STRUCTURE RENDERER ---
+void DrawStructure(ImDrawList *drawList, ImVec2 pos, float size, uint8_t type) {
+  if (type == 0)
+    return;
+
+  if (type == 1) { // Road
+    ImVec2 p1 = ImVec2(pos.x + size * 0.2f, pos.y + size * 0.2f);
+    ImVec2 p2 = ImVec2(pos.x + size * 0.8f, pos.y + size * 0.8f);
+    drawList->AddRectFilled(p1, p2, IM_COL32(100, 100, 100, 180)); // Grey stone
+  } else if (type == 2) {                                          // Village
+    // Square base
+    ImVec2 b1 = ImVec2(pos.x + size * 0.2f, pos.y + size * 0.5f);
+    ImVec2 b2 = ImVec2(pos.x + size * 0.8f, pos.y + size * 0.9f);
+    drawList->AddRectFilled(b1, b2, IM_COL32(139, 69, 19, 255)); // Brown wood
+    // Triangle roof
+    ImVec2 t1 = ImVec2(pos.x + size * 0.15f, pos.y + size * 0.5f);
+    ImVec2 t2 = ImVec2(pos.x + size * 0.85f, pos.y + size * 0.5f);
+    ImVec2 t3 = ImVec2(pos.x + size * 0.5f, pos.y + size * 0.2f);
+    drawList->AddTriangleFilled(t1, t2, t3, IM_COL32(160, 82, 45, 255));
+  } else if (type == 3) { // City
+    // Main block
+    ImVec2 c1 = ImVec2(pos.x + size * 0.1f, pos.y + size * 0.3f);
+    ImVec2 c2 = ImVec2(pos.x + size * 0.9f, pos.y + size * 0.9f);
+    drawList->AddRectFilled(c1, c2, IM_COL32(120, 120, 120, 255)); // Stone grey
+    // Crenellations
+    float seg = size * 0.8f / 5.0f;
+    for (int k = 0; k < 5; k += 2) {
+      ImVec2 cr1 = ImVec2(c1.x + k * seg, pos.y + size * 0.15f);
+      ImVec2 cr2 = ImVec2(c1.x + (k + 1) * seg, c1.y);
+      drawList->AddRectFilled(cr1, cr2, IM_COL32(100, 100, 100, 255));
+    }
+  }
+}
+
 // --- TACTICAL RENDERER ---
 void DrawTacticalView(ImDrawList *drawList, ImVec2 winPos, ImVec2 winSize) {
   int side = 1000;
@@ -73,46 +108,80 @@ void DrawTacticalView(ImDrawList *drawList, ImVec2 winPos, ImVec2 winSize) {
     for (int x = startX; x < endX; ++x) {
       int i = y * side + x;
       int agentID = buffers.agentID[i];
+      uint8_t structType =
+          buffers.structureType ? buffers.structureType[i] : (uint8_t)0;
 
       // Skip empty land
-      if (agentID == -1)
+      if (agentID == -1 && structType == 0)
         continue;
 
-      // Get Screen Position of this cell
+      // Project to Screen
       float uvX = (float)x / side;
       float uvY = (float)y / side;
-
-      // Project to Screen
       float scrX =
           winPos.x + ((uvX - camX) * zoom * winSize.x) + (winSize.x * 0.5f);
       float scrY =
           winPos.y + ((uvY - camY) * zoom * winSize.x) + (winSize.y * 0.5f);
       float cellSize = (zoom * winSize.x) / side;
 
-      // 3. RENDER SOLDIERS
-      int soldierCount = (int)(buffers.agentStrength[i] / 50.0f);
-      soldierCount = std::min(soldierCount, 10); // Max 10 dots per cell
+      // 3. RENDER STRUCTURES
+      if (structType > 0) {
+        DrawStructure(drawList, ImVec2(scrX, scrY), cellSize, structType);
+      }
 
-      ImU32 color = IM_COL32(200, 200, 200, 255);
+      // 4. RENDER AGENTS/ARMIES
+      if (agentID != -1) {
+        int soldierCount = (int)(buffers.agentStrength[i] / 50.0f);
+        soldierCount =
+            std::clamp(soldierCount, 1, 15); // Scale with zoom later?
 
-      for (const auto &def : AssetManager::agentRegistry) {
-        if (def.id == agentID) {
-          color = IM_COL32((int)(def.color[0] * 255), (int)(def.color[1] * 255),
-                           (int)(def.color[2] * 255), 255);
-          break;
+        ImU32 color = IM_COL32(200, 200, 200, 255);
+        for (const auto &def : AssetManager::agentRegistry) {
+          if (def.id == agentID) {
+            color =
+                IM_COL32((int)(def.color[0] * 255), (int)(def.color[1] * 255),
+                         (int)(def.color[2] * 255), 255);
+            break;
+          }
+        }
+
+        for (int k = 0; k < soldierCount; ++k) {
+          float offX = (float)((i * k * 1321) % 100) / 100.0f * cellSize;
+          float offY = (float)((i * k * 3121) % 100) / 100.0f * cellSize;
+
+          float time = (float)ImGui::GetTime();
+          offX += sin(time * 10 + k) * (cellSize * 0.1f);
+          offY += cos(time * 10 + k) * (cellSize * 0.1f);
+
+          // Render as triangles (units) instead of circles
+          ImVec2 p1 = ImVec2(scrX + offX, scrY + offY - cellSize * 0.1f);
+          ImVec2 p2 = ImVec2(scrX + offX - cellSize * 0.08f,
+                             scrY + offY + cellSize * 0.08f);
+          ImVec2 p3 = ImVec2(scrX + offX + cellSize * 0.08f,
+                             scrY + offY + cellSize * 0.08f);
+          drawList->AddTriangleFilled(p1, p2, p3, color);
         }
       }
 
-      for (int k = 0; k < soldierCount; ++k) {
-        float offX = (float)((i * k * 1321) % 100) / 100.0f * cellSize;
-        float offY = (float)((i * k * 3121) % 100) / 100.0f * cellSize;
+      // 5. DATA OVERLAYS (High Zoom)
+      if (zoom > 15.0f && agentID != -1) {
+        // Health Bar (Strength)
+        float strengthPercent =
+            std::clamp(buffers.agentStrength[i] / 1000.0f, 0.0f, 1.0f);
+        ImVec2 barStart = ImVec2(scrX, scrY - cellSize * 0.2f);
+        ImVec2 barEnd = ImVec2(scrX + cellSize, scrY - cellSize * 0.1f);
+        drawList->AddRectFilled(barStart, barEnd, IM_COL32(50, 50, 50, 200));
+        drawList->AddRectFilled(
+            barStart, ImVec2(barStart.x + cellSize * strengthPercent, barEnd.y),
+            IM_COL32(0, 255, 0, 255));
 
-        float time = (float)ImGui::GetTime();
-        offX += sin(time * 10 + k) * (cellSize * 0.1f);
-        offY += cos(time * 10 + k) * (cellSize * 0.1f);
-
-        drawList->AddCircleFilled(ImVec2(scrX + offX, scrY + offY),
-                                  cellSize * 0.15f, color);
+        if (zoom > 30.0f) {
+          char coords[32];
+          sprintf(coords, "%d,%d", x, y);
+          drawList->AddText(NULL, cellSize * 0.3f,
+                            ImVec2(scrX, scrY + cellSize),
+                            IM_COL32(255, 255, 255, 150), coords);
+        }
       }
     }
   }
@@ -275,7 +344,8 @@ void UpdateTexture() {
 }
 
 void LoadFrame(int year) {
-  std::string path = "data/history/year_" + std::to_string(year) + ".map";
+  std::string path =
+      SagaConfig::DATA_HUB + "history/year_" + std::to_string(year) + ".map";
   if (BinaryExporter::LoadWorld(buffers, path)) {
     UpdateTexture();
   }
@@ -299,12 +369,13 @@ void DrawUI() {
   ImGui::Separator();
   if (ImGui::Checkbox("Show Campaign Overlay", &showCampaign)) {
     if (showCampaign) {
-      std::ifstream f("data/current_campaign.json");
+      std::ifstream f(SagaConfig::DATA_HUB + "current_campaign.json");
       if (f.is_open()) {
         f >> campaignData;
         std::cout << "[LOG] Loaded campaign data.\n";
       } else {
-        std::cout << "[ERROR] Could not find data/current_campaign.json\n";
+        std::cout << "[ERROR] Could not find " << SagaConfig::DATA_HUB
+                  << "current_campaign.json\n";
         showCampaign = false;
       }
     }
@@ -329,8 +400,8 @@ int main(int, char **) {
   buffers.Initialize(1000000);
   AssetManager::Initialize();
 
-  while (
-      fs::exists("data/history/year_" + std::to_string(maxYear + 1) + ".map"))
+  while (fs::exists(SagaConfig::DATA_HUB + "history/year_" +
+                    std::to_string(maxYear + 1) + ".map"))
     maxYear++;
   LoadFrame(0);
 
@@ -351,9 +422,11 @@ int main(int, char **) {
     ImGuiIO &io = ImGui::GetIO();
     if (!io.WantCaptureMouse) {
       if (io.MouseWheel != 0) {
-        zoom += io.MouseWheel * 0.5f;
+        zoom += io.MouseWheel * 1.5f;
         if (zoom < 0.1f)
           zoom = 0.1f;
+        if (zoom > 50.0f)
+          zoom = 50.0f;
       }
       if (ImGui::IsMouseDragging(0)) {
         camX -= io.MouseDelta.x / (1000.0f * zoom);

@@ -1,10 +1,15 @@
 #include "../../include/AssetManager.hpp"
+#include "../../include/Lore.hpp"
+#include "../../include/SagaConfig.hpp"
 #include "../../include/SimulationModules.hpp"
+#include "../../include/nlohmann/json.hpp"
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+
+using json = nlohmann::json;
 
 namespace AssetManager {
 std::vector<PointOfInterest> poiList;
@@ -42,7 +47,6 @@ void Initialize() {
 
   // Default Biomes
   if (biomeRegistry.empty()) {
-    // ID, Name, Color[3], MinT, MaxT, MinM, MaxM, MinH, MaxH, Scarcity
     biomeRegistry.push_back({0,
                              "Deep Ocean",
                              {0.0f, 0.0f, 0.4f},
@@ -53,24 +57,16 @@ void Initialize() {
                              -1.0f,
                              0.3f,
                              0.0f});
-    biomeRegistry.push_back(
-        {1,
-         "Ocean",
-         {0.0f, 0.2f, 0.6f},
-         -1.0f,
-         2.0f,
-         -1.0f,
-         2.0f,
-         0.3f,
-         0.5f,
-         0.0f}); // Sea Level is usually ~0.5 in shader logic? need to check.
-    // Actually SeaLevel in settings is usually 0.0?
-    // Lets check MapRenderer logic. "if (h < s.seaLevel)".
-    // Default seaLevel is usually around 0.0.
-    // So Deep Ocean: -1.0 to -0.5
-    // Ocean: -0.5 to 0.0
-
-    // Land Biomes
+    biomeRegistry.push_back({1,
+                             "Ocean",
+                             {0.0f, 0.2f, 0.6f},
+                             -1.0f,
+                             2.0f,
+                             -1.0f,
+                             2.0f,
+                             0.3f,
+                             0.5f,
+                             0.0f});
     biomeRegistry.push_back({2,
                              "Beach",
                              {0.8f, 0.7f, 0.5f},
@@ -81,7 +77,6 @@ void Initialize() {
                              0.0f,
                              0.05f,
                              0.0f});
-
     biomeRegistry.push_back({3,
                              "Scorched",
                              {0.3f, 0.1f, 0.1f},
@@ -122,7 +117,6 @@ void Initialize() {
                              0.05f,
                              0.8f,
                              0.0f});
-
     biomeRegistry.push_back({7,
                              "Grassland",
                              {0.3f, 0.7f, 0.2f},
@@ -153,7 +147,6 @@ void Initialize() {
                              0.05f,
                              0.8f,
                              0.0f});
-
     biomeRegistry.push_back({10,
                              "Taiga",
                              {0.2f, 0.4f, 0.4f},
@@ -184,7 +177,6 @@ void Initialize() {
                              0.05f,
                              1.0f,
                              0.0f});
-
     biomeRegistry.push_back({13,
                              "Mountain",
                              {0.4f, 0.4f, 0.4f},
@@ -194,10 +186,10 @@ void Initialize() {
                              1.0f,
                              0.7f,
                              1.0f,
-                             0.2f}); // High elevation overrides others usually
+                             0.2f});
   }
 
-  // Default Agents (Synced with AgentSystem)
+  // Default Agents
   if (agentRegistry.empty()) {
     AgentDefinition human;
     human.id = 0;
@@ -210,45 +202,88 @@ void Initialize() {
     human.resilience = 0.3f;
     human.expansionRate = 0.05f;
     human.aggression = 0.5f;
-    human.diet[0] = 1.0f;   // Eat Food
-    human.output[1] = 0.1f; // Produce Wood (Logging)
+    human.diet[0] = 1.0f;
+    human.output[1] = 0.1f;
     agentRegistry.push_back(human);
-
-    AgentDefinition elk;
-    elk.id = 1;
-    elk.name = "Elk";
-    elk.type = AgentType::FAUNA;
-    elk.color[0] = 0.6f;
-    elk.color[1] = 0.4f;
-    elk.color[2] = 0.2f;
-    elk.idealTemp = 0.4f;
-    elk.resilience = 0.2f;
-    elk.expansionRate = 0.1f;
-    elk.aggression = 0.0f;
-    elk.diet[3] = 1.0f; // Eat Grass (Resource 3?) Need to check Resource IDs
-    // Default Resources: 0=Food, 1=Wood, 2=Iron, 3=Gold.
-    // Wait, let's make Grass/Foliage a resource if needed, or just Food (0).
-    elk.diet[0] = 0.5f;
-    elk.output[0] = 0.5f; // Meat?
-    agentRegistry.push_back(elk);
-
-    AgentDefinition grass;
-    grass.id = 2;
-    grass.name = "Grass";
-    grass.type = AgentType::FLORA;
-    grass.color[0] = 0.2f;
-    grass.color[1] = 0.8f;
-    grass.color[2] = 0.2f;
-    grass.idealTemp = 0.5f;
-    grass.resilience = 0.4f;
-    grass.expansionRate = 0.2f;
-    grass.output[0] = 1.0f; // Produce Food
-    agentRegistry.push_back(grass);
   }
+
+  SyncWithLore();
 
   std::cout << "[ASSETS] Initialized with " << resourceRegistry.size()
             << " resources, " << chaosRules.size() << " chaos rules, "
             << agentRegistry.size() << " agents.\n";
+}
+
+void SyncWithLore() {
+  std::cout << "[SYNC] Merging Lore DB with Rules Asset Registry...\n";
+
+  // 1. Sync Resources (Promotion)
+  for (auto &article : LoreManager::wikiDB) {
+    if (article.isResource) {
+      // Check if already in registry by name
+      bool exists = false;
+      for (auto &res : resourceRegistry) {
+        if (res.name == article.title) {
+          exists = true;
+          break;
+        }
+      }
+
+      if (!exists && resourceRegistry.size() < WorldBuffers::MAX_RESOURCES) {
+        ResourceDef nr;
+        nr.id = (int)resourceRegistry.size();
+        nr.name = article.title;
+        nr.value = 1.0f;
+        nr.isRenewable = true;
+        nr.scarcity = 0.5f;
+        nr.spawnsInForest = true; // Defaults
+        nr.spawnsInMountain = false;
+        nr.spawnsInDesert = false;
+        nr.spawnsInOcean = false;
+        resourceRegistry.push_back(nr);
+        std::cout << "[SYNC] Promoted Lore Resource: " << nr.name
+                  << " (SimID: " << nr.id << ")\n";
+      }
+    }
+  }
+
+  // 2. Sync Agents
+  for (auto &article : LoreManager::wikiDB) {
+    if (article.isAgent) {
+      bool exists = false;
+      for (auto &ag : agentRegistry) {
+        if (ag.name == article.title) {
+          exists = true;
+          break;
+        }
+      }
+
+      if (!exists) {
+        AgentDefinition nag;
+        nag.id = (int)agentRegistry.size();
+        nag.name = article.title;
+        nag.type = article.agentType;
+        nag.color[0] = 0.5f;
+        nag.color[1] = 0.5f;
+        nag.color[2] = 0.5f;
+        nag.idealTemp =
+            article.minTemp + (article.maxTemp - article.minTemp) * 0.5f;
+        nag.idealMoisture = article.minMoisture +
+                            (article.maxMoisture - article.minMoisture) * 0.5f;
+        nag.deadlyTempLow = article.minTemp - 0.2f;
+        nag.deadlyTempHigh = article.maxTemp + 0.2f;
+        nag.deadlyMoistureLow = article.minMoisture - 0.2f;
+        nag.deadlyMoistureHigh = article.maxMoisture + 0.2f;
+        nag.resilience = 0.5f;
+        nag.expansionRate = article.expansion;
+        nag.aggression = article.aggression;
+        nag.foodRequirement = 1.0f;
+        agentRegistry.push_back(nag);
+        std::cout << "[SYNC] Mirrored Lore Agent: " << nag.name
+                  << " (ID: " << nag.id << ")\n";
+      }
+    }
+  }
 }
 
 void RegisterCity(int location, int faction, int year) {
@@ -259,7 +294,6 @@ void RegisterCity(int location, int faction, int year) {
   c.population = 1000;
   c.yearFounded = year;
   c.name = NameGenerator::GenerateCityName();
-
   cityRegistry.push_back(c);
 
   std::string msg = "The city of " + c.name + " has been founded.";
@@ -269,142 +303,202 @@ void RegisterCity(int location, int faction, int year) {
 
 void LoadAll(const std::string &path) {
   std::ifstream f(path);
-  if (!f.is_open()) {
-    std::cout << "[ASSETS] No rules.json found, using defaults.\n";
+  if (!f.is_open())
     return;
-  }
 
-  std::cout << "[ASSETS] Loading rules from " << path << "\n";
+  try {
+    json j;
+    f >> j;
 
-  // Simple line-by-line parsing (avoiding json.hpp dependency for now)
-  // Full JSON parsing can be added later with nlohmann/json
-  std::string line;
-  while (std::getline(f, line)) {
-    // Basic parsing can be implemented here
+    if (j.contains("resources")) {
+      resourceRegistry.clear();
+      for (auto &item : j["resources"]) {
+        ResourceDef r;
+        r.id = item.value("id", (int)resourceRegistry.size());
+        r.name = item.value("name", "Unknown");
+        r.value = item.value("value", 1.0f);
+        r.isRenewable = item.value("renewable", true);
+        r.scarcity = item.value("scarcity", 0.5f);
+        if (item.contains("biomes")) {
+          r.spawnsInForest = item["biomes"].value("forest", false);
+          r.spawnsInMountain = item["biomes"].value("mountain", false);
+          r.spawnsInDesert = item["biomes"].value("desert", false);
+          r.spawnsInOcean = item["biomes"].value("ocean", false);
+        }
+        resourceRegistry.push_back(r);
+      }
+    }
+
+    if (j.contains("chaos")) {
+      chaosRules.clear();
+      for (auto &item : j["chaos"]) {
+        ChaosRule c;
+        c.name = item.value("name", "Unknown");
+        c.effectType = (ChaosEffect)item.value("type", 0);
+        c.probability = item.value("chance", 0.01f);
+        c.severity = item.value("severity", 0.1f);
+        c.minChaosLevel = item.value("threshold", 0.5f);
+        chaosRules.push_back(c);
+      }
+    }
+
+    if (j.contains("agents")) {
+      agentRegistry.clear();
+      for (auto &item : j["agents"]) {
+        AgentDefinition a;
+        a.id = item.value("id", (int)agentRegistry.size());
+        a.name = item.value("name", "Unknown");
+        a.type = (AgentType)item.value("type", 0);
+        a.idealTemp = item.value("idealTemp", 0.5f);
+        a.idealMoisture = item.value("idealMoisture", 0.5f);
+        a.resilience = item.value("resilience", 0.2f);
+        a.deadlyTempLow = item.value("minTemp", 0.0f);
+        a.deadlyTempHigh = item.value("maxTemp", 1.0f);
+        a.deadlyMoistureLow = item.value("minMoist", 0.0f);
+        a.deadlyMoistureHigh = item.value("maxMoist", 1.0f);
+        a.expansionRate = item.value("expansion", 0.1f);
+        a.aggression = item.value("aggression", 0.1f);
+        a.foodRequirement = item.value("food", 1.0f);
+
+        if (item.contains("diet")) {
+          for (auto &[key, val] : item["diet"].items())
+            a.diet[std::stoi(key)] = val.get<float>();
+        }
+        if (item.contains("output")) {
+          for (auto &[key, val] : item["output"].items())
+            a.output[std::stoi(key)] = val.get<float>();
+        }
+
+        if (item.contains("color") && item["color"].is_array()) {
+          a.color[0] = item["color"][0];
+          a.color[1] = item["color"][1];
+          a.color[2] = item["color"][2];
+        }
+        agentRegistry.push_back(a);
+      }
+    }
+
+    if (j.contains("biomes")) {
+      biomeRegistry.clear();
+      for (auto &item : j["biomes"]) {
+        BiomeDef b;
+        b.id = item.value("id", (int)biomeRegistry.size());
+        b.name = item.value("name", "Unknown");
+        if (item.contains("color") && item["color"].is_array()) {
+          b.color[0] = item["color"][0];
+          b.color[1] = item["color"][1];
+          b.color[2] = item["color"][2];
+        }
+        b.minTemp = item.value("minTemp", -1.0f);
+        b.maxTemp = item.value("maxTemp", 1.0f);
+        b.minMoisture = item.value("minMoisture", -1.0f);
+        b.maxMoisture = item.value("maxMoisture", 1.0f);
+        b.minHeight = item.value("minHeight", -1.0f);
+        b.maxHeight = item.value("maxHeight", 1.0f);
+        b.scarcity = item.value("scarcity", 0.0f);
+        biomeRegistry.push_back(b);
+      }
+    }
+
+    std::cout << "[ASSETS] Successfully loaded rules from " << path << "\n";
+  } catch (const std::exception &e) {
+    std::cerr << "[ASSETS] JSON Error during LoadAll: " << e.what() << "\n";
   }
-  f.close();
 }
 
 void SaveAll(const std::string &path) {
+  json j;
+  for (const auto &r : resourceRegistry) {
+    json res;
+    res["id"] = r.id;
+    res["name"] = r.name;
+    res["value"] = r.value;
+    res["renewable"] = r.isRenewable;
+    res["scarcity"] = r.scarcity;
+    res["biomes"] = {{"forest", r.spawnsInForest},
+                     {"mountain", r.spawnsInMountain},
+                     {"desert", r.spawnsInDesert},
+                     {"ocean", r.spawnsInOcean}};
+    j["resources"].push_back(res);
+  }
+  for (const auto &c : chaosRules) {
+    json ch;
+    ch["name"] = c.name;
+    ch["type"] = (int)c.effectType;
+    ch["chance"] = c.probability;
+    ch["severity"] = c.severity;
+    ch["threshold"] = c.minChaosLevel;
+    j["chaos"].push_back(ch);
+  }
+  for (const auto &a : agentRegistry) {
+    json ag;
+    ag["id"] = a.id;
+    ag["name"] = a.name;
+    ag["type"] = (int)a.type;
+    ag["idealTemp"] = a.idealTemp;
+    ag["idealMoist"] = a.idealMoisture;
+    ag["resilience"] = a.resilience;
+    ag["minTemp"] = a.deadlyTempLow;
+    ag["maxTemp"] = a.deadlyTempHigh;
+    ag["minMoist"] = a.deadlyMoistureLow;
+    ag["maxMoist"] = a.deadlyMoistureHigh;
+    ag["expansion"] = a.expansionRate;
+    ag["aggression"] = a.aggression;
+    ag["food"] = a.foodRequirement;
+    ag["color"] = {a.color[0], a.color[1], a.color[2]};
+
+    json diet;
+    for (auto const &[rid, amt] : a.diet)
+      diet[std::to_string(rid)] = amt;
+    ag["diet"] = diet;
+    json output;
+    for (auto const &[rid, amt] : a.output)
+      output[std::to_string(rid)] = amt;
+    ag["output"] = output;
+
+    j["agents"].push_back(ag);
+  }
+  for (const auto &b : biomeRegistry) {
+    json bi;
+    bi["id"] = b.id;
+    bi["name"] = b.name;
+    bi["color"] = {b.color[0], b.color[1], b.color[2]};
+    bi["minTemp"] = b.minTemp;
+    bi["maxTemp"] = b.maxTemp;
+    bi["minMoisture"] = b.minMoisture;
+    bi["maxMoisture"] = b.maxMoisture;
+    bi["minHeight"] = b.minHeight;
+    bi["maxHeight"] = b.maxHeight;
+    bi["scarcity"] = b.scarcity;
+    j["biomes"].push_back(bi);
+  }
+
   std::ofstream o(path);
-  if (!o.is_open()) {
-    std::cout << "[ASSETS] Failed to save to " << path << "\n";
-    return;
+  if (o.is_open()) {
+    o << j.dump(4);
+    std::cout << "[ASSETS] Saved rules to " << path << "\n";
+  } else {
+    std::cerr << "[ASSETS] Failed to save to " << path << "\n";
   }
-
-  // Write simple JSON format
-  o << "{\n";
-
-  // Resources
-  o << "  \"resources\": [\n";
-  for (size_t i = 0; i < resourceRegistry.size(); ++i) {
-    const auto &r = resourceRegistry[i];
-    o << "    {";
-    o << "\"id\":" << r.id << ",";
-    o << "\"name\":\"" << r.name << "\",";
-    o << "\"value\":" << r.value << ",";
-    o << "\"renewable\":" << (r.isRenewable ? "true" : "false") << ",";
-    o << "\"scarcity\":" << r.scarcity << ",";
-    o << "\"biomes\":{";
-    o << "\"forest\":" << (r.spawnsInForest ? "true" : "false") << ",";
-    o << "\"mountain\":" << (r.spawnsInMountain ? "true" : "false") << ",";
-    o << "\"desert\":" << (r.spawnsInDesert ? "true" : "false") << ",";
-    o << "\"ocean\":" << (r.spawnsInOcean ? "true" : "false");
-    o << "}}";
-    if (i < resourceRegistry.size() - 1)
-      o << ",";
-    o << "\n";
-  }
-  o << "  ],\n";
-
-  // Chaos Rules
-  o << "  \"chaos\": [\n";
-  for (size_t i = 0; i < chaosRules.size(); ++i) {
-    const auto &c = chaosRules[i];
-    o << "    {";
-    o << "\"name\":\"" << c.name << "\",";
-    o << "\"type\":" << (int)c.effectType << ",";
-    o << "\"chance\":" << c.probability << ",";
-    o << "\"severity\":" << c.severity << ",";
-    o << "\"threshold\":" << c.minChaosLevel;
-    o << "}";
-    if (i < chaosRules.size() - 1)
-      o << ",";
-    o << "\n";
-  }
-  o << "  ],\n";
-
-  // Agents (Species)
-  o << "  \"agents\": [\n";
-  for (size_t i = 0; i < agentRegistry.size(); ++i) {
-    const auto &a = agentRegistry[i];
-    o << "    {";
-    o << "\"id\":" << a.id << ",";
-    o << "\"name\":\"" << a.name << "\",";
-    o << "\"type\":" << (int)a.type << ",";
-    o << "\"idealTemp\":" << a.idealTemp << ",";
-    o << "\"resilience\":" << a.resilience << ",";
-    o << "\"minTemp\":" << a.deadlyTempLow << ",";
-    o << "\"maxTemp\":" << a.deadlyTempHigh << ",";
-    o << "\"color\":[" << a.color[0] << "," << a.color[1] << "," << a.color[2]
-      << "]";
-    o << "}";
-    if (i < agentRegistry.size() - 1)
-      o << ",";
-    o << "\n";
-  }
-  o << "  ],\n";
-
-  // Biomes
-  o << "  \"biomes\": [\n";
-  for (size_t i = 0; i < biomeRegistry.size(); ++i) {
-    const auto &b = biomeRegistry[i];
-    o << "    {";
-    o << "\"id\":" << b.id << ",";
-    o << "\"name\":\"" << b.name << "\",";
-    o << "\"color\":[" << b.color[0] << "," << b.color[1] << "," << b.color[2]
-      << "],";
-    o << "\"minTemp\":" << b.minTemp << ",";
-    o << "\"maxTemp\":" << b.maxTemp << ",";
-    o << "\"minMoisture\":" << b.minMoisture << ",";
-    o << "\"maxMoisture\":" << b.maxMoisture << ",";
-    o << "\"minHeight\":" << b.minHeight << ",";
-    o << "\"maxHeight\":" << b.maxHeight << ",";
-    o << "\"scarcity\":" << b.scarcity;
-    o << "}";
-    if (i < biomeRegistry.size() - 1)
-      o << ",";
-    o << "\n";
-  }
-  o << "  ]\n";
-
-  o << "}\n";
-  o.close();
-
-  std::cout << "[ASSETS] Saved rules to " << path << "\n";
 }
 
 int GetResourceID(const std::string &name) {
-  for (const auto &r : resourceRegistry) {
+  for (const auto &r : resourceRegistry)
     if (r.name == name)
       return r.id;
-  }
   return -1;
 }
 
 ResourceDef *GetResource(int id) {
-  for (auto &r : resourceRegistry) {
+  for (auto &r : resourceRegistry)
     if (r.id == id)
       return &r;
-  }
   return nullptr;
 }
 
-// --- MOBILE UNITS ---
 std::vector<Unit> activeUnits;
 std::map<std::string, float> diplomacyMatrix;
 
-// Diplomacy key helper
 std::string GetDiplomacyKey(int a, int b) {
   if (a > b)
     std::swap(a, b);
@@ -429,22 +523,18 @@ void SpawnUnit(UnitType type, int faction, int startIdx, int targetIdx,
                int mapWidth) {
   if (startIdx < 0 || targetIdx < 0)
     return;
-
   Unit u;
   u.id = rand();
   u.type = type;
   u.factionID = faction;
   u.isAlive = true;
-
   u.x = (float)(startIdx % mapWidth);
   u.y = (float)(startIdx / mapWidth);
   u.targetX = targetIdx % mapWidth;
   u.targetY = targetIdx / mapWidth;
-
   u.resourceID = 0;
   u.resourceAmount = 0.0f;
   u.combatStrength = 10.0f;
-
   switch (type) {
   case UnitType::TRADER:
     u.speed = 1.0f;
@@ -459,14 +549,12 @@ void SpawnUnit(UnitType type, int faction, int startIdx, int targetIdx,
   default:
     u.speed = 0.5f;
   }
-
   activeUnits.push_back(u);
 }
 
 void CreateNewResource() {
   if (resourceRegistry.size() >= WorldBuffers::MAX_RESOURCES) {
-    std::cout << "[ASSETS] WARNING: Maximum resource limit ("
-              << WorldBuffers::MAX_RESOURCES << ") reached. Cannot add more.\n";
+    std::cout << "[ASSETS] Max resources reached.\n";
     return;
   }
   ResourceDef r;
@@ -491,46 +579,32 @@ void CreateNewAgent() {
   a.color[0] = 0.5f;
   a.color[1] = 0.5f;
   a.color[2] = 0.5f;
-
-  // Default biology
   a.idealTemp = 0.5f;
   a.idealMoisture = 0.5f;
   a.deadlyTempLow = 0.0f;
   a.deadlyTempHigh = 1.0f;
   a.deadlyMoistureLow = 0.0f;
   a.deadlyMoistureHigh = 1.0f;
-
-  // Default behavior
   a.resilience = 0.5f;
   a.expansionRate = 0.1f;
   a.aggression = 0.0f;
   a.foodRequirement = 1.0f;
-
   agentRegistry.push_back(a);
-  std::cout << "[ASSETS] Created new agent: " << a.name << " (ID: " << a.id
-            << ")" << std::endl;
+  std::cout << "[ASSETS] Created new agent: " << a.name << "\n";
 }
 
 void SaveSimulationState(const std::string &path, const WorldBuffers &buffers,
                          const WorldSettings &settings) {
   std::ofstream out(path, std::ios::binary);
-  if (!out.is_open()) {
-    std::cerr << "[ERROR] Could not open " << path << " for writing\n";
+  if (!out.is_open())
     return;
-  }
-
-  // Header: Magic + Version + Count
-  uint32_t magic = 0x004d4e53; // "OMNS"
+  uint32_t magic = 0x004d4e53;
   uint32_t version = 1;
   uint32_t count = buffers.count;
   out.write((char *)&magic, 4);
   out.write((char *)&version, 4);
   out.write((char *)&count, 4);
-
-  // Settings
   out.write((char *)&settings, sizeof(WorldSettings));
-
-  // Buffers
   auto saveArr = [&](float *ptr, size_t size) {
     if (ptr)
       out.write((char *)ptr, size);
@@ -543,7 +617,6 @@ void SaveSimulationState(const std::string &path, const WorldBuffers &buffers,
     if (ptr)
       out.write((char *)ptr, size);
   };
-
   saveArr(buffers.height, count * sizeof(float));
   saveArr(buffers.temperature, count * sizeof(float));
   saveArr(buffers.moisture, count * sizeof(float));
@@ -552,43 +625,26 @@ void SaveSimulationState(const std::string &path, const WorldBuffers &buffers,
   saveArrInt(buffers.cultureID, count * sizeof(int));
   saveArrInt(buffers.civTier, count * sizeof(int));
   saveArrInt(buffers.buildingID, count * sizeof(int));
-
-  if (buffers.resourceInventory) {
+  if (buffers.resourceInventory)
     out.write((char *)buffers.resourceInventory,
               count * WorldBuffers::MAX_RESOURCES * sizeof(float));
-  }
-
   std::cout << "[ASSETS] World State Saved: " << path << std::endl;
 }
 
 void LoadSimulationState(const std::string &path, WorldBuffers &buffers,
                          WorldSettings &settings) {
   std::ifstream in(path, std::ios::binary);
-  if (!in.is_open()) {
-    std::cerr << "[ERROR] Could not open " << path << " for reading\n";
+  if (!in.is_open())
     return;
-  }
-
   uint32_t magic, version, count;
   in.read((char *)&magic, 4);
   in.read((char *)&version, 4);
   in.read((char *)&count, 4);
-
-  if (magic != 0x004d4e53) {
-    std::cerr << "[ERROR] Invalid world file magic\n";
+  if (magic != 0x004d4e53)
     return;
-  }
-
-  // Resize buffers if mismatch
-  if (count != buffers.count) {
-    std::cout << "[ASSETS] Resizing buffers to match save: " << count << "\n";
+  if (count != buffers.count)
     buffers.Initialize(count);
-  }
-
-  // Settings
   in.read((char *)&settings, sizeof(WorldSettings));
-
-  // Buffers
   auto loadArr = [&](float *ptr, size_t size) {
     if (ptr)
       in.read((char *)ptr, size);
@@ -601,7 +657,6 @@ void LoadSimulationState(const std::string &path, WorldBuffers &buffers,
     if (ptr)
       in.read((char *)ptr, size);
   };
-
   loadArr(buffers.height, count * sizeof(float));
   loadArr(buffers.temperature, count * sizeof(float));
   loadArr(buffers.moisture, count * sizeof(float));
@@ -610,13 +665,24 @@ void LoadSimulationState(const std::string &path, WorldBuffers &buffers,
   loadArrInt(buffers.cultureID, count * sizeof(int));
   loadArrInt(buffers.civTier, count * sizeof(int));
   loadArrInt(buffers.buildingID, count * sizeof(int));
-
-  if (buffers.resourceInventory) {
+  if (buffers.resourceInventory)
     in.read((char *)buffers.resourceInventory,
             count * WorldBuffers::MAX_RESOURCES * sizeof(float));
-  }
-
   std::cout << "[ASSETS] World State Loaded: " << path << std::endl;
+}
+
+float GetTotalCellWealth(uint32_t cellIdx, const WorldBuffers &b) {
+  if (cellIdx >= b.count)
+    return 0.0f;
+  float total = 0.0f;
+  // Calculate value based on inventory * resource registry values
+  for (const auto &res : resourceRegistry) {
+    float amt = b.GetResource(cellIdx, res.id);
+    if (amt > 0.001f) {
+      total += amt * res.value;
+    }
+  }
+  return total;
 }
 
 } // namespace AssetManager
