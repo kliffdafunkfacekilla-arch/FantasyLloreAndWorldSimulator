@@ -1,0 +1,2 @@
+C:/msys64/mingw64/bin/ld: build\apps\App_Sim.o:App_Sim.cpp:(.text+0x1829): undefined reference to `LoreManager::Load(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)'
+clang++: error: linker command failed with exit code 1 (use -v to see invocation)

@@ -14,13 +14,17 @@ class DirectorAgent(SagaAgent):
         location = context.get('location', {})
         territory = context.get('territory', 'Unknown')
         danger = context.get('danger_level', 'Unknown')
+        economy = context.get('local_economy', {})
         
         scene_desc = f"LOCATION: {territory}\n"
         scene_desc += f"COORDINATES: {location.get('x')}, {location.get('y')}\n"
         scene_desc += f"STATUS: {danger}\n"
+        scene_desc += f"ECONOMY: Wealth {economy.get('wealth', 0.0):.1f} | Infra {economy.get('infra', 0.0):.2f}\n"
         
         landmark = context.get('nearest_landmark')
         if landmark:
-            scene_desc += f"NEARBY: {landmark['name']} ({landmark['distance_km']}km away)"
+            l_type = landmark.get('type', 'LANDMARK')
+            l_source = "LORE" if landmark.get('is_lore_site', True) else "EMERGENT"
+            scene_desc += f"NEARBY: {landmark['name']} [{l_type} | {l_source}] ({landmark['distance_km']}km away)"
             
         return scene_desc

@@ -9,6 +9,30 @@
 namespace AgentSystem {
 std::vector<AgentTemplate> speciesRegistry;
 
+void SpawnLife(WorldBuffers &b, int count) {
+  if (AssetManager::agentRegistry.empty())
+    return;
+
+  std::cout << "[SPAWN] Seeding " << count << " life points...\n";
+  for (int i = 0; i < count; ++i) {
+    int idx = rand() % b.count;
+    if (b.height[idx] > 0.3f && b.cultureID[idx] == -1) {
+      // Pick a random species from registry
+      int randSpecies = rand() % AssetManager::agentRegistry.size();
+      const auto &dna = AssetManager::agentRegistry[randSpecies];
+
+      // Simple bioclimatic sanity check (don't spawn polar bears in desert)
+      float t = b.temperature[idx];
+      float m = b.moisture[idx];
+      if (t >= dna.deadlyTempLow && t <= dna.deadlyTempHigh &&
+          m >= dna.deadlyMoistureLow && m <= dna.deadlyMoistureHigh) {
+        b.cultureID[idx] = dna.id;
+        b.population[idx] = (dna.type == AgentType::FLORA) ? 500 : 50;
+      }
+    }
+  }
+}
+
 // --- INITIALIZATION ---
 void Initialize() {
   // No specific initialization needed for now

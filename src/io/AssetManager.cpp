@@ -360,11 +360,11 @@ void LoadAll(const std::string &path) {
         a.aggression = item.value("aggression", 0.1f);
         a.foodRequirement = item.value("food", 1.0f);
 
-        if (item.contains("diet")) {
+        if (item.contains("diet") && !item["diet"].is_null()) {
           for (auto &[key, val] : item["diet"].items())
             a.diet[std::stoi(key)] = val.get<float>();
         }
-        if (item.contains("output")) {
+        if (item.contains("output") && !item["output"].is_null()) {
           for (auto &[key, val] : item["output"].items())
             a.output[std::stoi(key)] = val.get<float>();
         }

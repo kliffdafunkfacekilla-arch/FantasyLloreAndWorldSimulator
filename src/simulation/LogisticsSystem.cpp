@@ -9,24 +9,39 @@ void Update(WorldBuffers &b, const NeighborGraph &g) {
   if (!b.wealth || !b.infrastructure || !g.neighborData)
     return;
 
-  // 1. PRODUCTION (Resources generate based on biomes)
+  // 1. BIOME-BASED HARVESTING AND PRODUCTION
   for (uint32_t i = 0; i < b.count; ++i) {
     float h = b.height[i];
-    float t = b.temperature ? b.temperature[i] : 0.5f;
-    float m = b.moisture ? b.moisture[i] : 0.5f;
-    float pop = b.population ? (float)b.population[i] : 0.0f;
+    float pop = (float)b.population[i];
 
     if (h < 0.4f)
       continue; // Ocean produces nothing (yet)
 
-    // 1. PRODUCTION (Derived from actual resource value)
-    float production =
-        AssetManager::GetTotalCellWealth(i, b) * 0.1f; // 10% liquidity rate
+    // 1a. BIOME-BASED HARVESTING (Raw Resource Generation)
+    if (pop > 0.0f) {
+      float workForce = pop / 1000.0f;          // Scaling factor
+      int biome = b.biomeID ? b.biomeID[i] : 7; // Default Grassland
 
-    // Add to cell wealth
+      // Grasslands/Forests produce Food (ID 0)
+      if (biome == 7 || biome == 8 || biome == 5 || biome == 6) {
+        b.AddResource(i, 0, 1.0f * workForce);
+      }
+      // Forests/Rainforests produce Wood (ID 1)
+      if (biome == 8 || biome == 9 || biome == 6 || biome == 10) {
+        b.AddResource(i, 1, 0.5f * workForce);
+      }
+      // Mountains/Hills produce Iron/Stone (ID 2)
+      if (biome == 13 || h > 0.7f) {
+        b.AddResource(i, 2, 0.3f * workForce);
+      }
+    }
+
+    // 2. WEALTH CALCULATION (Legacy Buffer Liquidity)
+    float currentAssetWealth = AssetManager::GetTotalCellWealth(i, b);
+    float production = currentAssetWealth * 0.1f; // 10% liquidity rate
     b.wealth[i] += production;
 
-    // 2. CONSUMPTION
+    // 2b. CONSUMPTION
     // Population eats wealth
     float consumption = pop * 0.01f;
     b.wealth[i] = std::max(0.0f, b.wealth[i] - consumption);

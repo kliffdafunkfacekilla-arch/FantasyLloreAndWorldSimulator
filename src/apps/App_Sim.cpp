@@ -115,8 +115,8 @@ int main() {
   // 2. Load Simulation State
   std::cout << "[LOG] Loading S.A.G.A. Rules (" << SagaConfig::RULES_JSON
             << ")...\n";
-  AssetManager::Initialize();
   LoreManager::Load();
+  AssetManager::Initialize();
 
   // 2.5 Prepare History Folder
   std::string historyPath = SagaConfig::DATA_HUB + "history";
@@ -137,7 +137,21 @@ int main() {
   finder.BuildGraph(buffers, buffers.count, graph);
 
   LoreScribeNS::Initialize();
-  std::cout << "[LOG] Engine Hot and Ready.\n\n";
+  std::cout << "[LOG] Engine Hot and Ready. Seeding world...\n";
+  AgentSystem::SpawnLife(buffers, 2000);       // 2000 flora/fauna nodes
+  AgentSystem::SpawnCivilization(buffers, 25); // 25 starting civilizations
+
+  // Jumpstart Economy: Give every cell some starting food/wood/stone
+  for (uint32_t i = 0; i < buffers.count; ++i) {
+    if (buffers.population[i] > 100) {
+      buffers.AddResource(i, 0, 500.0f); // Food
+      buffers.AddResource(i, 1, 200.0f); // Wood
+      buffers.AddResource(i, 2, 50.0f);  // Iron/Stone
+      buffers.wealth[i] = 1000.0f;       // Starting liquidity
+    }
+  }
+  std::cout << "[LOG] Seeding complete and economy jumpstarted. Entering "
+               "simulation loop.\n\n";
 
   // 3. Simulation Loop
   int totalYears = 100; // Historical Simulation Run
@@ -149,6 +163,7 @@ int main() {
   clock_t start = clock();
 
   for (int year = 1; year <= totalYears; ++year) {
+    LoreScribeNS::currentYear = year;
     ApplyWorldEdits(buffers, SagaConfig::DATA_HUB + "world_edits.json");
 
     for (int month = 1; month <= ticksPerYear; ++month) {
@@ -156,6 +171,9 @@ int main() {
       HydrologySim::Update(buffers, graph, settings);
 
       AgentSystem::UpdateBiology(buffers, graph, settings);
+      LogisticsSystem::Update(buffers, graph);
+      ConflictSystem::Update(buffers, graph, settings);
+
       if (settings.enableFactions)
         AgentSystem::UpdateCivilization(buffers, graph);
       if (settings.enableConflict)

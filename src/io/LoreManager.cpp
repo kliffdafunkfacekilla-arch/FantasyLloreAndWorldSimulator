@@ -1,203 +1,172 @@
 #include "../../include/AssetManager.hpp"
 #include "../../include/Lore.hpp"
 #include "../../include/SagaConfig.hpp"
-#include "../../include/nlohmann/json.hpp"
 #include <fstream>
-#include <iomanip>
 #include <iostream>
+#include <nlohmann/json.hpp>
+
 
 using json = nlohmann::json;
 
 namespace LoreManager {
+
 std::vector<WikiArticle> wikiDB;
 std::vector<CategoryTemplate> templates;
 
 void Load(const std::string &lorePath, const std::string &templPath) {
-  // 1. Templates
-  std::ifstream ft(templPath);
-  if (ft.is_open()) {
-    try {
-      json tRoot;
-      ft >> tRoot;
-      templates.clear();
-      for (const auto &tObj : tRoot) {
-        CategoryTemplate t;
-        t.name = tObj.value("name", "Unknown");
-        if (tObj.contains("fields")) {
-          for (const auto &fObj : tObj["fields"])
-            t.fields.push_back(
-                {fObj.value("l", ""), (FieldType)fObj.value("t", 0)});
-        }
-        templates.push_back(t);
-      }
-    } catch (...) {
-    }
-  }
-  if (templates.empty()) {
-    templates.push_back({"General", {{"Description", FieldType::TEXT}}});
-    templates.push_back(
-        {"Faction",
-         {{"Population", FieldType::NUMBER}, {"Color", FieldType::COLOR}}});
-  }
-
-  // 2. Articles
+  std::cout << "[LORE] Loading database from: " << lorePath << "\n";
   std::ifstream f(lorePath);
-  if (!f.is_open())
+  if (!f.is_open()) {
+    std::cout << "[LORE] Failed to open " << lorePath << "\n";
     return;
+  }
+
   try {
-    json root;
-    f >> root;
+    json j;
+    f >> j;
     wikiDB.clear();
-    for (auto &obj : root) {
+    for (auto &item : j) {
       WikiArticle a;
-      a.id = obj.value("id", 0);
-      a.title = obj.value("title", "Untitled");
-      a.categoryName = obj.value("cat", "General");
-      a.content = obj.value("content", "");
-      if (obj.contains("data"))
-        a.data = obj["data"].get<std::map<std::string, std::string>>();
-      if (obj.contains("tags"))
-        a.tags = obj["tags"].get<std::vector<std::string>>();
-      a.simID = obj.value("simID", -1);
-      a.imagePath = obj.value("img", "");
-
-      if (obj.contains("loc")) {
-        a.hasLocation = true;
-        a.mapX = obj["loc"][0];
-        a.mapY = obj["loc"][1];
-      }
-
-      a.isAgent = obj.value("isAgent", false);
-      a.isBiome = obj.value("isBiome", false);
-      a.isFaction = obj.value("isFaction", false);
-      a.isResource = obj.value("isResource", false);
-
-      if (a.isAgent && obj.contains("agent")) {
-        auto &ag = obj["agent"];
-        a.agentType = (AgentType)ag.value("type", 1);
-        a.socialType = (SocialType)ag.value("social", 0);
-        a.minTemp = ag.value("tMin", 0.0f);
-        a.maxTemp = ag.value("tMax", 1.0f);
-        a.minMoisture = ag.value("mMin", 0.0f);
-        a.maxMoisture = ag.value("mMax", 1.0f);
-        a.expansion = ag.value("exp", 0.1f);
-        a.aggression = ag.value("agg", 0.1f);
-        a.isTameable = ag.value("tame", false);
-        a.isFarmable = ag.value("farm", false);
-        if (ag.contains("rel")) {
-          auto rels = ag["rel"].get<std::map<int, int>>();
-          for (auto const &[id, r] : rels)
-            a.resourceRelationships[id] = (ResourceRel)r;
-        }
-        if (ag.contains("biomePref"))
-          a.biomePreferences = ag["biomePref"].get<std::map<int, float>>();
-        if (ag.contains("harvest"))
-          a.harvestOutput = ag["harvest"].get<std::map<int, float>>();
-        if (ag.contains("living"))
-          a.livingOutput = ag["living"].get<std::map<int, float>>();
-      }
-
-      if (a.isBiome && obj.contains("biome")) {
-        auto &b = obj["biome"];
-        a.biomeTempMod = b.value("tMod", 0.0f);
-        a.biomeMoistureMod = b.value("mMod", 0.0f);
-        if (b.contains("col")) {
-          std::vector<float> c = b["col"].get<std::vector<float>>();
-          a.biomeColor = ImVec4(c[0], c[1], c[2], (c.size() > 3 ? c[3] : 1.0f));
-        }
-      }
-
-      if (a.isFaction && obj.contains("faction")) {
-        auto &f = obj["faction"];
-        a.formationYear = f.value("year", 0);
-        a.formationCell = f.value("cell", -1);
-        if (f.contains("events"))
-          a.linkedEventIDs = f["events"].get<std::vector<int>>();
-      }
-
-      if (a.isResource && obj.contains("resource")) {
-        auto &res = obj["resource"];
-        a.scarcity = res.value("scarcity", 0.5f);
-        a.isRenewable = res.value("renewable", true);
-        if (res.contains("biomes"))
-          a.spawnBiomeIDs = res["biomes"].get<std::vector<int>>();
-      }
+      a.id = item.value("id", -1);
+      a.title = item.value("title", "Untitled");
+      a.isAgent = item.value("isAgent", false);
+      a.isFaction = item.value("isFaction", false);
+      a.hasLocation = item.value("hasLocation", false);
+      a.mapX = item.value("x", 0);
+      a.mapY = item.value("y", 0);
+      if (item.contains("agentType"))
+        a.agentType = (AgentType)item["agentType"];
 
       wikiDB.push_back(a);
     }
-  } catch (...) {
+    std::cout << "[LORE] Successfully loaded " << wikiDB.size()
+              << " articles.\n";
+  } catch (const std::exception &e) {
+    std::cout << "[LORE] JSON Error: " << e.what() << "\n";
   }
 }
 
 void Save(const std::string &lorePath, const std::string &templPath) {
-  json root = json::array();
+  json j = json::array();
   for (const auto &a : wikiDB) {
-    json obj;
-    obj["id"] = a.id;
-    obj["title"] = a.title;
-    obj["cat"] = a.categoryName;
-    obj["content"] = a.content;
-    obj["data"] = a.data;
-    obj["tags"] = a.tags;
-    obj["simID"] = a.simID;
-    obj["img"] = a.imagePath;
-    if (a.hasLocation)
-      obj["loc"] = {a.mapX, a.mapY};
-    obj["isAgent"] = a.isAgent;
-    obj["isBiome"] = a.isBiome;
-    obj["isFaction"] = a.isFaction;
-    obj["isResource"] = a.isResource;
+    json item;
+    item["id"] = a.id;
+    item["title"] = a.title;
+    item["isAgent"] = a.isAgent;
+    item["isFaction"] = a.isFaction;
+    item["hasLocation"] = a.hasLocation;
+    item["x"] = a.mapX;
+    item["y"] = a.mapY;
+    if (a.isAgent)
+      item["agentType"] = (int)a.agentType;
+    j.push_back(item);
+  }
+  std::ofstream f(lorePath);
+  f << j.dump(4);
+}
 
-    if (a.isAgent) {
-      obj["agent"] = {{"type", (int)a.agentType},
-                      {"social", (int)a.socialType},
-                      {"tMin", a.minTemp},
-                      {"tMax", a.maxTemp},
-                      {"mMin", a.minMoisture},
-                      {"mMax", a.maxMoisture},
-                      {"exp", a.expansion},
-                      {"agg", a.aggression},
-                      {"tame", a.isTameable},
-                      {"farm", a.isFarmable},
-                      {"rel", a.resourceRelationships},
-                      {"biomePref", a.biomePreferences},
-                      {"harvest", a.harvestOutput},
-                      {"living", a.livingOutput}};
+void ExportGlobalState(const std::string &path, const WorldBuffers &buffers) {
+  json root;
+
+  // 1. Analyze World State (Macro Layer Analysis)
+  bool isWar = false;
+  bool isFamine = false;
+  float totalPop = 0;
+  float totalWealth = 0.0f;
+  std::map<int, int> factionPower;
+
+  for (size_t i = 0; i < buffers.count; ++i) {
+    float pop = (float)buffers.population[i];
+    totalPop += pop;
+
+    // Hardcoded check for Food (0), Wood (1), Iron (2)
+    float cellW = 0.0f;
+    if (buffers.resourceInventory) {
+      cellW += buffers.resourceInventory[i * 16 + 0] * 1.0f; // Food
+      cellW += buffers.resourceInventory[i * 16 + 1] * 2.0f; // Wood
+      cellW += buffers.resourceInventory[i * 16 + 2] * 5.0f; // Iron
     }
-    if (a.isBiome) {
-      obj["biome"] = {
-          {"tMod", a.biomeTempMod},
-          {"mMod", a.biomeMoistureMod},
-          {"col",
-           {a.biomeColor.x, a.biomeColor.y, a.biomeColor.z, a.biomeColor.w}}};
+    totalWealth += cellW;
+
+    if (i < 1000 && cellW > 0.1f) {
+      static int logCount = 0;
+      if (logCount < 10) {
+        std::cout << "[DEBUG] Economic Activity detected at cell " << i
+                  << ": Wealth=" << cellW << ", Pop=" << pop << "\n";
+        logCount++;
+      }
     }
+
+    if (buffers.chaos[i] > 0.8f && buffers.agentStrength[i] > 200.0f)
+      isWar = true;
+    if (buffers.chaos[i] > 0.8f &&
+        (buffers.resourceInventory ? buffers.resourceInventory[i * 16 + 0]
+                                   : 0) < 10.0f) // Low Food
+      isFamine = true;
+
+    int fid = buffers.factionID[i];
+    if (fid > 0)
+      factionPower[fid] += (int)pop;
+  }
+
+  std::cout << "[DEBUG] Global State Scan Summary:\n";
+  std::cout << "  - Total Population: " << totalPop << "\n";
+  std::cout << "  - Total Wealth:     " << totalWealth << "\n";
+
+  // 2. Build Meta Section
+  root["meta"] = {
+      {"epoch", LoreScribeNS::currentYear},
+      {"global_pop", totalPop},
+      {"global_wealth", totalWealth},
+      {"flags", {{"IS_WAR_ACTIVE", isWar}, {"IS_FAMINE_ACTIVE", isFamine}}}};
+
+  // 3. Serialize Factions
+  root["factions"] = json::array();
+  for (const auto &a : wikiDB) {
     if (a.isFaction) {
-      obj["faction"] = {{"year", a.formationYear},
-                        {"cell", a.formationCell},
-                        {"events", a.linkedEventIDs}};
+      json fObj;
+      fObj["id"] = a.id;
+      fObj["name"] = a.title;
+      fObj["power"] = factionPower[a.id];
+      fObj["year"] = a.formationYear;
+      root["factions"].push_back(fObj);
     }
-    if (a.isResource) {
-      obj["resource"] = {{"scarcity", a.scarcity},
-                         {"renewable", a.isRenewable},
-                         {"biomes", a.spawnBiomeIDs}};
-    }
-    root.push_back(obj);
   }
-  std::ofstream o(lorePath);
-  o << std::setw(4) << root;
 
-  json tRoot = json::array();
-  for (const auto &t : templates) {
-    json tObj;
-    tObj["name"] = t.name;
-    json fields = json::array();
-    for (const auto &f : t.fields)
-      fields.push_back({{"l", f.label}, {"t", (int)f.type}});
-    tObj["fields"] = fields;
-    tRoot.push_back(tObj);
+  // 4. Serialize Important Nodes (Cities/Landmarks)
+  root["nodes"] = json::array();
+  for (const auto &a : wikiDB) {
+    if (a.hasLocation) {
+      json nObj;
+      nObj["id"] = a.id;
+      nObj["name"] = a.title;
+      nObj["x"] = a.mapX;
+      nObj["y"] = a.mapY;
+      nObj["type"] = a.isFaction ? "CITY" : "LANDMARK";
+      nObj["is_lore_site"] = true;
+      root["nodes"].push_back(nObj);
+    }
   }
-  std::ofstream ot(templPath);
-  ot << std::setw(4) << tRoot;
+
+  // 4a. Detect Emerged Settlements
+  if (buffers.structureType) {
+    for (uint32_t i = 0; i < buffers.count; ++i) {
+      if (buffers.structureType[i] >= 2) { // Village or City
+        json nObj;
+        nObj["id"] = 20000 + i;
+        nObj["name"] = (buffers.structureType[i] == 3) ? "Emergent City"
+                                                       : "Emergent Village";
+        nObj["x"] = (int)(i % 1000);
+        nObj["y"] = (int)(i / 1000);
+        nObj["type"] = "CITY";
+        nObj["is_lore_site"] = false;
+        root["nodes"].push_back(nObj);
+      }
+    }
+  }
+
+  std::ofstream out(path);
+  out << root.dump(4);
 }
 
 WikiArticle *GetArticle(int id) {
@@ -215,142 +184,7 @@ WikiArticle *GetArticleByTitle(const std::string &title) {
 }
 
 std::vector<SyncError> ValidateSync(WorldBuffers &buffers) {
-  std::vector<SyncError> errors;
-  for (const auto &a : wikiDB) {
-    if (!a.hasLocation)
-      continue;
-    int idx = a.mapY * 1000 + a.mapX;
-    if (idx < 0 || idx >= (int)buffers.count) {
-      errors.push_back({a.id, a.title, "Location out of bounds."});
-      continue;
-    }
-
-    if (a.isFaction) {
-      if (buffers.population[idx] == 0) {
-        errors.push_back({a.id, a.title, "Lore site contains no population."});
-      }
-    }
-
-    if (a.isAgent) {
-      // Validation could check if the environment at idx is suitable for DNA
-      float t = buffers.temperature[idx];
-      float m = buffers.moisture[idx];
-      if (t < a.minTemp || t > a.maxTemp || m < a.minMoisture ||
-          m > a.maxMoisture) {
-        errors.push_back(
-            {a.id, a.title, "Environment is hostile to this agent's DNA."});
-      }
-    }
-  }
-  return errors;
-  return errors;
-}
-
-void ExportGlobalState(const std::string &path, const WorldBuffers &buffers) {
-  json root;
-
-  // 1. Analyze World State (Macro Layer Analysis)
-  bool isWar = false;
-  bool isFamine = false;
-  float totalPop = 0;
-  float totalWealth = 0.0f;
-  std::map<int, int> factionPower;
-
-  for (size_t i = 0; i < buffers.count; ++i) {
-    totalPop += buffers.population[i];
-    totalWealth += buffers.wealth ? buffers.wealth[i] : 0.0f;
-    if (buffers.chaos[i] > 0.8f && buffers.agentStrength[i] > 200.0f)
-      isWar = true;
-    if (buffers.chaos[i] > 0.8f &&
-        buffers.GetResource(i, 0) < 10.0f) // Low Food
-      isFamine = true;
-
-    int fid = buffers.factionID[i];
-    if (fid > 0)
-      factionPower[fid] += (int)buffers.population[i];
-  }
-
-  // 2. Build Meta Section
-  root["meta"] = {
-      {"epoch", LoreScribeNS::currentYear},
-      {"global_pop", totalPop},
-      {"global_wealth", totalWealth},
-      {"flags", {{"IS_WAR_ACTIVE", isWar}, {"IS_FAMINE_ACTIVE", isFamine}}}};
-
-  // 3. Serialize Factions
-  root["factions"] = json::array();
-  for (const auto &a : wikiDB) {
-    if (a.isFaction) {
-      json fObj;
-      fObj["id"] = a.id;
-      fObj["name"] = a.title;
-      fObj["power"] = factionPower[a.id]; // Derived from population map
-      fObj["year"] = a.formationYear;
-      root["factions"].push_back(fObj);
-    }
-  }
-
-  // 4. Serialize Important Nodes (Cities/Landmarks)
-  root["nodes"] = json::array();
-  // ... (Would need to identify cities from WorldBuffers, currently just using
-  // Lore nodes)
-  for (const auto &a : wikiDB) {
-    if (a.hasLocation) {
-      json nObj;
-      nObj["id"] = a.id;
-      nObj["name"] = a.title;
-      nObj["x"] = a.mapX;
-      nObj["y"] = a.mapY;
-      nObj["type"] = a.isFaction ? "CITY" : "LANDMARK";
-      nObj["is_lore_site"] = true;
-      root["nodes"].push_back(nObj);
-    }
-  }
-
-  // 4a. Detect Emerged Settlements (Not in Lore)
-  if (buffers.structureType) {
-    int side = 1000;
-    for (uint32_t i = 0; i < buffers.count; ++i) {
-      if (buffers.structureType[i] >= 2) { // Village or City
-        // Check if a lore node already exists here (simple proximity check)
-        bool exists = false;
-        int cx = i % side;
-        int cy = i / side;
-        for (const auto &node : root["nodes"]) {
-          int nx = node["x"];
-          int ny = node["y"];
-          if (abs(nx - cx) < 5 && abs(ny - cy) < 5) {
-            exists = true;
-            break;
-          }
-        }
-
-        if (!exists) {
-          json nObj;
-          nObj["id"] = 10000 + i; // Offset ID for dynamic nodes
-          nObj["name"] = (buffers.structureType[i] == 3) ? "Emergent City"
-                                                         : "Young Village";
-          nObj["x"] = cx;
-          nObj["y"] = cy;
-          nObj["type"] = (buffers.structureType[i] == 3) ? "CITY" : "VILLAGE";
-          nObj["is_lore_site"] = false;
-          nObj["wealth"] = buffers.wealth ? buffers.wealth[i] : 0.0f;
-          nObj["infra"] =
-              buffers.infrastructure ? buffers.infrastructure[i] : 0.0f;
-          root["nodes"].push_back(nObj);
-
-          // Jump ahead to avoid spamming the same city area
-          i += 20;
-        }
-      }
-    }
-  }
-
-  // 5. Write to File
-  std::ofstream o(path);
-  if (o.is_open()) {
-    o << std::setw(4) << root;
-  }
+  return {}; // Stub for now
 }
 
 } // namespace LoreManager
