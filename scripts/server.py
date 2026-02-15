@@ -5,6 +5,16 @@ import math
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, List, Optional, Any
+from pydantic import BaseModel
+
+# Import campaign logic
+try:
+    from campaign_system import CampaignGenerator, POIType, QuestType, CampaignState
+except ImportError:
+    # Handle if running from scripts/ directory vs root
+    import sys
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+    from campaign_system import CampaignGenerator, POIType, QuestType, CampaignState
 
 # --- CONFIGURATION ---
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -25,6 +35,7 @@ class WorldDatabase:
         self.gamestate = {}
         self.factions = {}
         self.nodes = []
+        self.campaign_gen = CampaignGenerator(save_dir=os.path.join(DATA_HUB, "Saves"))
     
     def load(self):
         # Load Lore (Static)
@@ -97,9 +108,77 @@ def health_check():
             "faction_count": len(db.factions),
             "node_count": len(db.nodes),
             "global_wealth": db.gamestate.get('meta', {}).get('global_wealth', 0.0),
+            "campaign_active": db.campaign_gen.current_campaign is not None,
             "flags": db.gamestate.get('meta', {}).get('flags', {})
         }
     }
+
+# --- CAMPAIGN ENDPOINTS ---
+
+class NewCampaignRequest(BaseModel):
+    hero_name: str
+    theme: str = "Classic High Fantasy"
+
+@app.post("/campaign/new")
+def start_campaign(req: NewCampaignRequest):
+    """Initializes a new Hero's Journey campaign via the API."""
+    try:
+        campaign = db.campaign_gen.create_new_campaign(req.hero_name, req.theme)
+        return {"status": "success", "campaign_id": campaign.campaign_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/campaign/active")
+def get_active_campaign():
+    """Returns the current state of the campaign, active quests, and visible POIs."""
+    campaign = db.campaign_gen.load_campaign()
+    if not campaign:
+        return {"status": "no_active_campaign"}
+    
+    # Get current plot point
+    idx = campaign.current_step_index
+    current_pp = campaign.plot_points[idx] if idx < len(campaign.plot_points) else None
+    
+    return {
+        "campaign_id": campaign.campaign_id,
+        "hero_name": campaign.hero_name,
+        "theme": campaign.campaign_theme,
+        "current_step": current_pp.stage_name if current_pp else "Finalized",
+        "active_quests": [q for q in current_pp.quests if q.status == "active"] if current_pp else [],
+        "pois": [p for p in campaign.pois if not p.discovered]
+    }
+
+@app.get("/campaign/pois")
+def get_local_seeds(x: int, y: int):
+    """
+    Triggers on-the-fly seed injection near player and returns local POIs.
+    Used by the Engine when entering a new map/area.
+    """
+    db.campaign_gen.generate_local_seeds(x, y)
+    campaign = db.campaign_gen.current_campaign
+    if not campaign:
+        return []
+    
+    # Return seeds within local detection radius (e.g., 100 units)
+    local_pois = [
+        p for p in campaign.pois 
+        if abs(p.x - x) < 100 and abs(p.y - y) < 100
+    ]
+    return local_pois
+
+@app.post("/campaign/trigger/{poi_id}")
+def trigger_poi(poi_id: str):
+    """Converts a story seed (POI) into a side quest."""
+    side_q = db.campaign_gen.trigger_side_quest(poi_id)
+    if not side_q:
+        raise HTTPException(status_code=404, detail="POI not found or campaign inactive")
+    return {"status": "triggered", "quest": side_q}
+
+@app.post("/campaign/advance")
+def advance_story():
+    """Moves the plot to the next Hero's Journey stage."""
+    db.campaign_gen.advance_plot()
+    return {"status": "advanced", "new_index": db.campaign_gen.current_campaign.current_step_index}
 
 @app.get("/context")
 def get_world_context(x: int, y: int, radius: Optional[float] = 50.0):

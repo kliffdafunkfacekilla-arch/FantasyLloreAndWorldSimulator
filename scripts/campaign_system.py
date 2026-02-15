@@ -31,6 +31,8 @@ class PlotPoint(BaseModel):
     id: str
     stage_name: str # e.g., "The Call to Adventure"
     description: str
+    x: int = 500
+    y: int = 500
     is_major: bool = True
     quests: List[QuestStep] = []
     completed: bool = False
@@ -55,6 +57,7 @@ class POI(BaseModel):
 class CampaignState(BaseModel):
     campaign_id: str
     hero_name: str
+    campaign_theme: str = "Classic High Fantasy" # e.g., "Assassination Conspiracy"
     current_step_index: int = 0
     plot_points: List[PlotPoint]
     world_seeds: List[Dict] = [] # Filler events
@@ -72,11 +75,9 @@ class SagaBrainClient:
         """Queries the brain for local economic and structural context."""
         try:
             url = f"{self.base_url}/context?x={x}&y={y}"
-            print(f"[DEBUG] Brain Query: {url}")
             with urllib.request.urlopen(url, timeout=2) as response:
                 return json.loads(response.read().decode())
-        except Exception as e:
-            print(f"[DEBUG] Brain Query Failed: {e}")
+        except Exception:
             return None
 
     def get_global_meta(self) -> Dict:
@@ -156,23 +157,78 @@ class CampaignGenerator:
                 id=f"step_{i}",
                 stage_name=stage,
                 description=desc,
+                x=rand_x,
+                y=rand_y,
                 quests=[main_quest]
             )
             plot_points.append(pp)
 
-        # 4. Generate Initial POIs (Story Seeds) between campaign scenes
-        pois = self._generate_world_pois(count=5)
-            
+        # 4. Generate Path-Based POIs (Story Seeds)
         self.current_campaign = CampaignState(
             campaign_id=campaign_id,
             hero_name=hero_name,
+            campaign_theme=theme,
             plot_points=plot_points,
-            pois=pois,
             global_meta=global_meta
         )
         
+        # Inject seeds between Step 0 and Step 1 to start
+        if len(plot_points) > 1:
+            start = plot_points[0]
+            end = plot_points[1]
+            path_pois = self._generate_path_pois(start.x, start.y, end.x, end.y, theme)
+            self.current_campaign.pois.extend(path_pois)
+
         self.save_campaign()
         return self.current_campaign
+
+    def _generate_path_pois(self, sx: int, sy: int, ex: int, ey: int, theme: str, count: int = 3) -> List[POI]:
+        """Generates POIs along the vector between two points, flavored by theme."""
+        pois = []
+        for i in range(1, count + 1):
+            # Interpolate
+            t = i / (count + 1)
+            px = int(sx + t * (ex - sx) + random.randint(-50, 50))
+            py = int(sy + t * (ey - sy) + random.randint(-50, 50))
+            
+            ctx = self.brain.get_context(px, py)
+            p_type = random.choice(list(POIType))
+            desc = self._flavor_by_theme(p_type, theme, ctx)
+            
+            pois.append(POI(
+                id=f"poi_path_{px}_{py}",
+                type=p_type,
+                description=desc,
+                x=px,
+                y=py
+            ))
+        return pois
+
+    def _flavor_by_theme(self, p_type: POIType, theme: str, context: Optional[Dict]) -> str:
+        """Applies thematic synergy to POI descriptions."""
+        base = f"A {p_type.value} found in the area."
+        
+        landmark = 'the wildlands'
+        if context and context.get('nearest_landmark'):
+            landmark = context['nearest_landmark'].get('name', 'the wildlands')
+        
+        if "Conspiracy" in theme or "Assassination" in theme:
+            if p_type == POIType.CORPSE:
+                return f"A dead courier from {landmark}, their throat slit by a professional blade. A hidden message is clutched in their hand."
+            if p_type == POIType.PERSON:
+                return f"A nervous scout from {landmark} who keeps checking over their shoulder. They seem to be looking for a collaborator."
+            if p_type == POIType.ITEM:
+                return f"A list of names dropped in the dirt near {landmark}. Some names are crossed out in blood."
+            if p_type == POIType.MONSTER:
+                return f"A trained war-hound bearing the mark of a secret society, prowling near {landmark}."
+        
+        if "War" in theme:
+            if p_type == POIType.CORPSE:
+                return f"A fallen soldier near {landmark}, their armor stripped. They were part of a scouting party."
+            if p_type == POIType.MONSTER:
+                return f"A group of deserting mercenaries making camp near {landmark}."
+
+        return base
 
     def _generate_world_pois(self, count: int = 20) -> List[POI]:
         """Scatters POIs across the world map."""
@@ -245,6 +301,24 @@ class CampaignGenerator:
         print(f"[REACTIVE] Triggered Side Quest: {side_q.title}")
         return side_q
 
+    def generate_local_seeds(self, px: int, py: int):
+        """Injects new seeds relative to player position and next objective."""
+        if not self.current_campaign:
+            return
+            
+        theme = self.current_campaign.campaign_theme
+        idx = self.current_campaign.current_step_index
+        if idx + 1 >= len(self.current_campaign.plot_points):
+            return
+            
+        next_step = self.current_campaign.plot_points[idx + 1]
+        
+        # Generate 2 seeds towards the next objective
+        new_pois = self._generate_path_pois(px, py, next_step.x, next_step.y, theme, count=2)
+        self.current_campaign.pois.extend(new_pois)
+        self.save_campaign()
+        print(f"[SYSTEM] Injected {len(new_pois)} new seeds toward {next_step.stage_name}")
+
     def _determine_quest_type(self, stage_name: str) -> QuestType:
         """Maps Hero's Journey stages to Gameplay Quest Types."""
         if "Enemies" in stage_name or "Ordeal" in stage_name or "Resurrection" in stage_name:
@@ -299,27 +373,31 @@ class CampaignGenerator:
         self.save_campaign()
 
 if __name__ == "__main__":
-    # --- TEST RUN ---
+    # --- DATA-DRIVEN TEST RUN ---
     gen = CampaignGenerator()
-    print("[SAGA] Generating new Campaign with Reactive POIs...")
-    campaign = gen.create_new_campaign("Alaric the Bold")
+    theme = "Assassination Conspiracy to kill the King"
+    print(f"[SAGA] Generating Campaign with Theme: '{theme}'")
+    campaign = gen.create_new_campaign("Alaric the Bold", theme=theme)
     
     print(f"\n==================================================")
     print(f" CAMPAIGN: {campaign.campaign_id}")
-    print(f" HERO:     {campaign.hero_name}")
-    print(f" POI COUNT: {len(campaign.pois)}")
+    print(f" THEME:    {campaign.campaign_theme}")
+    print(f" SEED COUNT: {len(campaign.pois)}")
     print(f"==================================================\n")
     
-    # Simulate Discovery of the first POI
+    # Show the first few Path Seeds
+    for poi in campaign.pois[:3]:
+        print(f"[PATH SEED] {poi.type.value} at [{poi.x}, {poi.y}]")
+        print(f"  HOOK: {poi.description}")
+        
+    # Simulate Discovery and Trigger
     if campaign.pois:
         first_poi = campaign.pois[0]
-        print(f"[PLAYER] Discovered POI: {first_poi.type.value} at [{first_poi.x}, {first_poi.y}]")
-        print(f"  > {first_poi.description}")
+        side_q = gen.trigger_side_quest(first_poi.id)
+        print(f"\n[DYNAMIC QUEST] {side_q.title}")
+        print(f"  DESC: {side_q.description}")
         
-        gen.trigger_side_quest(first_poi.id)
-        
-        # Verify side quest added
-        active_q = gen.get_current_objective()
-        if active_q:
-            print(f"\n[QUEST LOG] Active Objective: {active_q.title}")
-            print(f"  > {active_q.description}")
+    # Simulate On-the-fly Injection (Entering a new map between quests)
+    print(f"\n[PLAYER] Entering new map area toward objective...")
+    gen.generate_local_seeds(campaign.plot_points[0].x + 20, campaign.plot_points[0].y + 20)
+    print(f" NEW SEED COUNT: {len(gen.current_campaign.pois)}")
