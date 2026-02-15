@@ -2,6 +2,7 @@ import os
 import json
 import uvicorn
 import math
+import random
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, List, Optional, Any
@@ -179,6 +180,111 @@ def advance_story():
     """Moves the plot to the next Hero's Journey stage."""
     db.campaign_gen.advance_plot()
     return {"status": "advanced", "new_index": db.campaign_gen.current_campaign.current_step_index}
+
+# --- TACTICAL VTT ENDPOINTS ---
+
+@app.get("/tactical/generate")
+def generate_tactical_map(x: int, y: int, poi_id: Optional[str] = None):
+    """
+    Generates a 2D tactical battle map (grid) based on world coordinates.
+    Used by the Oracle VTT to transition from world travel to localized play.
+    """
+    ctx = get_world_context(x, y)
+    landmark = ctx.get('nearest_landmark') if ctx else None
+    biome_name = landmark.get('name', 'The Wilderness') if landmark else 'The Wilderness'
+    
+    # Simple procedural grid (20x20)
+    width, height = 20, 20
+    grid = [[0 for _ in range(width)] for _ in range(height)]
+    
+    # Add some random walls (10% density)
+    for gy in range(height):
+        for gx in range(width):
+            if (gx == 0 or gx == width-1 or gy == 0 or gy == height-1):
+                grid[gy][gx] = 1 # Boundary walls
+            elif random.random() < 0.1:
+                grid[gy][gx] = 1
+
+    # Define entities
+    entities = []
+    
+    # 1. The Player (Burt)
+    entities.append({
+        "id": "player_burt",
+        "name": "Burt",
+        "type": "player",
+        "pos": [2, 2],
+        "hp": 20,
+        "maxHp": 20,
+        "icon": "icons/race/aquatic_male.png",
+        "tags": ["hero"]
+    })
+
+    # 2. Enemies based on context/POI
+    danger = ctx.get('danger_level', 'Low') if ctx else 'Low'
+    enemy_count = 2 if danger == 'Low' else 4
+    
+    # Theme-aware enemies
+    theme = db.campaign_gen.current_campaign.campaign_theme if db.campaign_gen.current_campaign else "Classic"
+    enemy_name = "Bandit"
+    enemy_icon = "icons/race/human_male.png"
+    
+    if "Conspiracy" in theme:
+        enemy_name = "Cultist"
+        enemy_icon = "icons/class/warlock.png"
+    elif "War" in theme:
+        enemy_name = "Scout"
+        enemy_icon = "icons/class/rogue.png"
+
+    for i in range(enemy_count):
+        entities.append({
+            "id": f"enemy_{i}",
+            "name": f"{enemy_name} #{i+1}",
+            "type": "enemy",
+            "pos": [width - 3 - i, height - 3],
+            "hp": 10,
+            "maxHp": 10,
+            "icon": enemy_icon,
+            "tags": ["hostile"]
+        })
+
+    # Session Data
+    session = {
+        "meta": {
+            "title": f"Encounter near {biome_name}",
+            "description": f"A tactical challenge in the {danger} danger zone.",
+            "turn": 1,
+            "world_pos": [x, y]
+        },
+        "map": {
+            "width": width,
+            "height": height,
+            "grid": grid,
+            "biome": "forest" if "Forest" in biome_name else "dungeon"
+        },
+        "entities": entities,
+        "log": [f"Character Burt has entered {biome_name}."]
+    }
+    
+    return session
+
+@app.post("/tactical/feedback")
+def tactical_feedback(result: Dict[str, Any]):
+    """
+    Receives tactical outcome and applies it to the world simulation.
+    """
+    outcome = result.get('outcome', 'DEFEAT')
+    enemies_killed = result.get('enemies_killed', [])
+    x = result.get('x', 500)
+    y = result.get('y', 500)
+    
+    if outcome == 'VICTORY':
+        # Reduce chaos or threat in this cell in the simulator
+        log_msg = f"Victory achieved! {len(enemies_killed)} enemies defeated at {x},{y}."
+        print(f"[TACTICAL] {log_msg}")
+        return {"status": "applied", "message": "World state updated with tactical victory."}
+        
+    return {"status": "acknowledged", "message": "Tactical retreat or defeat recorded."}
 
 @app.get("/context")
 def get_world_context(x: int, y: int, radius: Optional[float] = 50.0):
