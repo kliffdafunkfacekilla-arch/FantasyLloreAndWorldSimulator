@@ -2,7 +2,7 @@ import React from 'react';
 import { useGameStore } from '../store';
 import { clsx } from 'clsx';
 
-const TILE_SIZE = 48; // Represents 5ft in the tactical space
+const TILE_SIZE = 48;
 
 export const MapGrid: React.FC = () => {
     const { map, entities, selectedEntityId, moveEntity, selectEntity, addLog } = useGameStore();
@@ -26,44 +26,83 @@ export const MapGrid: React.FC = () => {
         selectEntity(id);
     };
 
+    // Asset logic
+    const getFloorAsset = () => {
+        if (map.biome === 'forest') return '/floor/grass_0_old.png';
+        return '/floor/grey_dirt_0.png';
+    };
+
+    const getWallAsset = () => {
+        if (map.biome === 'forest') return '/trees/tree_1_red.png';
+        return '/wall/brick_dark_0.png';
+    };
+
     return (
         <div
-            className="relative bg-[#0a0a0e] border-4 border-[#2d2d3d] shadow-2xl rounded-sm overflow-hidden"
+            className="relative bg-[#050508] border-8 border-[#1a1a24] shadow-[0_0_50px_rgba(0,0,0,0.8)] rounded-sm overflow-hidden"
             style={{
                 width: map.width * TILE_SIZE,
-                height: map.height * TILE_SIZE
+                height: map.height * TILE_SIZE,
+                backgroundImage: `url(${getFloorAsset()})`,
+                backgroundSize: `${TILE_SIZE}px ${TILE_SIZE}px`
             }}
         >
-            {/* 1. RENDER TILES */}
+            {/* 1. RENDER GRID OVERLAY */}
+            <div
+                className="absolute inset-0 pointer-events-none opacity-20"
+                style={{
+                    backgroundImage: `linear-gradient(to right, #444 1px, transparent 1px), linear-gradient(to bottom, #444 1px, transparent 1px)`,
+                    backgroundSize: `${TILE_SIZE}px ${TILE_SIZE}px`
+                }}
+            />
+
+            {/* 2. RENDER WALLS/OBJECTS */}
             {map.grid.map((row, y) => (
                 row.map((cellType, x) => {
+                    if (cellType === 0) return null;
                     return (
                         <div
                             key={`${x}-${y}`}
-                            onClick={() => handleTileClick(x, y)}
-                            className={clsx(
-                                "absolute border-[0.5px] border-white/5",
-                                cellType === 1 ? "bg-gray-800" : "bg-[#181825]"
-                            )}
+                            className="absolute pointer-events-none z-10"
                             style={{
                                 left: x * TILE_SIZE,
                                 top: y * TILE_SIZE,
                                 width: TILE_SIZE,
                                 height: TILE_SIZE,
+                                backgroundImage: `url(${getWallAsset()})`,
+                                backgroundSize: 'cover',
+                                filter: 'drop-shadow(0 4px 4px rgba(0,0,0,0.5))'
                             }}
                         />
                     );
                 })
             ))}
 
-            {/* 2. RENDER ENTITIES */}
+            {/* 3. CLICKABLE LAYER */}
+            {map.grid.map((row, y) => (
+                row.map((_, x) => (
+                    <div
+                        key={`click-${x}-${y}`}
+                        onClick={() => handleTileClick(x, y)}
+                        className="absolute cursor-pointer hover:bg-white/10 transition-colors z-0"
+                        style={{
+                            left: x * TILE_SIZE,
+                            top: y * TILE_SIZE,
+                            width: TILE_SIZE,
+                            height: TILE_SIZE,
+                        }}
+                    />
+                ))
+            ))}
+
+            {/* 4. RENDER ENTITIES */}
             {entities.map((entity) => (
                 <div
                     key={entity.id}
                     onClick={(e) => handleEntityClick(e, entity.id)}
                     className={clsx(
-                        "absolute z-20 transition-all duration-300 ease-out cursor-pointer",
-                        selectedEntityId === entity.id && "ring-2 ring-yellow-400 scale-110 drop-shadow-[0_0_8px_rgba(234,179,8,0.5)]"
+                        "absolute z-20 transition-all duration-300 ease-out cursor-pointer group",
+                        selectedEntityId === entity.id && "z-30 scale-110"
                     )}
                     style={{
                         left: entity.pos[0] * TILE_SIZE,
@@ -72,20 +111,37 @@ export const MapGrid: React.FC = () => {
                         height: TILE_SIZE,
                     }}
                 >
+                    {/* Pulsing selection ring */}
+                    {selectedEntityId === entity.id && (
+                        <div className="absolute inset-0 rounded-full border-4 border-yellow-400 animate-pulse sky-glow shadow-[0_0_20px_#eab308]" />
+                    )}
+
                     <div className="w-full h-full flex items-center justify-center p-1">
-                        <div className={clsx(
-                            "w-full h-full rounded-full border-2 flex items-center justify-center text-[10px] font-bold uppercase",
-                            entity.type === 'player' ? "bg-blue-900/50 border-blue-400 text-blue-100" : "bg-red-900/50 border-red-400 text-red-100"
-                        )}>
-                            {entity.name[0]}
-                        </div>
+                        <img
+                            src={`/${entity.icon}`}
+                            alt={entity.name}
+                            className={clsx(
+                                "w-full h-full object-contain drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)]",
+                                entity.type === 'enemy' && "sepia-[0.3] hue-rotate-[320deg]"
+                            )}
+                            onError={(e) => {
+                                // Fallback if icon fails
+                                (e.target as HTMLImageElement).src = 'icons/race/human_male.png';
+                            }}
+                        />
                     </div>
+
                     {/* Minimal HP Bar */}
-                    <div className="absolute -top-1 left-1 right-1 h-1 bg-gray-900 rounded-full overflow-hidden">
+                    <div className="absolute -bottom-1 left-2 right-2 h-1.5 bg-black/80 border border-white/10 rounded-full overflow-hidden shadow-lg">
                         <div
-                            className={clsx("h-full transition-all duration-300", entity.type === 'player' ? "bg-green-500" : "bg-red-500")}
+                            className={clsx("h-full transition-all duration-500", entity.type === 'player' ? "bg-gradient-to-r from-green-600 to-green-400" : "bg-gradient-to-r from-red-600 to-red-400")}
                             style={{ width: `${(entity.hp / entity.maxHp) * 100}%` }}
                         />
+                    </div>
+
+                    {/* Name Tag (Hover) */}
+                    <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-black/90 text-white text-[10px] px-2 py-0.5 rounded border border-white/20 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                        {entity.name}
                     </div>
                 </div>
             ))}

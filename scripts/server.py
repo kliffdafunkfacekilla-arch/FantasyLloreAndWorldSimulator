@@ -104,13 +104,14 @@ def health_check():
     """Health check and status report."""
     return {
         "status": "online",
+        "service": "SAGA Brain",
         "data": {
             "lore_count": len(db.lore),
             "faction_count": len(db.factions),
             "node_count": len(db.nodes),
             "global_wealth": db.gamestate.get('meta', {}).get('global_wealth', 0.0),
             "campaign_active": db.campaign_gen.current_campaign is not None,
-            "flags": db.gamestate.get('meta', {}).get('flags', {})
+            "epoch": db.gamestate.get('meta', {}).get('epoch', 0)
         }
     }
 
@@ -349,4 +350,4 @@ def refresh_data():
     return {"status": "refreshed"}
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8000)
