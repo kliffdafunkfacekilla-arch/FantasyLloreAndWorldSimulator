@@ -102,6 +102,29 @@ void MapRenderer::UpdateVisuals(WorldBuffers &b, const WorldSettings &s,
         g = (float)((id * 456) % 255) / 255.0f;
         bl = (float)((id * 789) % 255) / 255.0f;
       }
+    } else if (viewMode == 5) { // ECONOMIC (Resources & Settlements)
+      // Base map is dark grayscale
+      float h = b.height[i];
+      r = g = bl = (h < s.seaLevel) ? 0.1f : 0.2f + (h * 0.2f);
+
+      // Draw Resources over base map
+      if (b.resourceType != nullptr && b.resourceAmount != nullptr && b.resourceAmount[i] > 0.0f) {
+          uint8_t res = b.resourceType[i];
+          if (res == 1) { r = 0.2f; g = 0.6f; bl = 0.9f; } // Fish (Blue)
+          else if (res == 2) { r = 0.5f; g = 0.5f; bl = 0.5f; } // Iron (Grey)
+          else if (res == 3) { r = 0.9f; g = 0.8f; bl = 0.1f; } // Precious Metals (Gold)
+          else if (res == 4) { r = 0.4f; g = 0.8f; bl = 0.2f; } // Timber (Green)
+          else if (res == 5) { r = 0.8f; g = 0.4f; bl = 0.2f; } // Crops (Orange)
+      }
+
+      // Draw Settlements brightly on top of resources
+      if (b.population != nullptr && b.population[i] > 0) {
+          if (b.civTier != nullptr && b.civTier[i] > 3) {
+             r = 1.0f; g = 0.0f; bl = 0.0f; // Big Cities: Red
+          } else {
+             r = 1.0f; g = 1.0f; bl = 1.0f; // Small Towns: White
+          }
+      }
     }
 
     colors.push_back(r);
