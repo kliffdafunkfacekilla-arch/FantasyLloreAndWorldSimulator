@@ -17,6 +17,7 @@ static float s_brushSpeed = 0.01f;
 static bool s_isPaused = true;
 static int s_viewMode = 0;
 static bool s_dbEditorNeedsOpening = false;
+static bool s_wikiOpen = false;
 
 static ImGuiWindowFlags GetPanelFlags() {
   return ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
@@ -24,7 +25,7 @@ static ImGuiWindowFlags GetPanelFlags() {
          ImGuiWindowFlags_NoTitleBar;
 }
 
-void GuiController::Initialize() {}
+void GuiController::Initialize() { WikiEditor::Initialize(); }
 
 GuiState GuiController::DrawMainLayout(WorldBuffers &buffers,
                                        WorldSettings &settings,
@@ -115,6 +116,7 @@ GuiState GuiController::DrawMainLayout(WorldBuffers &buffers,
 
   // No longer checking s_showDBEditor here, DrawDatabaseEditor handles it
   DrawDatabaseEditor(&s_showDBEditor);
+  WikiEditor::DrawEditor(&s_wikiOpen);
 
   return state;
 }
@@ -152,6 +154,10 @@ void GuiController::DrawToolbar(const GuiState &dim, WorldSettings &settings,
     if (s_showDBEditor) {
       s_dbEditorNeedsOpening = true;
     }
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("WIKI & LORE")) {
+      s_wikiOpen = !s_wikiOpen;
   }
 
   ImGui::End();
@@ -383,6 +389,14 @@ void GuiController::DrawInspector(const GuiState &dim, WorldBuffers &buffers,
       ImGui::Text("Faction: %d", buffers.factionID[hoveredIndex]);
       if (buffers.civTier)
         ImGui::Text("Tier: %d", buffers.civTier[hoveredIndex]);
+
+      ImGui::Separator();
+      if (ImGui::Button("Open in Wiki")) {
+          // Placeholder action to open a generic Wiki article for this cell's info
+          s_wikiOpen = true;
+          // In a full implementation, we'd find the Wiki Article ID associated with this cell/settlement
+          WikiEditor::OpenArticle(1);
+      }
     } else {
       ImGui::TextDisabled("Wilderness");
     }

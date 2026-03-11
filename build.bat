@@ -70,6 +70,7 @@ call :cc "src\core\NeighborFinder.cpp"         "build\core\NeighborFinder.o"
 call :cc "src\visuals\MapRenderer.cpp"         "build\visuals\MapRenderer.o"
 call :cc "src\frontend\GuiController.cpp"      "build\frontend\GuiController.o"
 call :cc "src\frontend\EditorUI.cpp"           "build\frontend\EditorUI.o"
+call :cc "src\frontend\WikiEditor.cpp"           "build\frontend\WikiEditor.o"
 call :cc "src\biology\AgentSystem.cpp"         "build\biology\AgentSystem.o"
 call :cc "src\environment\ClimateSim.cpp"      "build\environment\ClimateSim.o"
 call :cc "src\environment\HydrologySim.cpp"    "build\environment\HydrologySim.o"
@@ -103,7 +104,7 @@ if !BUILD_ERRORS! neq 0 (
 :: ============================================================
 :: STEP 2: Link Executables
 :: ============================================================
-set OBJ_COMMON=build\platform\WindowsUtils.o build\io\PlatformUtils.o build\io\BinaryExporter.o build\io\AssetManager.o build\io\LoreManager.o build\io\stb_image_impl.o build\lore\LoreScribe.o build\lore\NameGenerator.o build\imgui\imgui.o build\imgui\imgui_draw.o build\imgui\imgui_tables.o build\imgui\imgui_widgets.o build\imgui\imgui_stdlib.o build\imgui\imgui_impl_glfw.o build\imgui\imgui_impl_opengl3.o
+set OBJ_COMMON=build\platform\WindowsUtils.o build\io\PlatformUtils.o build\io\BinaryExporter.o build\io\AssetManager.o build\io\LoreManager.o build\io\stb_image_impl.o build\lore\LoreScribe.o build\lore\NameGenerator.o build\imgui\imgui.o build\imgui\imgui_draw.o build\imgui\imgui_tables.o build\imgui\imgui_widgets.o build\imgui\imgui_stdlib.o build\imgui\imgui_impl_glfw.o build\imgui\imgui_impl_opengl3.o build\frontend\WikiEditor.o
 
 if "%TGT%"=="all" call :link_launcher
 if "%TGT%"=="launch" call :link_launcher

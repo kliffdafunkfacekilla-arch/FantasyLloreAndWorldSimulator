@@ -124,6 +124,23 @@ struct AgentDefinition {
   // Economy - Resource desires: -1=avoid, 0=neutral, +1=seek
   std::map<int, float> diet;   // What they consume
   std::map<int, float> output; // What they produce
+
+  // Flora & Fauna Extensions
+  bool isFlora = false;
+  bool isFauna = false;
+  int resourceYieldID = -1;  // ID of the resource this agent drops when harvested
+  float resourceYieldAmount = 0.0f;
+};
+
+// --- SETTLEMENT DEFINITION ---
+struct SettlementDefinition {
+    int id;
+    std::string name;
+    int population;
+    std::string type; // Capital, City, Town, Village, Outpost
+    int wikiArticleID = -1; // Link to the Lore Article
+    int cellIndex = -1; // Location on the map
+    int factionID = -1; // Owner
 };
 
 // --- MAP TEMPLATES ---
@@ -227,10 +244,13 @@ struct WorldSettings {
   bool enableBiology = true;  // Simulate vegetation/wildlife
   bool enableConflict = true; // Enable war/border pushing
 
-  // --- SIMULATION CONTROLS ---
-  int timeScale = 1;                  // Ticks per frame (Speed)
-  bool enableRealtimeErosion = false; // Does wind/rain erode land live?
-  float erosionRate = 0.01f;          // How fast mountains melt
+  // Simulation Controls
+  int timeScale = 1;
+  bool enableRealtimeErosion = false;
+  float erosionRate = 0.01f;
+
+  // Tracked Settlements
+  std::vector<SettlementDefinition> globalSettlements;
 };
 
 // 2. The Million-Cell Memory (SoA Layout)
@@ -271,6 +291,10 @@ struct WorldBuffers {
   int *buildingID = nullptr;          // Which building type is here
   float *resourceInventory = nullptr; // Flattened [cellIdx * 8 + resID]
   static const int MAX_RESOURCES = 16;
+
+  // --- RESOURCE MAP LAYER ---
+  uint8_t* resourceType = nullptr;
+  float* resourceAmount = nullptr;
 
   // Metadata
   uint32_t count = 0;
@@ -321,6 +345,11 @@ struct WorldBuffers {
     agentStrength = new float[count];
     std::fill_n(agentStrength, count, 0.0f);
 
+    resourceType = new uint8_t[count];
+    std::fill_n(resourceType, count, (uint8_t)0);
+    resourceAmount = new float[count];
+    std::fill_n(resourceAmount, count, 0.0f);
+
     flux = new float[count];            // Allocate Flux
     std::fill_n(flux, count, 0.0f);     // Zero it out
     nextFlux = new float[count];        // Allocate NextFlux
@@ -368,6 +397,8 @@ struct WorldBuffers {
     delete[] resourceInventory;
     delete[] agentID;
     delete[] agentStrength;
+    delete[] resourceType;
+    delete[] resourceAmount;
 
     posX = nullptr; // Safety flag
   }

@@ -4,6 +4,7 @@
 #include "../../include/Simulation.hpp"
 #include "../../include/Terrain.hpp"
 #include "../../include/WorldEngine.hpp"
+#include "../../include/WikiEditor.hpp"
 
 
 // Output structure to drive Main Loop
