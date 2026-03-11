@@ -426,6 +426,8 @@ void TerrainController::RoughenCoastlines(WorldBuffers &b, int side,
     }
     b.height[i] = clamp_val(b.height[i], 0.0f, 1.0f);
   }
+
+
 }
 
 void TerrainController::GenerateClimate(WorldBuffers &b,

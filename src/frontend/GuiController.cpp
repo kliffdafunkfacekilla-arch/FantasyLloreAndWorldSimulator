@@ -143,9 +143,9 @@ void GuiController::DrawToolbar(const GuiState &dim, WorldSettings &settings,
 
   ImGui::SameLine(300);
   // View Modes - Updated to Combo for space
-  const char *viewItems[] = {"Satellite (Biomes)", "Political (Chaos)",
-                             "Economic (Wealth)",  "Heightmap (Gray)",
-                             "Heightmap (Heat)",   "Topographical"};
+  const char *viewItems[] = {"Physical (Terrain)", "Temperature",
+                             "Moisture",           "Biomes",
+                             "Political (States)", "Economic (Resources)"};
   ImGui::Combo("View Mode", &viewMode, viewItems, 6);
 
   ImGui::SameLine(dim.screenWidth - 250);
