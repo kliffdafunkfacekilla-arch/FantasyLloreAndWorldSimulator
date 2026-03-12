@@ -1,5 +1,10 @@
 #include <ctime>
+#ifdef _WIN32
 #include <direct.h>
+#else
+#include <sys/stat.h>
+#include <sys/types.h>
+#endif
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -120,7 +125,11 @@ int main() {
 
   // 2.5 Prepare History Folder
   std::string historyPath = SagaConfig::DATA_HUB + "history";
+  #ifdef _WIN32
   _mkdir(historyPath.c_str());
+#else
+  mkdir(historyPath.c_str(), 0777);
+#endif
 
   std::cout << "[LOG] Loading S.A.G.A. Map (" << SagaConfig::DATA_HUB
             << "world.map)...\n";
