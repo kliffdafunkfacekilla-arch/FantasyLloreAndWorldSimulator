@@ -27,6 +27,11 @@ void Update(WorldBuffers &b, const NeighborGraph &g, const WorldSettings &s) {
     if (myDef.type == AgentType::CIVILIZED && b.structureType) {
       float wealth = (b.GetResource(i, 1) + b.GetResource(i, 2));
       float security = (b.structureType[i] * 10.0f) + (myStr * 0.01f);
+      if (b.buildingID) {
+        if (b.buildingID[i] == 4) security += 20.0f; // BARRACKS
+        else if (b.buildingID[i] == 5) security += 50.0f; // WALLS
+        else if (b.buildingID[i] == 6) security += 100.0f; // FORTRESS
+      }
 
       if (wealth > 100.0f && security < 20.0f) {
         if ((rand() % 1000) / 1000.0f < banditThreshold) {
@@ -64,9 +69,14 @@ void Update(WorldBuffers &b, const NeighborGraph &g, const WorldSettings &s) {
 
       if (isWar) {
         float damage = myStr * battleDamage * myDef.aggression;
+        if (b.civTier) damage *= std::pow(1.5f, (float)b.civTier[i]);
         float defense = 0.0f;
-        if (b.structureType)
+        if (b.structureType) {
           defense = (b.structureType[nIdx] * 5.0f);
+        }
+        if (b.civTier) {
+          defense *= std::pow(1.5f, (float)b.civTier[nIdx]);
+        }
 
         float actualDamage = std::max(0.0f, damage - defense);
         theirStr -= actualDamage;
