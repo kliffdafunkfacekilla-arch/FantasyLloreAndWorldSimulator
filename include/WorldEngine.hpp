@@ -25,6 +25,25 @@ enum BiomeType {
 };
 
 // --- AGENT TYPE ENUM ---
+enum SettlementTier {
+  SETTLEMENT = 1,
+  HAMLET = 2,
+  VILLAGE = 3,
+  TOWN = 4,
+  CITY = 5,
+  METROPOLIS = 6
+};
+
+enum BuildingType {
+  NONE = 0,
+  FARM = 1,
+  LUMBER_CAMP = 2,
+  MINE = 3,
+  BARRACKS = 4,
+  WALLS = 5,
+  FORTRESS = 6
+};
+
 enum class AgentType {
   FLORA,    // Plants: Spreads by seeds, terraforms climate
   FAUNA,    // Animals: Migrates, consumes flora/fauna
