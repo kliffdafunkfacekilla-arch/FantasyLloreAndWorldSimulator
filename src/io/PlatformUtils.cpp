@@ -1,37 +1,31 @@
-// clang-format off
+
+#include "../../include/PlatformUtils.hpp"
+
+#ifdef _WIN32
 #include <windows.h>
 #include <commdlg.h>
 #include <shlobj.h>
-// clang-format on
-#include "../../include/PlatformUtils.hpp"
-#include <string>
 
-namespace PlatformUtils {
-
-std::string OpenFileDialog() {
+std::string PlatformUtils::OpenFileDialog() {
+  char filename[MAX_PATH];
   OPENFILENAMEA ofn;
-  char szFile[260] = {0};
-
+  ZeroMemory(&filename, sizeof(filename));
   ZeroMemory(&ofn, sizeof(ofn));
   ofn.lStructSize = sizeof(ofn);
   ofn.hwndOwner = NULL;
-  ofn.lpstrFile = szFile;
-  ofn.nMaxFile = sizeof(szFile);
-  ofn.lpstrFilter =
-      "Heightmap (PNG, JPG)\0*.png;*.jpg;*.jpeg\0All Files\0*.*\0";
-  ofn.nFilterIndex = 1;
-  ofn.lpstrFileTitle = NULL;
-  ofn.nMaxFileTitle = 0;
-  ofn.lpstrInitialDir = NULL;
+  ofn.lpstrFilter = "Heightmap Images (*.png;*.jpg;*.bmp)\0*.png;*.jpg;*.bmp\0Any File (*.*)\0*.*\0";
+  ofn.lpstrFile = filename;
+  ofn.nMaxFile = MAX_PATH;
+  ofn.lpstrTitle = "Select a Heightmap";
   ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
 
   if (GetOpenFileNameA(&ofn) == TRUE) {
-    return std::string(ofn.lpstrFile);
+    return std::string(filename);
   }
   return "";
 }
 
-std::string OpenFolderDialog() {
+std::string PlatformUtils::OpenFolderDialog() {
   BROWSEINFOA bi = {0};
   bi.lpszTitle = "Select Obsidian Vault Folder";
   bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
@@ -51,11 +45,18 @@ std::string OpenFolderDialog() {
   return "";
 }
 
-std::string GetExecutablePath() {
+std::string PlatformUtils::GetExecutablePath() {
   char buffer[MAX_PATH];
   GetModuleFileNameA(NULL, buffer, MAX_PATH);
-  std::string::size_type pos = std::string(buffer).find_last_of("\\/");
-  return std::string(buffer).substr(0, pos);
+  std::string path(buffer);
+  size_t pos = path.find_last_of("\\/");
+  return (pos != std::string::npos) ? path.substr(0, pos) : "";
 }
 
-} // namespace PlatformUtils
+#else
+
+std::string PlatformUtils::OpenFileDialog() { return ""; }
+std::string PlatformUtils::OpenFolderDialog() { return ""; }
+std::string PlatformUtils::GetExecutablePath() { return "."; }
+
+#endif

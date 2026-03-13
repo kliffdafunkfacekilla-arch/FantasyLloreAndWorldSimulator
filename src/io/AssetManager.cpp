@@ -207,6 +207,22 @@ void Initialize() {
     agentRegistry.push_back(human);
   }
 
+    {
+    AgentDefinition mutant;
+    mutant.id = agentRegistry.size();
+    mutant.name = "Mutant";
+    mutant.type = AgentType::FAUNA;
+    mutant.color[0] = 0.8f;
+    mutant.color[1] = 0.1f;
+    mutant.color[2] = 0.8f;
+    mutant.idealTemp = 0.5f;
+    mutant.resilience = 0.8f;
+    mutant.expansionRate = 0.1f;
+    mutant.aggression = 1.0f; // Very aggressive
+    mutant.diet[0] = 1.0f;
+    agentRegistry.push_back(mutant);
+  }
+
   SyncWithLore();
 
   std::cout << "[ASSETS] Initialized with " << resourceRegistry.size()

@@ -163,23 +163,30 @@ int main() {
                "simulation loop.\n\n";
 
   // 3. Simulation Loop
-  int totalYears = 100; // Historical Simulation Run
+    int totalYears = 100; // Historical Simulation Run
   int ticksPerYear = 12;
 
   std::cout << "[SIM] Starting simulation run (" << totalYears
             << " years)...\n";
 
   clock_t start = clock();
+  ChronosConfig clockConfig;
 
   for (int year = 1; year <= totalYears; ++year) {
     LoreScribeNS::currentYear = year;
     ApplyWorldEdits(buffers, SagaConfig::DATA_HUB + "world_edits.json");
 
     for (int month = 1; month <= ticksPerYear; ++month) {
-      ClimateSim::Update(buffers, settings);
+      settings.convergenceAngle += 0.05f; // shift chaos paths over time
+      if (settings.convergenceAngle > 3.14159f * 2.0f) settings.convergenceAngle -= 3.14159f * 2.0f;
+      clockConfig.dayCount += 30; // approx 30 days per month
+      clockConfig.currentSeason = (clockConfig.dayCount / clockConfig.daysPerSeason) % 4;
+      clockConfig.moonPhase = fmod((float)clockConfig.dayCount / clockConfig.daysPerMoonCycle, 1.0f);
+      ClimateSim::Update(buffers, settings, clockConfig);
+            ChaosField::Update(buffers, graph, settings);
       HydrologySim::Update(buffers, graph, settings);
 
-      AgentSystem::UpdateBiology(buffers, graph, settings);
+      AgentSystem::UpdateBiology(buffers, graph, settings, clockConfig);
       LogisticsSystem::Update(buffers, graph);
       ConflictSystem::Update(buffers, graph, settings);
 
