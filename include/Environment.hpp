@@ -3,7 +3,7 @@
 
 // Climate Engine (src/environment/ClimateSim.cpp)
 namespace ClimateSim {
-void Update(WorldBuffers &b, const WorldSettings &s);
+void Update(WorldBuffers &b, const WorldSettings &s, const ChronosConfig &c);
 }
 
 // Hydrology (src/environment/HydrologySim.cpp)
@@ -15,7 +15,7 @@ void Update(WorldBuffers &b, const NeighborGraph &g, const WorldSettings &s);
 namespace ChaosField {
 void SpawnRift(WorldBuffers &b, int index, float intensity);
 void ClearRifts();
-void Update(WorldBuffers &b, const NeighborGraph &g);
+void Update(WorldBuffers &b, const NeighborGraph &g, const WorldSettings &s);
 } // namespace ChaosField
 
 // Disaster System (src/environment/DisasterSystem.cpp)

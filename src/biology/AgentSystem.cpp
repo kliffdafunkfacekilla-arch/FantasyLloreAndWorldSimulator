@@ -80,7 +80,7 @@ float CalculateDesire(int cellIdx, const AgentDefinition &dna,
 
 // Internal Logic Processor
 void ProcessAgentLogic(WorldBuffers &b, const NeighborGraph &g, int i,
-                       const AgentDefinition &dna) {
+                       const AgentDefinition &dna, const ChronosConfig *c = nullptr) {
   int myID = dna.id;
   float myPop = (float)b.population[i];
 
@@ -122,36 +122,80 @@ void ProcessAgentLogic(WorldBuffers &b, const NeighborGraph &g, int i,
     return;
   }
 
-  // 2. MIGRATION (Animals)
+  // 2. MIGRATION & PREDATION (Animals)
   if (dna.type == AgentType::FAUNA && myPop > 10.0f) {
-    int bestN = -1;
-    float currentScore = CalculateDesire(i, dna, b);
-    float bestScore = currentScore;
-    int offset = g.offsetTable[i];
-    int count = g.countTable[i];
+    // --- WILDLIFE ATTACKS ON CIVILIZATION ---
+    bool attacked = false;
+    float currentAggression = dna.aggression;
+    if (c) {
+      // Full moon (0.45 to 0.55) increases aggression significantly
+      if (c->moonPhase > 0.45f && c->moonPhase < 0.55f) {
+        currentAggression *= 1.5f;
+      }
+    }
+    if (isStarving || currentAggression > 0.5f) { // Hungry or Predator
+      int offset = g.offsetTable[i];
+      int count = g.countTable[i];
+      for (int k = 0; k < count; ++k) {
+        int nIdx = g.neighborData[offset + k];
+        int nCulture = b.cultureID[nIdx];
+        if (nCulture != -1 && nCulture != myID) {
+          const AgentDefinition& nDef = AssetManager::agentRegistry[nCulture];
+          if (nDef.type == AgentType::CIVILIZED) {
+            // Attack civilization
+            float attackStrength = myPop * dna.aggression * 0.1f;
+            float damage = attackStrength;
 
-    for (int k = 0; k < count; ++k) {
-      int nIdx = g.neighborData[offset + k];
-      if (b.height[nIdx] < 0.2f)
-        continue; // Ocean
-      if (b.cultureID[nIdx] != -1 && b.cultureID[nIdx] != myID)
-        continue;
+            // Defenses
+            if (b.defense) damage -= b.defense[nIdx];
+            if (damage < 0) damage = 0;
 
-      float s = CalculateDesire(nIdx, dna, b);
-      if (s > bestScore) {
-        bestScore = s;
-        bestN = nIdx;
+            if (b.population[nIdx] > damage) {
+                b.population[nIdx] -= (uint32_t)damage;
+            } else {
+                b.population[nIdx] = 0;
+                b.cultureID[nIdx] = -1; // Wipe them out
+            }
+
+            // Fauna feeds on them
+            myPop += attackStrength * 0.5f;
+            attacked = true;
+            break; // only attack one neighbor per tick
+          }
+        }
       }
     }
 
-    if (bestN != -1 && bestScore > currentScore * 1.05f) {
-      float migrants = myPop * 0.2f;
-      if (b.cultureID[bestN] == -1) {
-        b.cultureID[bestN] = myID;
-        b.population[bestN] = 0;
+    if (!attacked) {
+      int bestN = -1;
+      float currentScore = CalculateDesire(i, dna, b);
+      float bestScore = currentScore;
+      int offset = g.offsetTable[i];
+      int count = g.countTable[i];
+
+      for (int k = 0; k < count; ++k) {
+        int nIdx = g.neighborData[offset + k];
+        if (b.height[nIdx] < 0.2f)
+          continue; // Ocean
+        if (b.cultureID[nIdx] != -1 && b.cultureID[nIdx] != myID)
+          continue;
+
+        float s = CalculateDesire(nIdx, dna, b);
+        if (s > bestScore) {
+          bestScore = s;
+          bestN = nIdx;
+        }
       }
-      b.population[bestN] += (uint32_t)migrants;
-      myPop -= migrants;
+
+      if (bestN != -1 && bestScore > currentScore * 1.05f) {
+        float migrants = myPop * 0.2f;
+        if (b.cultureID[bestN] == -1) {
+          b.cultureID[bestN] = myID;
+          b.population[bestN] = 0;
+        }
+        b.population[bestN] += (uint32_t)migrants;
+        myPop -= migrants;
+      }
     }
   }
 
@@ -171,13 +215,34 @@ void ProcessAgentLogic(WorldBuffers &b, const NeighborGraph &g, int i,
     }
   }
 
+    // --- FARMING & TAMING (CIVILIZED) ---
+  if (dna.type == AgentType::CIVILIZED && b.civTier && b.civTier[i] >= 1) {
+    int offset = g.offsetTable[i];
+    int count = g.countTable[i];
+    for (int k = 0; k < count; ++k) {
+      int nIdx = g.neighborData[offset + k];
+      int nCulture = b.cultureID[nIdx];
+      if (nCulture != -1 && nCulture != myID) {
+        const AgentDefinition& nDef = AssetManager::agentRegistry[nCulture];
+        if (nDef.type == AgentType::FLORA && nDef.isFarmable) {
+          // Farm the flora, gaining resources (food: ID 0)
+          b.AddResource(i, 0, 5.0f);
+        } else if (nDef.type == AgentType::FAUNA && nDef.isDomesticatable) {
+          // Tame the fauna, gaining resources and strength
+          b.AddResource(i, 0, 2.0f);
+          b.agentStrength[i] += 1.0f;
+        }
+      }
+    }
+  }
+
   // Write back
   b.population[i] = (uint32_t)myPop;
 }
 
 // Separated Biology System (FAUNA / FLORA)
 void UpdateBiology(WorldBuffers &b, const NeighborGraph &g,
-                   const WorldSettings &s) {
+                   const WorldSettings &s, const ChronosConfig &c) {
   if (!b.cultureID || !b.population || !s.enableBiology)
     return;
 
@@ -188,7 +253,7 @@ void UpdateBiology(WorldBuffers &b, const NeighborGraph &g,
 
     const AgentDefinition &dna = AssetManager::agentRegistry[myID];
     if (dna.type == AgentType::FLORA || dna.type == AgentType::FAUNA) {
-      ProcessAgentLogic(b, g, i, dna);
+      ProcessAgentLogic(b, g, i, dna, &c);
     }
   }
 }
@@ -205,7 +270,7 @@ void UpdateCivilization(WorldBuffers &b, const NeighborGraph &g) {
 
     const AgentDefinition &dna = AssetManager::agentRegistry[myID];
     if (dna.type == AgentType::CIVILIZED) {
-      ProcessAgentLogic(b, g, i, dna);
+      ProcessAgentLogic(b, g, i, dna, nullptr);
       // CivilizationSim handles construction and age-related death elsewhere
       // (CivilizationSim::Update)
     }

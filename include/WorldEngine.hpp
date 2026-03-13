@@ -21,7 +21,8 @@ enum BiomeType {
   TEMPERATE_RAIN_FOREST, // Temperate Wet
   SUBTROPICAL_DESERT,
   TROPICAL_SEASONAL_FOREST,
-  TROPICAL_RAIN_FOREST // Hot Wet
+  TROPICAL_RAIN_FOREST, // Hot Wet
+  CHAOS_ZONE
 };
 
 // --- AGENT TYPE ENUM ---
@@ -139,6 +140,8 @@ struct AgentDefinition {
   float expansionRate;   // How fast they spread
   float aggression;      // Combat tendency
   float foodRequirement; // How much food per tick
+  bool isFarmable = false;
+  bool isDomesticatable = false;
 
   // Economy - Resource desires: -1=avoid, 0=neutral, +1=seek
   std::map<int, float> diet;   // What they consume
@@ -267,6 +270,9 @@ struct WorldSettings {
   int timeScale = 1;
   bool enableRealtimeErosion = false;
   float erosionRate = 0.01f;
+
+  float mutantSpawnChance = 0.001f;
+  float convergenceAngle = 0.0f;
 
   // Tracked Settlements
   std::vector<SettlementDefinition> globalSettlements;
@@ -454,6 +460,10 @@ struct ChronosConfig {
   int daysPerMonth = 30;
   float currentDayProgress = 0.0f;
   int globalTimeScale = 1; // 0 = Pause
+  int currentSeason = 0; // 0=Spring, 1=Summer, 2=Autumn, 3=Winter
+  float moonPhase = 0.0f; // 0.0 to 1.0
+  int daysPerSeason = 90;
+  int daysPerMoonCycle = 28;
 };
 
 // 4. Neighbor Graph (Added for Modules)
