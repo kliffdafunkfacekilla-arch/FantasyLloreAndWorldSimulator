@@ -44,7 +44,7 @@ int GetBiome(float temp, float moisture) {
   return BiomeType::TROPICAL_RAIN_FOREST;
 }
 
-void Update(WorldBuffers &b, const WorldSettings &s) {
+void Update(WorldBuffers &b, const WorldSettings &s, const ChronosConfig &c) {
   int side = (int)std::sqrt(b.count);
   if (side == 0)
     return;
@@ -54,6 +54,11 @@ void Update(WorldBuffers &b, const WorldSettings &s) {
   tempNoise.SetFrequency(0.003f);
   FastNoiseLite rainNoise;
   rainNoise.SetFrequency(0.005f);
+
+    // Seasonal temp modifiers: 0=Spring, 1=Summer, 2=Autumn, 3=Winter
+  float seasonMod = 0.0f;
+  if (c.currentSeason == 1) seasonMod = 0.15f; // Summer
+  else if (c.currentSeason == 3) seasonMod = -0.15f; // Winter
 
   for (int i = 0; i < (int)b.count; ++i) {
     int x = i % side;
@@ -76,12 +81,12 @@ void Update(WorldBuffers &b, const WorldSettings &s) {
           1.5f;
     }
 
-    // Modifier: Altitude (Higher is colder)
+        // Modifier: Altitude (Higher is colder)
     float altMod = std::max(0.0f, h - s.seaLevel) * 0.8f;
     // Modifier: Noise
     float nT = tempNoise.GetNoise((float)x, (float)y) * 0.1f;
 
-    b.temperature[i] = clamp_val(baseTemp - altMod + nT, 0.0f, 1.0f);
+    b.temperature[i] = clamp_val(baseTemp - altMod + nT + seasonMod, 0.0f, 1.0f);
 
     // --- 2. WIND (5-ZONE MAPPING) ---
     int windZoneIdx = clamp_val((int)(lat * 5.0f), 0, 4);
@@ -141,6 +146,11 @@ void Update(WorldBuffers &b, const WorldSettings &s) {
       b.biomeID[i] = BiomeType::OCEAN;
     } else {
       b.biomeID[i] = GetBiome(b.temperature[i], b.moisture[i]);
+    }
+
+    // --- 5. CHAOS WARPING ---
+    if (b.chaos && b.chaos[i] > 0.7f) {
+      b.biomeID[i] = BiomeType::CHAOS_ZONE;
     }
   }
 }

@@ -632,15 +632,14 @@ void GuiController::DrawDatabaseEditor(bool *p_open) {
               static float dietVal = 0.5f;
               ImGui::Combo(
                   "Resource", &dietResID,
-                  [](void *data, int idx, const char **out_text) {
+                                    [](void *data, int idx) -> const char * {
                     if (idx < 0 ||
                         idx >= (int)AssetManager::resourceRegistry.size())
-                      return false;
-                    *out_text =
-                        AssetManager::resourceRegistry[idx].name.c_str();
-                    if (*out_text == nullptr || (*out_text)[0] == '\0')
-                      *out_text = "(Unnamed Resource)";
-                    return true;
+                      return "(Unnamed Resource)";
+                    const char* text = AssetManager::resourceRegistry[idx].name.c_str();
+                    if (text == nullptr || text[0] == '\0')
+                      return "(Unnamed Resource)";
+                    return text;
                   },
                   nullptr, (int)AssetManager::resourceRegistry.size());
 
@@ -677,15 +676,14 @@ void GuiController::DrawDatabaseEditor(bool *p_open) {
               static float outVal = 0.1f;
               ImGui::Combo(
                   "Resource##Out", &outResID,
-                  [](void *data, int idx, const char **out_text) {
+                                    [](void *data, int idx) -> const char * {
                     if (idx < 0 ||
                         idx >= (int)AssetManager::resourceRegistry.size())
-                      return false;
-                    *out_text =
-                        AssetManager::resourceRegistry[idx].name.c_str();
-                    if (*out_text == nullptr || (*out_text)[0] == '\0')
-                      *out_text = "(Unnamed Resource)";
-                    return true;
+                      return "(Unnamed Resource)";
+                    const char* text = AssetManager::resourceRegistry[idx].name.c_str();
+                    if (text == nullptr || text[0] == '\0')
+                      return "(Unnamed Resource)";
+                    return text;
                   },
                   nullptr, (int)AssetManager::resourceRegistry.size());
 
