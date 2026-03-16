@@ -1,5 +1,5 @@
 #pragma once
-#include "../../deps/imgui/imgui.h"
+#include "imgui.h"
 #include "../../include/Lore.hpp"
 #include "../../include/Simulation.hpp"
 #include "../../include/Terrain.hpp"

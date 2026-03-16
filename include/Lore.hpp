@@ -1,5 +1,5 @@
 #pragma once
-#include "../deps/imgui/imgui.h"
+#include "imgui.h"
 #include "SagaConfig.hpp"
 #include "WorldEngine.hpp"
 #include <fstream>

@@ -14,6 +14,12 @@ setlocal EnableDelayedExpansion
 :: ============================================================
 
 echo [SETUP] Setting up environment...
+
+:: Ensure submodules are fetched
+if not exist "deps\imgui\imgui.h" (
+    echo [SETUP] Fetching git submodules...
+    git submodule update --init --recursive
+)
 set "PATH=C:\msys64\mingw64\bin;%PATH%"
 
 :: Global Data Hub Setup

@@ -1,5 +1,5 @@
 #pragma once
-#include "../deps/imgui/imgui.h"
+#include "imgui.h"
 
 inline void SetupSAGATheme() {
   ImGuiStyle &style = ImGui::GetStyle();

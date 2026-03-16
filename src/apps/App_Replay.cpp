@@ -1,6 +1,6 @@
 #include "../../deps/imgui/backends/imgui_impl_glfw.h"
 #include "../../deps/imgui/backends/imgui_impl_opengl3.h"
-#include "../../deps/imgui/imgui.h"
+#include "imgui.h"
 #include "../../include/AssetManager.hpp"
 #include "../../include/BinaryExporter.hpp"
 #include "../../include/SagaConfig.hpp"

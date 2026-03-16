@@ -1,5 +1,5 @@
 #include "../../include/WikiEditor.hpp"
-#include "../../deps/imgui/imgui.h"
+#include "imgui.h"
 #include "../../deps/imgui/misc/cpp/imgui_stdlib.h"
 #include <filesystem>
 #include <fstream>

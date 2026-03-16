@@ -1,4 +1,4 @@
-#include "../../deps/imgui/imgui.h"
+#include "imgui.h"
 #include "../../include/AssetManager.hpp"
 #include <string>
 #include <vector>
