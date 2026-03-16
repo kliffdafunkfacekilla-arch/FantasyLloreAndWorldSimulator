@@ -2,7 +2,8 @@
 bin/*.exe
 bin/*.csv
 bin/imgui.ini
-
+bin/data/history/*.map
+dep/*
 # Ignore runtime/saves
 saves/
 imgui.ini
@@ -21,3 +22,17 @@ Thumbs.db
 .vscode/
 *.swp
 *~
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Agent files
+.agent/
+.agents/
+_agent/
+_agents/
