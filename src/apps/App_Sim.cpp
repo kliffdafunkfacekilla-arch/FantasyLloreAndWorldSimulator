@@ -172,6 +172,9 @@ int main() {
   clock_t start = clock();
   ChronosConfig clockConfig;
 
+  // Save base terrain for history playback
+  BinaryExporter::SaveWorld(buffers, SagaConfig::DATA_HUB + "history/terrain.map");
+
   for (int year = 1; year <= totalYears; ++year) {
     LoreScribeNS::currentYear = year;
     ApplyWorldEdits(buffers, SagaConfig::DATA_HUB + "world_edits.json");
@@ -183,8 +186,9 @@ int main() {
       clockConfig.currentSeason = (clockConfig.dayCount / clockConfig.daysPerSeason) % 4;
       clockConfig.moonPhase = fmod((float)clockConfig.dayCount / clockConfig.daysPerMoonCycle, 1.0f);
       ClimateSim::Update(buffers, settings, clockConfig);
-            ChaosField::Update(buffers, graph, settings);
+      ChaosField::Update(buffers, graph, settings);
       HydrologySim::Update(buffers, graph, settings);
+      DisasterSystem::Update(buffers, settings);
 
       AgentSystem::UpdateBiology(buffers, graph, settings, clockConfig);
       LogisticsSystem::Update(buffers, graph);
@@ -199,14 +203,17 @@ int main() {
       CivilizationSim::Update(buffers, graph, settings);
     }
 
-    // Save annual snapshot
-    std::string snapshotName =
-        SagaConfig::DATA_HUB + "history/year_" + std::to_string(year) + ".map";
-    BinaryExporter::SaveWorld(buffers, snapshotName);
+    // Save snapshot every 5 years (Optimized for space)
+    if (year % 5 == 0) {
+      std::string snapshotName =
+          SagaConfig::DATA_HUB + "history/year_" + std::to_string(year) + ".map";
+      BinaryExporter::SaveSnapshot(buffers, snapshotName);
+      std::cout << "[SIM] Snapshot Saved: Year " << year << " (Optimized)" << std::endl;
+    }
 
     if (year % 10 == 0) {
       std::cout << "[SIM] Decade " << year / 10
-                << " complete. (Snapshot Saved: Year " << year << ")\n";
+                << " complete.\n";
     } else if (year % 2 == 0) {
       std::cout << "[SIM] Year " << year << " / " << totalYears << "\r"
                 << std::flush;

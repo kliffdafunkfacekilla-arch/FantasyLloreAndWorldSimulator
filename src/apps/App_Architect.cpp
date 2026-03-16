@@ -34,6 +34,7 @@ template <typename T> T clamp_val(T val, T min, T max) {
 // --- GLOBALS ---
 WorldBuffers buffers;
 WorldSettings settings;
+ChronosConfig clockConfig;
 
 // Visuals
 float zoom = 1.0f;
@@ -158,7 +159,7 @@ void Setup() {
   buffers.Initialize(1000 * 1000);
   LoreManager::Load();
   TerrainController::GenerateHeightmap(buffers, settings);
-  ClimateSim::Update(buffers, settings);
+  ClimateSim::Update(buffers, settings, clockConfig);
   UpdateMapTexture();
 }
 
@@ -557,7 +558,8 @@ int main(int, char **) {
     glfwPollEvents();
     if (mapDirty) {
       // std::cout << "[DEBUG] Updating Map (Dirty)..." << std::endl;
-      ClimateSim::Update(buffers, settings);
+      ClimateSim::Update(buffers, settings, clockConfig);
+      DisasterSystem::Update(buffers, settings);
       UpdateMapTexture();
       // std::cout << "[DEBUG] Map Updated." << std::endl;
     }

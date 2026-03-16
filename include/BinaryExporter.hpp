@@ -5,4 +5,8 @@
 namespace BinaryExporter {
 void SaveWorld(const WorldBuffers &buffers, const std::string &filename);
 bool LoadWorld(WorldBuffers &buffers, const std::string &filename);
+
+// Compact Snapshots (Excludes static terrain/climate)
+void SaveSnapshot(const WorldBuffers &buffers, const std::string &filename);
+bool LoadSnapshot(WorldBuffers &buffers, const std::string &filename);
 } // namespace BinaryExporter

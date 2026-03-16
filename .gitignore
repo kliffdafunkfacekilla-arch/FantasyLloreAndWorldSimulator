@@ -4,6 +4,7 @@ bin/*.csv
 bin/imgui.ini
 bin/data/history/*.map
 dep/*
+
 # Ignore runtime/saves
 saves/
 imgui.ini

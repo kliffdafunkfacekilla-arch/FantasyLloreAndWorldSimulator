@@ -346,7 +346,7 @@ void UpdateTexture() {
 void LoadFrame(int year) {
   std::string path =
       SagaConfig::DATA_HUB + "history/year_" + std::to_string(year) + ".map";
-  if (BinaryExporter::LoadWorld(buffers, path)) {
+  if (BinaryExporter::LoadSnapshot(buffers, path)) {
     UpdateTexture();
   }
 }
@@ -400,10 +400,18 @@ int main(int, char **) {
   buffers.Initialize(1000000);
   AssetManager::Initialize();
 
+  // Load static terrain/climate basis first
+  std::string terrainPath = SagaConfig::DATA_HUB + "history/terrain.map";
+  if (!BinaryExporter::LoadWorld(buffers, terrainPath)) {
+      std::cout << "[WARN] Could not find history/terrain.map, visual layers may be empty.\n";
+  }
+
   while (fs::exists(SagaConfig::DATA_HUB + "history/year_" +
                     std::to_string(maxYear + 1) + ".map"))
     maxYear++;
-  LoadFrame(0);
+  
+  if (maxYear > 0) LoadFrame(5); // Load first sample
+  else LoadFrame(0);
 
   while (!glfwWindowShouldClose(window)) {
     glfwPollEvents();
