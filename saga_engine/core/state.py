@@ -73,6 +73,9 @@ class CampaignState(BaseModel):
     """The Ultimate Source of Truth loaded into memory at runtime"""
     campaign_id: str
     chaos_level: int = 1
+    current_resonance: Optional[str] = None
+    active_edicts: List[str] = []
+    world_tags: Dict[str, List[str]] = {} # e.g. "MAP_HEX_001": ["Obscured", "Vapor"]
     current_time: Dict[str, str] = {"year": "1024", "season": "Deep Winter", "day": "1"}
     
     active_player: PlayerCharacter

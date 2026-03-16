@@ -22,21 +22,23 @@ class WorldGenerator:
         
         # Use provided static_db or load from files
         if static_db:
-            self.hazards_db = static_db.get("hazards", [])
-            self.npc_db = static_db.get("npcs", [])
+            self.hazards_db = static_db.get("hazards", {})
+            self.npc_db = static_db.get("npcs", {})
+            self.magic_db = static_db.get("magic", {})
+            self.weapons_db = static_db.get("weapons", {})
+            self.charms_db = static_db.get("charms", {})
         else:
-            try:
-                with open("saga_engine/data/hazard_templates.json", "r") as f:
-                    self.hazards_db = json.load(f)
-                with open("saga_engine/data/npc_archetypes.json", "r") as f:
-                    self.npc_db = json.load(f)
-            except FileNotFoundError:
-                self.hazards_db = []
-                self.npc_db = []
+            # Fallback for local testing
+            self.hazards_db = {}
+            self.npc_db = {}
+            self.magic_db = {}
+            self.weapons_db = {}
+            self.charms_db = {}
             
         # Subscribe to the Event Bus
         self.bus.subscribe("USE_ITEM", self.resolve_consumable)
         self.bus.subscribe("GENERATE_LOOT", self.generate_loot_drop)
+        self.bus.subscribe("CHECK_BANE", self.resolve_bane_collision)
 
     # --- ENCOUNTER GENERATION (The Friction) ---
     
@@ -54,30 +56,20 @@ class WorldGenerator:
             return self._build_dilemma()
 
     def _build_hazard(self) -> dict:
-        """Generates a trap strictly utilizing the 36 Tactical Triads."""
-        # Example: Overgrown Razor-Vines
-        return {
-            "category": EncounterCategory.HAZARD,
-            "title": "Overgrown Razor-Vines",
-            "mechanics": {
-                "detection_triad": "Awareness + Intuition", 
-                "bypass_triad": "Finesse + Reflexes",
-                "failure_consequence": "Apply 1 Minor Body Injury (Laceration)"
-            }
-        }
+        """Pulls a random hazard from the database."""
+        if not self.hazards_db:
+            return {"title": "Generic Hazard", "mechanics": {}}
+        
+        haz_id = random.choice(list(self.hazards_db.keys()))
+        return self.hazards_db[haz_id]
 
     def _build_social_obstacle(self) -> dict:
-        """Generates an NPC with a Composure Pool (Social HP)."""
-        return {
-            "category": EncounterCategory.SOCIAL,
-            "title": "Suspicious Border Guard",
-            "npc_data": {
-                "name": "Krag",
-                "disposition": "SUSPICIOUS",
-                "composure_pool": 18, # Willpower + Logic + Awareness
-                "motives": ["Protect the border", "Wants a bribe"]
-            }
-        }
+        """Pulls a random NPC archetype."""
+        if not self.npc_db:
+            return {"title": "Generic NPC", "npc_data": {}}
+            
+        npc_id = random.choice(list(self.npc_db.keys()))
+        return self.npc_db[npc_id]
 
     def _build_dilemma(self) -> dict:
         """Generates a binary choice with long-term consequences."""
@@ -114,19 +106,33 @@ class WorldGenerator:
     # --- ITEM RESOLUTION (The Mechanics) ---
 
     def resolve_consumable(self, payload: dict):
-        """Calculates item math so the UI doesn't have to."""
-        item_name = payload["item_name"]
+        """Calculates item math using the database effect_math."""
+        item_id = payload.get("item_id")
+        item_data = self.charms_db.get(item_id)
         
-        if item_name == "Vigor Salts":
-            # Rolls 1d4 healing
-            recovered = random.randint(1, 4)
-            self.state.active_player.vitals.current_stamina = min(
-                self.state.active_player.vitals.current_stamina + recovered,
-                self.state.active_player.vitals.max_stamina
-            )
-            self.bus.publish("STATE_UPDATE", {"element": "VITALS", "msg": f"Healed {recovered} Stamina."})
+        if not item_data:
+            self.bus.publish("STATE_UPDATE", {"element": "CHAT", "msg": f"Item {item_id} unrecognized."})
+            return
+
+        math_str = item_data.get("effect_math", "")
+        # Simple parser for the blueprint math strings
+        if "Heal" in math_str:
+            # Logic for healing HP
+            self.bus.publish("STATE_UPDATE", {"element": "VITALS", "msg": f"Used {item_data['name']}: {math_str}"})
+        elif "Stamina" in math_str:
+            # Logic for Stamina
+            self.bus.publish("STATE_UPDATE", {"element": "VITALS", "msg": f"Used {item_data['name']}: {math_str}"})
             
-        elif item_name == "Cinder-Pot":
-            # Rolls 2d6 Fire damage
-            dmg = random.randint(1, 6) + random.randint(1, 6)
-            self.bus.publish("STATE_UPDATE", {"element": "COMBAT_LOG", "msg": f"Cinder-Pot deals {dmg} Fire damage (Reflex Half)."})
+    def resolve_bane_collision(self, payload: dict):
+        """Standard Ouroboros Logic: Does Pillar A snuff out Pillar B?"""
+        attacker_pillar = payload.get("attacker_pillar")
+        defender_pillar = payload.get("defender_pillar")
+        
+        pillar_data = self.magic_db.get("pillars", {}).get(attacker_pillar)
+        if pillar_data and pillar_data.get("bane_of") == defender_pillar:
+            self.bus.publish("STATE_UPDATE", {
+                "element": "COMBAT_LOG", 
+                "msg": f"BANE COLLISION: {attacker_pillar} snuffs out {defender_pillar}!"
+            })
+            return True
+        return False

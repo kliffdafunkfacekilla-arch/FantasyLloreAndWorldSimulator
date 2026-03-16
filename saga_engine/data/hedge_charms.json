@@ -1,4 +1,10 @@
 {
+  "ITM_CS_001": {
+    "name": "Aether-Salts",
+    "category": "CONSUMABLE",
+    "effect_math": "Regain 1 Focus",
+    "base_value_aetherium": 10
+  },
   "ITM_CS_002": {
     "name": "Clotting Moss",
     "category": "CONSUMABLE",
@@ -10,5 +16,11 @@
     "category": "CONSUMABLE",
     "effect_math": "Regain 1d4 Stamina",
     "base_value_aetherium": 12
+  },
+  "ITM_CS_009": {
+    "name": "Liquid Ordo",
+    "category": "CONSUMABLE",
+    "effect_math": "Apply [Stop] to target (1 round)",
+    "base_value_aetherium": 50
   }
 }

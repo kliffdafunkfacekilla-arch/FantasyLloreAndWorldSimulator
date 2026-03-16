@@ -1,4 +1,14 @@
 {
+  "ITM_WP_001": {
+    "name": "Serrated Scrap-Blade",
+    "category": "WEAPON",
+    "weapon_group": "Blades",
+    "damage_dice": "1d6",
+    "damage_type": "Slashing",
+    "lead_stat_required": "Finesse",
+    "weight": 2.0,
+    "traits": ["Vicious", "Light"]
+  },
   "ITM_WP_014": {
     "name": "Scrap-Metal Greatsword",
     "category": "WEAPON",
@@ -8,5 +18,15 @@
     "lead_stat_required": "Might",
     "weight": 8.0,
     "traits": ["2-Arm", "Brutal", "Bashable"]
+  },
+  "ITM_WP_022": {
+    "name": "Tungsten Maul",
+    "category": "WEAPON",
+    "weapon_group": "Blunt",
+    "damage_dice": "1d8",
+    "damage_type": "Blunt",
+    "lead_stat_required": "Might",
+    "weight": 6.0,
+    "traits": ["Brutal", "Conductive"]
   }
 }

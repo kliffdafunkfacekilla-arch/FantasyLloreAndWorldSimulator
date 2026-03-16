@@ -22,6 +22,7 @@ def load_static_databases() -> dict:
         "charms": "saga_engine/data/hedge_charms.json",
         "hazards": "saga_engine/data/hazard_templates.json",
         "npcs": "saga_engine/data/npc_archetypes.json",
+        "magic": "saga_engine/data/magic_system.json",
         "world": "saga_engine/data/Master_World.json"
     }
     for key, path in paths.items():

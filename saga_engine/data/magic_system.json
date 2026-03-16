@@ -1,0 +1,208 @@
+{
+  "pillars": {
+    "NEXUS": {
+      "metal": "Tungsten",
+      "element": "Flame",
+      "bane_of": "ORDO",
+      "vulnerable_to": "OMEN",
+      "tiers": {
+        "1": {"effect": "Ignition: 1 Dmg.", "shape": "Point", "utility": "Matchstick: Ignite touch-points.", "passive": "Tungsten Skin: Immune to singes."},
+        "2": {"effect": "Thermal Sight: See heat.", "shape": "Aura", "utility": "Lantern: Hand-glow.", "passive": "Internal Hearth: Ignore cold."},
+        "3": {"effect": "Sear: Apply [Burn].", "shape": "Ray", "utility": "Boil: Heat cup of tea instantly.", "passive": "Warm Presence: +1 Composure rec."},
+        "4": {"effect": "Weld: Fuse [Metal].", "shape": "Link", "utility": "Heat Room: Warm a stone hall.", "passive": "Fire-Warden: 25% Res to Nexus."},
+        "5": {"effect": "Flare: [Obscured].", "shape": "Flash", "utility": "Cutter: Melt through locks.", "passive": "Efficiency: T1-2 cost 0 Focus."},
+        "6": {"effect": "Blast: [Frail] Dmg.", "shape": "Cylinder", "utility": "Cistern Boil: Boil vats of water.", "passive": "Fuel-Blood: Use Stamina for Focus."},
+        "7": {"effect": "Melt: [Stone] to Lava.", "shape": "Ring", "utility": "Vaporize: Clear fog/water.", "passive": "Aegis: 50% Res / Bane vuln halved."},
+        "8": {"effect": "Core: Proximity [Burn].", "shape": "Sphere", "utility": "Forge-Master: Repair by holding.", "passive": "Resonant Battery: +5 Max Focus."},
+        "9": {"effect": "Brand: Carulkem\u2019s Heart.", "shape": "Singularity", "utility": "Noon-Day: Mile-wide daylight.", "passive": "Ascension: Immune to Omen bane."}
+      }
+    },
+    "OMEN": {
+      "metal": "Iridium",
+      "element": "Entropy",
+      "bane_of": "LEX",
+      "vulnerable_to": "NEXUS",
+      "tiers": {
+        "1": {"effect": "Dread: -1 Composure.", "shape": "Wisp", "utility": "Wilt: Make a flower turn brown.", "passive": "Death-Sense: Feel dying nearby."},
+        "2": {"effect": "Rust: Item is [Brittle].", "shape": "Spiral", "utility": "Dust-Cloud: Hide small items.", "passive": "Unfazed: Immune to natural rot."},
+        "3": {"effect": "Halt: Lose next Move.", "shape": "Hourglass", "utility": "Stale: Make food dry/tasteless.", "passive": "Old Soul: +2 to Lore/History."},
+        "4": {"effect": "Rot: Apply [Frail].", "shape": "Mist", "utility": "Memory-Fade: Erase last 10s.", "passive": "Omen-Warden: 25% Res to Omen."},
+        "5": {"effect": "Echo: Repeat Damage.", "shape": "Shadow", "utility": "Antique: Know exact age of obj.", "passive": "Efficiency: T1-2 cost 0 Focus."},
+        "6": {"effect": "Miasma: Gear in Zone rusts.", "shape": "Funnel", "utility": "Grave-Breath: Blow out all fires.", "passive": "Gray-Walking: Stamina ignores Stop."},
+        "7": {"effect": "Freeze: Time-Stop (1 Target).", "shape": "Fractured", "utility": "Pause-Self: Stop your own bleeding.", "passive": "Aegis: 50% Res / Bane vuln halved."},
+        "8": {"effect": "Reap: Major Injury.", "shape": "Scythe", "utility": "Skeleton-Key: Rust a lock open.", "passive": "Fate-Weaver: 1x Chaos Reroll/day."},
+        "9": {"effect": "Brand: Termhill\u2019s Star.", "shape": "Eclipse", "utility": "The End: Zone objects turn to dust.", "passive": "Ascension: Immune to Lex bane."}
+      }
+    },
+    "LEX": {
+      "metal": "Lithium",
+      "element": "Law",
+      "bane_of": "LUX",
+      "vulnerable_to": "OMEN",
+      "tiers": {
+        "1": {"effect": "Command: Single Word.", "shape": "Ring", "utility": "Echo: Voice carries for miles.", "passive": "Linguist: Understand intent."},
+        "2": {"effect": "Seal: Lock door/chest.", "shape": "Glyph", "utility": "The Mark: Invisible tracking seal.", "passive": "Incorruptible: +2 vs Charms."},
+        "3": {"effect": "Deny: Target cannot X.", "shape": "Cross", "utility": "Truth-Bound: Know if promise broken.", "passive": "Authority: Adv. on Social/Guards."},
+        "4": {"effect": "Oath: Geas (Long term).", "shape": "Rings", "utility": "Scribe: Write on stone/air.", "passive": "Lex-Warden: 25% Res to Lex."},
+        "5": {"effect": "Zone: Edict (New Rule).", "shape": "Perimeter", "utility": "Quiet-Law: No loud noise in 10ft.", "passive": "Efficiency: T1-2 cost 0 Focus."},
+        "6": {"effect": "Cloak: Deny Element.", "shape": "Shield", "utility": "Judge\u2019s Gaze: Know if crime done.", "passive": "Steadfast: Immune to T1-3 Compel."},
+        "7": {"effect": "Puppet: Control Move.", "shape": "Strands", "utility": "Sanctify: No Deception in room.", "passive": "Aegis: 50% Res / Bane vuln halved."},
+        "8": {"effect": "Write: Change a Tag.", "shape": "Scroll", "utility": "Command Weather: Clear the rain.", "passive": "King-Born: Immune to Terrifying."},
+        "9": {"effect": "Brand: Tyrustis\u2019 Edict.", "shape": "Throne", "utility": "Final Word: \"Die\" forces HP check.", "passive": "Ascension: Immune to Lux bane."}
+      }
+    },
+    "LUX": {
+      "metal": "Chromium",
+      "element": "Light",
+      "bane_of": "AURA",
+      "vulnerable_to": "LEX",
+      "tiers": {
+        "1": {"effect": "Glint: Distraction.", "shape": "Spark", "utility": "Guiding Bolt: Floating light speck.", "passive": "Eagle-Eye: See in starlight."},
+        "2": {"effect": "Image: False object.", "shape": "Frame", "utility": "Mirror-Shine: Make shields reflect.", "passive": "Chromium Skin: No sun-shadow."},
+        "3": {"effect": "Bend: [Obscured].", "shape": "Prism", "utility": "Rainbow-Bridge: 5ft bridge.", "passive": "Glint: Flash eyes to startle."},
+        "4": {"effect": "Beam: Searing Dmg.", "shape": "Line", "utility": "Focus-Light: Read in a storm.", "passive": "Lux-Warden: 25% Res to Lux."},
+        "5": {"effect": "Solid: Wall/Cover.", "shape": "Plane", "utility": "Light-Key: Physical light key (1m).", "passive": "Efficiency: T1-2 cost 0 Focus."},
+        "6": {"effect": "Blind: Zone Flash.", "shape": "Circle", "utility": "Sun-Dial: Know exact time.", "passive": "Photonic: Stamina to blind melee."},
+        "7": {"effect": "Sear: Laser-Lance.", "shape": "Continuous", "utility": "Purify: Burn away Blight/Poison.", "passive": "Aegis: 50% Res / Bane vuln halved."},
+        "8": {"effect": "Guard: +5 Armor.", "shape": "Shell", "utility": "Dawn-Bringer: Dispel Darkness.", "passive": "Ever-Watchful: Immune to Blind."},
+        "9": {"effect": "Brand: Opecten\u2019s Mirror.", "shape": "Kaleidoscope", "utility": "True-Sight: See through illusions.", "passive": "Ascension: Immune to Aura bane."}
+      }
+    },
+    "AURA": {
+      "metal": "Phosphorus",
+      "element": "Spirit",
+      "bane_of": "VITA",
+      "vulnerable_to": "LUX",
+      "tiers": {
+        "1": {"effect": "Kindle: 1 Composure Rec.", "shape": "Halo", "utility": "Mood-Light: Change room colors.", "passive": "Empath: Know current emotion."},
+        "2": {"effect": "Stir: Rage (Attack near).", "shape": "Spikes", "utility": "Whisper: Tame small animal.", "passive": "Spirit-Sight: See ghost haze."},
+        "3": {"effect": "Calm: No Aggression.", "shape": "Sphere", "utility": "Somber: Make a room quiet.", "passive": "Centered: +1 vs Confusion."},
+        "4": {"effect": "Fear: [Compelled: Flee].", "shape": "Mask", "utility": "Dread-Chill: Make hair stand up.", "passive": "Aura-Warden: 25% Res to Aura."},
+        "5": {"effect": "Echo: Share Focus.", "shape": "Threads", "utility": "Memory-Touch: Share a memory.", "passive": "Efficiency: T1-2 cost 0 Focus."},
+        "6": {"effect": "Shiver: Composure Dmg.", "shape": "Wave", "utility": "Glass-Sing: Hum glassware.", "passive": "Vessel: Use Composure for Aura."},
+        "7": {"effect": "Command: Dictate Move.", "shape": "Cross", "utility": "Sway: Make crowd look away.", "passive": "Aegis: 50% Res / Bane vuln halved."},
+        "8": {"effect": "Shield: Mind-Immune.", "shape": "Shell", "utility": "Benediction: Purify water.", "passive": "Radiant Spirit: Cast warm light."},
+        "9": {"effect": "Brand: Soul-Fire.", "shape": "Phoenix", "utility": "Sanctify: No violence in Zone.", "passive": "Ascension: Immune to Vita bane."}
+      }
+    },
+    "VITA": {
+      "metal": "Silver",
+      "element": "Life",
+      "bane_of": "ANUMIS",
+      "vulnerable_to": "AURA",
+      "tiers": {
+        "1": {"effect": "Pulse: Stop Bleeding.", "shape": "Vein", "utility": "Heart-Sense: Feel pulse of obj.", "passive": "Fast Healer: +1 HP on rest."},
+        "2": {"effect": "Knit: Heal 2 HP.", "shape": "Stitch", "utility": "Bloom: Revive withered plant.", "passive": "Silver-Blood: Immune to disease."},
+        "3": {"effect": "Blight: Apply [Sapped].", "shape": "Spores", "utility": "Sicken: Rot a meal instantly.", "passive": "Vitality: +2 Max Stamina."},
+        "4": {"effect": "Surge: +1 Move.", "shape": "Star", "utility": "Wide-Awake: Only 4h sleep needed.", "passive": "Vita-Warden: 25% Res to Vita."},
+        "5": {"effect": "Warp: Target [Unstable].", "shape": "Mass", "utility": "Graft: Re-attach limb (hold).", "passive": "Efficiency: T1-2 cost 0 Focus."},
+        "6": {"effect": "Bond: Share Dmg/Focus.", "shape": "Vines", "utility": "Species-Speech: Feel animal vibes.", "passive": "Iron Gut: Eat spoiled meat."},
+        "7": {"effect": "Evolve: +3 Armor.", "shape": "Cocoon", "utility": "Morph: Change face (1h).", "passive": "Aegis: 50% Res / Bane vuln halved."},
+        "8": {"effect": "Scourge: Major Injury.", "shape": "Black Vein", "utility": "Deforest: Kill plants in 20ft.", "passive": "Relentless: Immune to pain-stagger."},
+        "9": {"effect": "Brand: Gavusrix\u2019s Garden.", "shape": "Root", "utility": "Life-Giver: Resurrect (last round).", "passive": "Ascension: Immune to Anumis bane."}
+      }
+    },
+    "ANUMIS": {
+      "metal": "Bismuth",
+      "element": "Arcane",
+      "bane_of": "FLUX",
+      "vulnerable_to": "VITA",
+      "tiers": {
+        "1": {"effect": "Sense: Detect Magic.", "shape": "Eye", "utility": "Ghost-Tap: Touch from 10ft.", "passive": "Sensitive: Know if room glitched."},
+        "2": {"effect": "Echo: Move 5lb obj.", "shape": "Limb", "utility": "Throw Voice: Project speech.", "passive": "Flicker: Mirror reflect slow."},
+        "3": {"effect": "Leak: Drain 1 Focus.", "shape": "Spiral", "utility": "Cold Spot: Make room eerie.", "passive": "Mind-Wall: +1 vs Neural tags."},
+        "4": {"effect": "Phase: Immune to Blunt.", "shape": "Blur", "utility": "Data-Read: Know object history.", "passive": "Anumis-Warden: 25% Res to Anumis."},
+        "5": {"effect": "Mimic: Copy small item.", "shape": "Fractal", "utility": "Key-Print: Temp copy of key.", "passive": "Efficiency: T1-2 cost 0 Focus."},
+        "6": {"effect": "Breach: Banish target.", "shape": "Portal", "utility": "Void-Step: Walk through door.", "passive": "Soul-Battery: Use Composure for spell."},
+        "7": {"effect": "Strike: Ignores Armor.", "shape": "Sword", "utility": "Silence: 5ft sphere of no sound.", "passive": "Aegis: 50% Res / Bane vuln halved."},
+        "8": {"effect": "Warp: Swap spots.", "shape": "X-Cross", "utility": "Unmake: Turn art into pigment.", "passive": "Aetheric: Immune to Sapped."},
+        "9": {"effect": "Brand: Lophex\u2019s Void.", "shape": "Zero", "utility": "Delete: Erase non-living obj.", "passive": "Ascension: Immune to Flux bane."}
+      }
+    },
+    "FLUX": {
+      "metal": "Gold",
+      "element": "Acid",
+      "bane_of": "RATIO",
+      "vulnerable_to": "ANUMIS",
+      "tiers": {
+        "1": {"effect": "Clean: Remove Tag.", "shape": "Droplet", "utility": "Spotless: Remove rust/blood.", "passive": "Slick: +2 vs Grapple."},
+        "2": {"effect": "Slick: Floor [Unstable].", "shape": "Puddle", "utility": "Silent Hinge: Lube locks/doors.", "passive": "Chemical Gut: Immune to poison."},
+        "3": {"effect": "Leak: Item [Fragile].", "shape": "Spiral", "utility": "Digest: Eat through rope.", "passive": "Fluid Motion: Ignore mud/water."},
+        "4": {"effect": "Mist: Obscured/Burn.", "shape": "Cloud", "utility": "Scent-Wash: Remove your scent.", "passive": "Flux-Warden: 25% Res to Flux."},
+        "5": {"effect": "Warp: Stone to Cloth.", "shape": "Sphere", "utility": "Melt-Key: Soften a lock.", "passive": "Efficiency: T1-2 cost 0 Focus."},
+        "6": {"effect": "Dissolve: Destroy Metal.", "shape": "Ray", "utility": "Purify: Clean a cistern.", "passive": "Permeable: Stamina to walk through cloth."},
+        "7": {"effect": "Flow: Walk through walls.", "shape": "Outline", "utility": "Sludge: Turn floor to pool.", "passive": "Aegis: 50% Res / Bane vuln halved."},
+        "8": {"effect": "Flux: Vapor to Metal.", "shape": "Burst", "utility": "Armor-Slag: Melt enemy plate.", "passive": "Liquid Form: Immune to Trapped."},
+        "9": {"effect": "Brand: Aurgenas\u2019 Maw.", "shape": "Wave", "utility": "World-Wash: Erase structure.", "passive": "Ascension: Immune to Ratio bane."}
+      }
+    },
+    "RATIO": {
+      "metal": "Silicon",
+      "element": "Lightning",
+      "bane_of": "MASS",
+      "vulnerable_to": "FLUX",
+      "tiers": {
+        "1": {"effect": "Pulse: 1 Focus Dmg.", "shape": "Point", "utility": "Spark: Power light/tinderbox.", "passive": "Logical: +1 Knowledge."},
+        "2": {"effect": "Trace: Reveal Tag.", "shape": "Line", "utility": "Perfect Measure: Exact dimensions.", "passive": "Insulated: Immune to static."},
+        "3": {"effect": "Arc: Hit 2 Targets.", "shape": "Zig-Zag", "utility": "Recharge: Power dead machine.", "passive": "Quick-Think: +2 Initiative."},
+        "4": {"effect": "Flow: Apply [Sapped].", "shape": "Circle", "utility": "Calculator: Solve complex math.", "passive": "Ratio-Warden: 25% Res to Ratio."},
+        "5": {"effect": "Spike: Command Dmg.", "shape": "Diamond", "utility": "Code-Break: Know lock intent.", "passive": "Efficiency: T1-2 cost 0 Focus."},
+        "6": {"effect": "Surge: Lose Action Beat.", "shape": "Cone", "utility": "Grid-Sense: Map room by touch.", "passive": "Pulse-Blood: Focus heals Stamina."},
+        "7": {"effect": "Bolt: Linear Dmg.", "shape": "Ray", "utility": "Flash-Bang: Blind 5ft area (1s).", "passive": "Aegis: 50% Res / Bane vuln halved."},
+        "8": {"effect": "Matrix: No Tactic choice.", "shape": "Grid", "utility": "System-Command: Shut down tech.", "passive": "Transcendent: Immune to Confusion."},
+        "9": {"effect": "Brand: Algorithm.", "shape": "Hexagon", "utility": "Perfect Order: Fix any machine.", "passive": "Ascension: Immune to Mass bane."}
+      }
+    },
+    "MASS": {
+      "metal": "Osmium",
+      "element": "Gravity",
+      "bane_of": "MOTUS",
+      "vulnerable_to": "RATIO",
+      "tiers": {
+        "1": {"effect": "Anchor: Gain [Static].", "shape": "Square", "utility": "Heavy Pocket: Make a small object weigh 50 lbs.", "passive": "Rooted: Cannot be pushed."},
+        "2": {"effect": "Burden: -2 Manual acts.", "shape": "Shadow", "utility": "Paperweight: Keep any document pinned to a surface.", "passive": "Osmium Bone: -1 Blunt Dmg."},
+        "3": {"effect": "Dip: Force [Prone].", "shape": "Plane", "utility": "Leveler: Instinctively know if a surface is perfectly flat.", "passive": "Grip: Adv. on Grapple."},
+        "4": {"effect": "Well: [Pull] 5ft area.", "shape": "Bubble", "utility": "Ascend: Reduce weight to 1lb.", "passive": "Grav-Warden: 25% Res to Mass."},
+        "5": {"effect": "Press: Zone [Pressure].", "shape": "Cylinder", "utility": "Compactor: Crush metal can to cube.", "passive": "Efficiency: T1-2 cost 0 Focus."},
+        "6": {"effect": "Orbit: Debris Shield.", "shape": "Ring", "utility": "Float: Make a cistern hover.", "passive": "Density: Spend Stamina to ignore fall dmg."},
+        "7": {"effect": "Void: 2x Dmg + Pull.", "shape": "Point", "utility": "Sinkhole: Collapse floor section.", "passive": "Aegis: 50% Res / Bane vuln halved."},
+        "8": {"effect": "Core: Target [Trapped].", "shape": "Sphere", "utility": "World-Press: Flatten entire small structure.", "passive": "Relativistic: Immune to Stop."},
+        "9": {"effect": "Brand: The Burden.", "shape": "Singularity", "utility": "Gravity God: Choose way is \"Down\".", "passive": "Ascension: Immune to Motus bane."}
+      }
+    },
+    "MOTUS": {
+      "metal": "Lead",
+      "element": "Speed",
+      "bane_of": "ORDO",
+      "vulnerable_to": "MASS",
+      "tiers": {
+        "1": {"effect": "Twitch: +2 Maneuver.", "shape": "Vibration", "utility": "Flick: Switch coin from 5ft.", "passive": "Quick-Dry: Skin repels mud."},
+        "2": {"effect": "Hum: Target [Muted].", "shape": "Spiral", "utility": "Pitch: Mimic any voice.", "passive": "Lead-Ear: Immune to deafen."},
+        "3": {"effect": "Pulse: [Push] small obj.", "shape": "Pulse", "utility": "Ripple: Clear dust/debris.", "passive": "Fast-Step: Ignore Unstable."},
+        "4": {"effect": "Surge: Grant Momentum.", "shape": "Vector", "utility": "Vibrate: Jiggle lock open.", "passive": "Motus-Warden: 25% Res to Motus."},
+        "5": {"effect": "Blur: Gain [Obscured].", "shape": "Flicker", "utility": "Cheat: Move hands in blur.", "passive": "Efficiency: T1-2 cost 0 Focus."},
+        "6": {"effect": "Boom: Blunt + Stagger.", "shape": "Sphere", "utility": "Glass-Break: Break all windows.", "passive": "Nervous: Stamina for Move act."},
+        "7": {"effect": "Vector: Bounce Attack.", "shape": "Zig-Zag", "utility": "Water-Run: Run across pond.", "passive": "Aegis: 50% Res / Bane vuln halved."},
+        "8": {"effect": "Phase: Walk through wood.", "shape": "Outline", "utility": "Heat-Gen: Vibrate obj to heat.", "passive": "Reflex: +1 Action Die (Even)."},
+        "9": {"effect": "Brand: The Silence.", "shape": "Flash", "utility": "Two Places: Appear as twins.", "passive": "Ascension: Immune to Ordo bane."}
+      }
+    },
+    "ORDO": {
+      "metal": "Titanium",
+      "element": "Stasis",
+      "bane_of": "NEXUS",
+      "vulnerable_to": "MOTUS",
+      "tiers": {
+        "1": {"effect": "Chill: Remove Pain.", "shape": "Mist", "utility": "Frost-Touch: Cool a drink.", "passive": "Cold-Blood: Need less water."},
+        "2": {"effect": "Rime: Floor [Unstable].", "shape": "Puddle", "utility": "Preserve: Keep organic fresh.", "passive": "Titanium Will: +1 vs Spirit."},
+        "3": {"effect": "Frost: Apply [Sapped].", "shape": "Cone", "utility": "Mist-Maker: Cover small obj.", "passive": "Braced: Cannot be Staggered."},
+        "4": {"effect": "Bind: [Stop] object.", "shape": "Cube", "utility": "Cool Vent: Chill a room.", "passive": "Ordo-Warden: 25% Res to Ordo."},
+        "5": {"effect": "Shell: +2 Armor Mod.", "shape": "Shell", "utility": "Solidify: Turn water to block.", "passive": "Stillness: Hold breath 10m."},
+        "6": {"effect": "Drain: Delete Momentum.", "shape": "Zone", "utility": "Deep Freeze: Freeze cistern.", "passive": "Efficiency: T1-2 cost 0 Focus."},
+        "7": {"effect": "Shatter: Apply [Fragile].", "shape": "Spike", "utility": "Crypt-Cold: Put out fires.", "passive": "Aegis: 50% Res / Bane vuln halved."},
+        "8": {"effect": "Stasis: Time-Pause.", "shape": "Point", "utility": "Perfect Stasis: Preserve corpse.", "passive": "Diamond Mind: Immune to Confuse."},
+        "9": {"effect": "Brand: The Glazier.", "shape": "Grid", "utility": "Whiteout: Mile-wide wasteland.", "passive": "Ascension: Immune to Nexus bane."}
+      }
+    }
+  }
+}
