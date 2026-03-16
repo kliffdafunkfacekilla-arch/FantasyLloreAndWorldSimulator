@@ -199,17 +199,27 @@ int main() {
       CivilizationSim::Update(buffers, graph, settings);
     }
 
-    // Save annual snapshot
-    std::string snapshotName =
-        SagaConfig::DATA_HUB + "history/year_" + std::to_string(year) + ".map";
-    BinaryExporter::SaveWorld(buffers, snapshotName);
+    if (SagaConfig::ENABLE_HISTORY_SNAPSHOTS) {
+      // Save annual snapshot
+      std::string snapshotName =
+          SagaConfig::DATA_HUB + "history/year_" + std::to_string(year) + ".map";
+      BinaryExporter::SaveWorld(buffers, snapshotName);
 
-    if (year % 10 == 0) {
-      std::cout << "[SIM] Decade " << year / 10
-                << " complete. (Snapshot Saved: Year " << year << ")\n";
-    } else if (year % 2 == 0) {
-      std::cout << "[SIM] Year " << year << " / " << totalYears << "\r"
-                << std::flush;
+      if (year % 10 == 0) {
+        std::cout << "[SIM] Decade " << year / 10
+                  << " complete. (Snapshot Saved: Year " << year << ")\n";
+      } else if (year % 2 == 0) {
+        std::cout << "[SIM] Year " << year << " / " << totalYears << "\r"
+                  << std::flush;
+      }
+    } else {
+      if (year % 10 == 0) {
+        std::cout << "[SIM] Decade " << year / 10
+                  << " complete. (Year " << year << ")\n";
+      } else if (year % 2 == 0) {
+        std::cout << "[SIM] Year " << year << " / " << totalYears << "\r"
+                  << std::flush;
+      }
     }
   }
 
@@ -218,7 +228,9 @@ int main() {
 
   std::cout << "\n[SUCCESS] S.A.G.A. Simulation Finished in " << elapsed
             << "s.\n";
-  std::cout << "[LOG] History compiled to SAGA_Global_Data/history/\n";
+  if (SagaConfig::ENABLE_HISTORY_SNAPSHOTS) {
+    std::cout << "[LOG] History compiled to SAGA_Global_Data/history/\n";
+  }
 
   // --- EXPORT STORY HOOKS ---
   ExportStoryHooks(buffers, SagaConfig::DATA_HUB + "hooks.json");

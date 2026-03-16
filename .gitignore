@@ -21,3 +21,9 @@ Thumbs.db
 .vscode/
 *.swp
 *~
+
+# Build outputs
+bin/SAGA_Engine
+build/
+*.o
+*.exe

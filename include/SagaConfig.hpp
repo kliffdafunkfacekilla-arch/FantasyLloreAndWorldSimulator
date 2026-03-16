@@ -40,4 +40,7 @@ inline const std::string MANUAL_MD = DATA_HUB + "manual.md";
 inline const std::string WORLD_MAP = DATA_HUB + "world.map";
 inline const std::string HISTORY_DIR = DATA_HUB + "history/";
 inline const std::string SESSIONS_DIR = DATA_HUB + "sessions/";
+
+// Toggles
+inline bool ENABLE_HISTORY_SNAPSHOTS = false;
 } // namespace SagaConfig
