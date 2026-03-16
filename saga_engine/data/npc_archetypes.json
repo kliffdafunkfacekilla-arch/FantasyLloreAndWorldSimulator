@@ -1,0 +1,18 @@
+{
+  "NPC_BORDER_GUARD": {
+    "name": "Krag",
+    "disposition": "SUSPICIOUS",
+    "vitals": {
+      "composure": 18, 
+      "max_composure": 18
+    },
+    "motives": [
+      "Protect the border", 
+      "Bored and wants a bribe"
+    ],
+    "resolution_paths": [
+      {"method": "Coercion (Intimidate)", "skill": "Vitality + Charm", "target_dc": 16},
+      {"method": "Bribe", "resource_required": "10 Aetherium"}
+    ]
+  }
+}

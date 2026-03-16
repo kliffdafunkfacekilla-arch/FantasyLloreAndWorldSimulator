@@ -1,0 +1,14 @@
+{
+  "ITM_CS_002": {
+    "name": "Clotting Moss",
+    "category": "CONSUMABLE",
+    "effect_math": "Stop Bleeding, Heal 1 HP",
+    "base_value_aetherium": 5
+  },
+  "ITM_CS_005": {
+    "name": "Vigor Salts",
+    "category": "CONSUMABLE",
+    "effect_math": "Regain 1d4 Stamina",
+    "base_value_aetherium": 12
+  }
+}

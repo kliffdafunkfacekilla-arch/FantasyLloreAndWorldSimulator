@@ -1,0 +1,22 @@
+{
+  "HAZ_RAZOR_VINES": {
+    "title": "Overgrown Razor-Vines",
+    "narrative_prompt": "The path is choked with thick, pulsing green vines covered in translucent thorns.",
+    "mechanics": {
+      "detection": {
+        "skill": "Awareness + Intuition", 
+        "dc": 12, 
+        "success_effect": "Vines spotted before triggering."
+      },
+      "bypass": {
+        "skill": "Finesse + Reflexes", 
+        "dc": 15, 
+        "cost_to_attempt": "1 Stamina"
+      },
+      "failure_consequence": {
+        "damage": "2d4 Piercing",
+        "injury": "1 Minor Body Injury (Laceration)"
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "ITM_WP_014": {
+    "name": "Scrap-Metal Greatsword",
+    "category": "WEAPON",
+    "weapon_group": "Great-Weapons",
+    "damage_dice": "1d10",
+    "damage_type": "Slashing",
+    "lead_stat_required": "Might",
+    "weight": 8.0,
+    "traits": ["2-Arm", "Brutal", "Bashable"]
+  }
+}
